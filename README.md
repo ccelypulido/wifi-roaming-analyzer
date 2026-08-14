@@ -47,6 +47,40 @@ Para parar el servidor:
 ./stop.sh
 ```
 
+## 🎯 Seleccionar Interfaz Wi-Fi
+
+Si tienes múltiples adaptadores Wi-Fi o la interfaz detectada automáticamente no es la correcta, puedes especificarlo:
+
+### Listar interfaces disponibles
+```bash
+./run.sh --list
+# O directamente:
+python3 server.py --list
+```
+
+Ejemplo de salida:
+```
+Interfaces Wi-Fi disponibles:
+  - wlp2s0
+  - wlan0
+```
+
+### Usar una interfaz específica
+```bash
+# Con el script run.sh
+./run.sh -i wlan0
+
+# O directamente con Python
+python3 server.py --interface wlan0
+```
+
+### Cambiar de puerto (opcional)
+```bash
+./run.sh --port 9000
+```
+
+**Nota**: El dashboard también permite cambiar la interfaz en tiempo real desde la API (`/api/set-interface`)
+
 ## 📁 Estructura del Proyecto
 
 ```
@@ -118,18 +152,93 @@ Si el puerto 8050 está ocupado, edita `server.py` y cambia:
 PORT = 8050  # Cambiar este número
 ```
 
-### Cambiar la interfaz Wi-Fi
-Si usas otro adaptador (ej: `wlan0`), edita `server.py`:
-```python
-self.interface = "wlp2s0"  # Cambia esto por tu interfaz
+O usa la opción de línea de comandos:
+```bash
+./run.sh --port 9000
 ```
+
+### Cambiar la interfaz Wi-Fi
+Tienes tres formas:
+
+**Opción 1: Línea de comandos (recomendado)**
+```bash
+./run.sh -i wlan0
+```
+
+**Opción 2: Detectar automáticamente**
+El programa intenta detectar automáticamente la interfaz, pero si tienes múltiples adaptadores, especifícala.
+
+**Opción 3: Editar directamente**
+Si prefieres editar `server.py` directamente:
+```python
+state = WiFiState(interface="wlan0")  # Cambia esto
+```
+
+**Opción 4: API REST en tiempo real**
+Puedes cambiar la interfaz mientras el servidor está corriendo:
+```bash
+curl -X POST http://localhost:8050/api/set-interface \
+  -H "Content-Type: application/json" \
+  -d '{"interface": "wlan0"}'
+```
+
+## � API REST Endpoints
+
+El servidor expone estos endpoints que puedes usar:
+
+### GET `/api/status`
+Obtiene el estado actual de la conexión Wi-Fi
+```json
+{
+  "bssid": "AA:BB:CC:DD:EE:FF",
+  "ssid": "MiRed",
+  "signal_dbm": -65,
+  "signal_pct": 70,
+  "interface": "wlan0",
+  "band": "5.0 GHz",
+  "channel": 36,
+  ...
+}
+```
+
+### GET `/api/interfaces`
+Lista todas las interfaces Wi-Fi disponibles
+```json
+{
+  "available": ["wlp2s0", "wlan0"],
+  "current": "wlp2s0",
+  "count": 2
+}
+```
+
+### POST `/api/set-interface`
+Cambia la interfaz Wi-Fi activa
+```bash
+curl -X POST http://localhost:8050/api/set-interface \
+  -H "Content-Type: application/json" \
+  -d '{"interface": "wlan0"}'
+```
+
+### GET `/api/scan`
+Obtiene lista de APs disponibles (red vecinos)
+
+### GET `/api/roaming-history`
+Obtiene historial de cambios de AP (roaming events)
+
+### POST `/api/clear-roaming-log`
+Limpia el historial de eventos de roaming
+
+### POST `/api/trigger-test-ping`
+Ejecuta 5 pings de prueba y mide latencia
 
 ## 📝 Notas Técnicas
 
 - **Sistema Operativo**: Optimizado para Linux (requiere herramientas de Wi-Fi de Linux)
 - **Lenguaje**: Python 3 para backend, HTML/CSS/JavaScript vanilla para frontend
-- **Puerto**: 8050 (configurable)
+- **Puerto**: 8050 (configurable con `--port`)
+- **Interfaz**: Auto-detectada o especificable con `-i` o `--interface`
 - **Refresco**: Datos actualizados cada 1 segundo
+- **Argumentos soportados**: Ver `python3 server.py --help` o `./run.sh --help`
 
 ## 🐛 Solución de Problemas
 

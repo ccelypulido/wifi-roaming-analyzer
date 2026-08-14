@@ -7,6 +7,8 @@ import re
 import subprocess
 import threading
 import time
+import sys
+import argparse
 from urllib.parse import parse_qs, urlparse
 
 PORT = 8050
@@ -15,7 +17,7 @@ STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
 # State management
 class WiFiState:
-    def __init__(self):
+    def __init__(self, interface=None):
         self.lock = threading.Lock()
         self.current_bssid = None
         self.current_ssid = None
@@ -26,7 +28,8 @@ class WiFiState:
         self.frequency_mhz = 0
         self.channel = 0
         self.band = "Desconocida"
-        self.interface = "wlp2s0"
+        # Use provided interface or auto-detect
+        self.interface = interface or self.detect_wifi_interface() or "wlp2s0"
         self.ip_address = "Desconocida"
         self.gateway_ip = "8.8.8.8"
         self.ping_latency_ms = None
@@ -38,6 +41,25 @@ class WiFiState:
         self.roaming_events = []
         self.last_update_time = time.time()
         self.is_monitoring = True
+    
+    def detect_wifi_interface(self):
+        """Detecta la primera interfaz Wi-Fi disponible"""
+        try:
+            out = subprocess.check_output(['iw', 'dev'], text=True, stderr=subprocess.DEVNULL)
+            m = re.search(r'Interface\s+(\w+)', out)
+            if m:
+                return m.group(1)
+        except:
+            pass
+        return None
+    
+    def set_interface(self, interface_name):
+        """Cambia la interfaz Wi-Fi activa"""
+        with self.lock:
+            self.interface = interface_name
+            self.current_bssid = None
+            self.current_ssid = None
+            self.signal_dbm = -100
 
 state = WiFiState()
 
@@ -63,6 +85,30 @@ def lookup_vendor(bssid):
     clean_bssid = bssid.replace("\\:", ":").upper()
     prefix = clean_bssid[:8]
     return OUI_VENDORS.get(prefix, "AP Genérico / Router Wi-Fi")
+
+def get_available_wifi_interfaces():
+    """Obtiene lista de todas las interfaces Wi-Fi disponibles"""
+    interfaces = []
+    try:
+        out = subprocess.check_output(['iw', 'dev'], text=True, stderr=subprocess.DEVNULL)
+        # Busca todas las líneas que comienzan con "Interface"
+        for match in re.finditer(r'Interface\s+(\w+)', out):
+            interfaces.append(match.group(1))
+    except:
+        pass
+    
+    # Si no encuentra interfaz, intenta con iwconfig como fallback
+    if not interfaces:
+        try:
+            out = subprocess.check_output(['iwconfig'], text=True, stderr=subprocess.DEVNULL)
+            for line in out.split('\n'):
+                if line and not line.startswith(' '):
+                    iface = line.split()[0]
+                    interfaces.append(iface)
+        except:
+            pass
+    
+    return interfaces
 
 def calculate_rating(dbm, ping_ms):
     if dbm >= -50:
@@ -94,16 +140,6 @@ def calculate_rating(dbm, ping_ms):
             score = max(10, score - 10)
 
     return rating, score, color
-
-def get_wireless_interface():
-    try:
-        out = subprocess.check_output(['iw', 'dev'], text=True, stderr=subprocess.DEVNULL)
-        m = re.search(r'Interface\s+(\w+)', out)
-        if m:
-            return m.group(1)
-    except:
-        pass
-    return 'wlp2s0'
 
 def get_local_ip_and_gateway(iface):
     ip_addr = "N/A"
@@ -137,7 +173,9 @@ def measure_ping(target):
     return None
 
 def update_wifi_telemetry():
-    iface = get_wireless_interface()
+    with state.lock:
+        iface = state.interface
+    
     ip_addr, gw_ip = get_local_ip_and_gateway(iface)
     ping_ms = measure_ping(gw_ip)
 
@@ -291,6 +329,14 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == '/api/status':
             self.send_json_response(self.get_status_data())
+        elif parsed.path == '/api/interfaces':
+            available = get_available_wifi_interfaces()
+            current = state.interface
+            self.send_json_response({
+                "available": available,
+                "current": current,
+                "count": len(available)
+            })
         elif parsed.path == '/api/roaming-history':
             with state.lock:
                 events = list(state.roaming_events)
@@ -311,6 +357,41 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             with state.lock:
                 state.roaming_events.clear()
             self.send_json_response({"status": "success", "message": "Historial de roaming limpiado"})
+        elif parsed.path == '/api/set-interface':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                new_interface = data.get('interface', '').strip()
+                
+                if not new_interface:
+                    self.send_json_response({
+                        "status": "error",
+                        "message": "Interfaz no especificada"
+                    })
+                    return
+                
+                # Validar que la interfaz existe
+                available = get_available_wifi_interfaces()
+                if new_interface not in available:
+                    self.send_json_response({
+                        "status": "error",
+                        "message": f"Interfaz '{new_interface}' no disponible. Disponibles: {', '.join(available)}"
+                    })
+                    return
+                
+                # Cambiar la interfaz
+                state.set_interface(new_interface)
+                self.send_json_response({
+                    "status": "success",
+                    "message": f"Interfaz cambiada a '{new_interface}'",
+                    "interface": new_interface
+                })
+            except json.JSONDecodeError:
+                self.send_json_response({
+                    "status": "error",
+                    "message": "JSON inválido"
+                })
         elif parsed.path == '/api/trigger-test-ping':
             # Run 5 pings and measure handoff stability
             gw = state.gateway_ip
@@ -384,14 +465,53 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             }
 
 def main():
+    # Parsear argumentos de línea de comandos
+    parser = argparse.ArgumentParser(
+        description='Wi-Fi & AP Roaming Telemetry Analyzer',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Ejemplos de uso:
+  python3 server.py                    # Detecta interfaz automáticamente
+  python3 server.py -i wlp2s0         # Usa la interfaz wlp2s0
+  python3 server.py --interface wlan0 # Usa la interfaz wlan0
+  python3 server.py --list             # Lista todas las interfaces disponibles
+  python3 server.py --port 9000        # Usa puerto 9000
+        '''
+    )
+    parser.add_argument('-i', '--interface', type=str, 
+                        help='Interfaz Wi-Fi a usar (ej: wlp2s0, wlan0)')
+    parser.add_argument('--list', action='store_true',
+                        help='Lista todas las interfaces Wi-Fi disponibles y sale')
+    parser.add_argument('--port', type=int, default=PORT,
+                        help=f'Puerto para el servidor (defecto: {PORT})')
+    
+    args = parser.parse_args()
+    
+    # Si --list, mostrar interfaces y salir
+    if args.list:
+        interfaces = get_available_wifi_interfaces()
+        print("Interfaces Wi-Fi disponibles:")
+        if interfaces:
+            for iface in interfaces:
+                print(f"  - {iface}")
+        else:
+            print("  No se encontraron interfaces Wi-Fi")
+        sys.exit(0)
+    
+    # Inicializar estado con la interfaz especificada
+    global state
+    state = WiFiState(interface=args.interface)
+    port = args.port
+    
     # Start background telemetry thread
     thread = threading.Thread(target=background_loop, daemon=True)
     thread.start()
 
-    server = socketserver.TCPServer(("", PORT), WiFiRequestHandler)
+    server = socketserver.TCPServer(("", port), WiFiRequestHandler)
     print(f"=====================================================")
     print(f" 🚀 WiFi & Roaming Analyzer iniciado en:")
-    print(f" 👉 http://localhost:{PORT}")
+    print(f" 👉 http://localhost:{port}")
+    print(f" 📡 Interfaz: {state.interface}")
     print(f"=====================================================")
     
     try:
