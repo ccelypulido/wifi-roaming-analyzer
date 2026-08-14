@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wi-Fi & AP Roaming Telemetry Analyzer</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    
+    <!-- Top Header -->
+    <header class="header">
+      <div class="brand-title">
+        <div class="brand-icon">
+          <i class="fa-solid fa-wifi"></i>
+        </div>
+        <div class="brand-text">
+          <h1>Wi-Fi & AP Roaming Telemetry</h1>
+          <p>Analizador de Intensidad de Señal y Roaming de Puntos de Acceso</p>
+        </div>
+      </div>
+      
+      <div class="status-badges">
+        <div class="badge badge-live">
+          <div class="badge-dot"></div>
+          <span>EN VIVO</span>
+        </div>
+        <div class="badge">
+          <i class="fa-solid fa-network-wired"></i>
+          <span id="header-ssid">Familia_CelyRod</span>
+        </div>
+        <div class="badge">
+          <i class="fa-solid fa-microchip"></i>
+          <span id="header-bssid">--:--:--:--:--:--</span>
+        </div>
+        <div class="badge">
+          <i class="fa-solid fa-bolt"></i>
+          <span id="header-ping">-- ms</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Metrics Grid -->
+    <div class="dashboard-grid">
+      
+      <!-- Card 1: Signal Rating & Score Gauge -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-gauge-high"></i>
+            <span>Calificación de Señal</span>
+          </div>
+          <span id="signal-dbm-pill" class="badge" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan);">-- dBm</span>
+        </div>
+
+        <div class="gauge-wrapper">
+          <svg class="gauge-svg" viewBox="0 0 160 160">
+            <circle class="gauge-bg" cx="80" cy="80" r="70"></circle>
+            <circle id="gauge-fill" class="gauge-fill" cx="80" cy="80" r="70"></circle>
+          </svg>
+          <div class="gauge-center-text">
+            <div id="gauge-score" class="gauge-score">0</div>
+            <div class="gauge-unit">SCORE / 100</div>
+          </div>
+        </div>
+
+        <div class="rating-badge-container">
+          <span id="rating-pill" class="rating-pill" style="background: var(--accent-emerald);">Calculando...</span>
+        </div>
+
+        <p id="rating-recommendation" class="rating-recommendation">
+          Monitoreando la estabilidad de la conexión Wi-Fi...
+        </p>
+      </div>
+
+      <!-- Card 2: Connected AP Identifier -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-tower-cell"></i>
+            <span>AP Conectado</span>
+          </div>
+          <span id="band-badge" class="badge">-- GHz</span>
+        </div>
+
+        <div class="info-list">
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-wifi"></i> SSID Red:</span>
+            <span id="info-ssid" class="info-value highlight">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-barcode"></i> BSSID (MAC AP):</span>
+            <span id="info-bssid" class="info-value">--:--:--:--:--:--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-industry"></i> Fabricante AP:</span>
+            <span id="info-vendor" class="info-value">Desconocido</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-radio"></i> Canal / Freq:</span>
+            <span id="info-chan-freq" class="info-value">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-arrows-up-down"></i> Velocidad (TX/RX):</span>
+            <span id="info-bitrate" class="info-value">--</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-laptop-code"></i> IP Local / Gateway:</span>
+            <span id="info-ip-gw" class="info-value">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 3: Roaming Diagnostics & Mesh Auditor -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-route"></i>
+            <span>Diagnóstico de Roaming</span>
+          </div>
+          <span id="roaming-count-badge" class="badge">0 Handoffs</span>
+        </div>
+
+        <div class="roaming-status-box">
+          <div class="roaming-status-title">
+            <i class="fa-solid fa-circle-nodes"></i> ESTADO DE COBERTURA & MESH
+          </div>
+          <div id="roaming-verdict" class="roaming-status-desc">
+            Evaluando cambio de APs en la red...
+          </div>
+        </div>
+
+        <div class="info-list" style="margin-bottom: 1rem;">
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-clone"></i> APs con el mismo SSID:</span>
+            <span id="info-same-ssid-count" class="info-value highlight">0 APs</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-satellite-dish"></i> Total APs Cercanos:</span>
+            <span id="info-total-aps-count" class="info-value">0 APs</span>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btn-test-roaming" class="btn-primary" style="flex: 1;">
+            <i class="fa-solid fa-vial-circle-check"></i> Probar Estabilidad Ping
+          </button>
+          <button id="btn-export-report" class="btn-secondary">
+            <i class="fa-solid fa-download"></i> Exportar
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Live Telemetry Graph -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <div class="card-title">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Telemetría en Tiempo Real (Intensidad dBm & Latencia Ping ms)</span>
+        </div>
+        <span class="badge" style="color: var(--text-muted);">Actualizado cada 1.5s</span>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="telemetryChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Tabs Container for Roaming Log & AP Scanner -->
+    <div class="card">
+      <div class="tabs-header">
+        <button class="tab-btn active" data-tab="tab-roaming-log">
+          <i class="fa-solid fa-history"></i> Historial de Roaming (Handoffs)
+        </button>
+        <button class="tab-btn" data-tab="tab-ap-scanner">
+          <i class="fa-solid fa-list-check"></i> Escáner de APs Candidatos (Mesh)
+        </button>
+      </div>
+
+      <!-- Tab 1: Roaming Log -->
+      <div id="tab-roaming-log" class="tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Monitoreo continuo de transiciones entre Puntos de Acceso. Camina por tu casa o la oficina para probar la conmutación entre APs.
+          </p>
+          <button id="btn-clear-log" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+            <i class="fa-solid fa-trash-can"></i> Limpiar Registro
+          </button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Hora</th>
+                <th>SSID</th>
+                <th>AP Anterior (BSSID)</th>
+                <th>Nuevo AP (BSSID)</th>
+                <th>Variación Señal</th>
+                <th>Ping Latencia</th>
+                <th>Dictamen Roaming</th>
+              </tr>
+            </thead>
+            <tbody id="roaming-table-body">
+              <tr>
+                <td colspan="7">
+                  <div class="empty-state">
+                    <i class="fa-solid fa-route"></i>
+                    <p>No se han registrado eventos de cambio de AP (Roaming) aún.</p>
+                    <small>Cuando la tarjeta Wi-Fi conmute a otro BSSID con el mismo SSID, aparecerá aquí.</small>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 2: AP Candidate Scanner -->
+      <div id="tab-ap-scanner" class="tab-content">
+        <div style="margin-bottom: 1rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Puntos de acceso Wi-Fi detectados en el área. Los marcados con <span style="color: var(--accent-cyan); font-weight: bold;">[Mismo SSID]</span> son los candidatos a los cuales tu tarjeta de red puede realizar Roaming.
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>SSID</th>
+                <th>BSSID (MAC)</th>
+                <th>Fabricante</th>
+                <th>Señal %</th>
+                <th>Frecuencia</th>
+                <th>Canal</th>
+                <th>Candidato Roaming</th>
+              </tr>
+            </thead>
+            <tbody id="ap-scanner-table-body">
+              <tr>
+                <td colspan="8">
+                  <div class="empty-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <p>Cargando lista de Puntos de Acceso cercanos...</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
