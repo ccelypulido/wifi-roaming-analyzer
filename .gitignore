@@ -1,0 +1,87 @@
+# Entornos Virtuales de Python
+venv/
+env/
+ENV/
+.env
+.venv/
+virtualenv/
+pyvenv/
+
+# Dependencias de Python
+*.pyc
+__pycache__/
+*.egg-info/
+dist/
+build/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDEs y Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.sublime-project
+.sublime-workspace
+
+# Archivos del Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+*.bak
+*.tmp
+
+# Logs y Archivos Temporales
+*.log
+*.pot
+logs/
+tmp/
+temp/
+*.pid
+
+# Node.js (en caso de frontend moderno)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# Archivos de Configuración Local
+config.local.json
+settings.local.py
+.env.local
+.env.*.local
+
+# Archivos de Base de Datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Directorios de Compilación
+*.o
+*.so
+*.dll
+*.dylib
+
+# Directorio de Datos/Cache
+cache/
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Archivos de Configuración del Sistema
+.Spotlight-V100/
+.Trashes/
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+
+# Editor Backup Files
+*.orig
+*#
+.*.swp
