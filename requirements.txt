@@ -6,4 +6,4 @@
 # Para instalar (si en el futuro se agregan dependencias):
 # pip install -r requirements.txt
 
-# Actualmente sin dependencias externas necesarias
+# Actualmente sin dependencias externas necesarias.
