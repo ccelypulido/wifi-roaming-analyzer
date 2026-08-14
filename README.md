@@ -21,9 +21,38 @@ Necesitas tener instalado:
 - Herramientas de Wi-Fi: `iw`, `iwconfig` (en Linux)
 - Una conexión Wi-Fi activa
 
-En Ubuntu/Debian:
+#### ⚙️ Instalación Automática de Dependencias
+
+El proyecto incluye un script automático para instalar todas las dependencias del sistema:
+
 ```bash
-sudo apt-get install iw wireless-tools
+# Instalación automática (recomendado)
+sudo chmod +x install-dependencies.sh
+sudo ./install-dependencies.sh
+```
+
+El script detecta automáticamente tu distribución Linux (Ubuntu, Debian, Fedora, Arch, etc.) e instala:
+- ✅ Herramientas obligatorias (`iw`, `iproute2`, `ping`)
+- ✅ Herramientas opcionales recomendadas (`network-manager`, `wireless-tools`)
+
+#### 📋 Instalación Manual
+
+Si prefieres instalar manualmente, consulta [requirements-system.txt](requirements-system.txt):
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install -y iw iproute2 iputils-ping network-manager wireless-tools
+```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install -y iw iproute iputils NetworkManager wireless-tools
+```
+
+**Arch/Manjaro:**
+```bash
+sudo pacman -S iw iproute2 iputils networkmanager wireless_tools
 ```
 
 ### 2️⃣ Ejecutar el Proyecto
@@ -85,15 +114,28 @@ python3 server.py --interface wlan0
 
 ```
 wifi-roaming-analyzer/
-├── README.md              # Este archivo (documentación)
-├── run.sh                 # Script para iniciar fácilmente
-├── stop.sh                # Script para detener el servidor
-├── server.py              # Cerebro del proyecto (backend en Python)
-└── static/                # Dashboard web (frontend)
-    ├── index.html         # Página principal
-    ├── app.js             # Lógica interactiva
-    └── styles.css         # Estilos y diseño
+├── README.md                    # Este archivo (documentación)
+├── .gitignore                   # Excluye carpetas y archivos innecesarios
+├── requirements.txt             # Dependencias de Python (vacío, usa solo librerías estándar)
+├── requirements-system.txt      # Dependencias del sistema operativo Linux
+├── install-dependencies.sh      # Script automático de instalación de dependencias
+├── run.sh                       # Script para iniciar fácilmente
+├── stop.sh                      # Script para detener el servidor
+├── server.py                    # Cerebro del proyecto (backend en Python)
+└── static/                      # Dashboard web (frontend)
+    ├── index.html               # Página principal
+    ├── app.js                   # Lógica interactiva
+    └── styles.css               # Estilos y diseño
 ```
+
+### 📦 Archivos de Configuración
+
+| Archivo | Descripción |
+|---------|-------------|
+| **requirements.txt** | Dependencias de Python (actualmente vacío, solo usa librerías estándar) |
+| **requirements-system.txt** | Lista detallada de herramientas del sistema necesarias (iw, nmcli, etc.) |
+| **install-dependencies.sh** | Script automático que detecta tu distribución e instala todo |
+| **.gitignore** | Excluye carpetas ocultas, entornos virtuales y archivos temporales |
 
 ## 🔧 Cómo Funciona
 
@@ -258,6 +300,82 @@ sudo apt-get install iw wireless-tools
 ### La señal muestra "Sin Señal"
 - Confirma que tu interfaz Wi-Fi está activa
 - Revisa que tienes una conexión Wi-Fi establecida
+
+## 🤖 Automatización e Integración CI/CD
+
+### Instalación Automatizada
+
+Para automatizar la instalación en servidores, contenedores o pipelines CI/CD:
+
+```bash
+# Instalación automática de dependencias
+sudo bash install-dependencies.sh
+
+# Luego iniciar el servidor
+./run.sh
+```
+
+### Docker (Ejemplo para futura implementación)
+
+```dockerfile
+FROM python:3.9-slim
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    iw \
+    iproute2 \
+    iputils-ping \
+    network-manager \
+    wireless-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar proyecto
+WORKDIR /app
+COPY . .
+
+# Ejecutar servidor
+CMD ["python3", "server.py"]
+```
+
+### GitHub Actions / CI/CD
+
+Ejemplo de workflow para despliegue automático:
+
+```yaml
+name: Setup Wi-Fi Analyzer
+
+on: [push]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install system dependencies
+        run: |
+          sudo bash install-dependencies.sh
+      - name: Test server startup
+        run: |
+          timeout 5 python3 server.py -i $(python3 server.py --list 2>/dev/null | head -1) || true
+```
+
+### Verificación de Dependencias
+
+Para verificar que todo está instalado correctamente:
+
+```bash
+# Verificar herramientas individuales
+which iw
+which ip
+which ping
+which nmcli
+
+# Listar interfaces disponibles
+python3 server.py --list
+
+# Ver ayuda de línea de comandos
+./run.sh --help
+```
 
 ## 📄 Licencia
 

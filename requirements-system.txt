@@ -1,0 +1,44 @@
+# Dependencias del Sistema para Wi-Fi Roaming Analyzer
+# 
+# Este archivo documenta las herramientas del sistema necesarias
+# para que el proyecto funcione correctamente en Linux
+
+# === REQUERIMIENTOS OBLIGATORIOS ===
+
+# Herramientas de Wi-Fi (para obtener información de interfaz)
+iw                      # Herramienta principal para información Wi-Fi
+
+# Herramientas de Red (para IP y routing)
+iproute2               # Proporciona comandos 'ip' para redes
+
+# Utilidades de Red (para pruebas de conectividad)
+iputils-ping           # Comando 'ping' para medir latencia
+
+# === REQUERIMIENTOS OPCIONALES (pero recomendados) ===
+
+# Network Manager (para escaneo de APs)
+network-manager        # Para obtener lista de puntos de acceso disponibles
+
+# Herramientas alternativas de Wi-Fi
+wireless-tools         # Proporciona 'iwconfig' como fallback
+
+# === INSTALACIÓN ===
+# 
+# Para sistemas Debian/Ubuntu:
+# sudo apt-get update
+# sudo apt-get install -y iw iproute2 iputils-ping network-manager wireless-tools
+#
+# Para sistemas Fedora/RHEL:
+# sudo dnf install -y iw iproute iputils NetworkManager wireless-tools
+#
+# Para sistemas Arch:
+# sudo pacman -S iw iproute2 iputils networkmanager wireless_tools
+#
+# === VERIFICACIÓN ===
+#
+# Para verificar que las herramientas están instaladas:
+# which iw
+# which ip
+# which ping
+# which nmcli
+# which iwconfig
