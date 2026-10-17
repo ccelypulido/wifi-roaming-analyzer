@@ -17,58 +17,6 @@ PORT = 8050
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
-# State management
-class WiFiState:
-    def __init__(self, interface=None):
-        self.lock = threading.Lock()
-        self.current_bssid = None
-        self.current_ssid = None
-        self.signal_dbm = -100
-        self.signal_pct = 0
-        self.tx_bitrate = "N/A"
-        self.rx_bitrate = "N/A"
-        self.frequency_mhz = 0
-        self.channel = 0
-        self.band = "Desconocida"
-        # Use provided interface or auto-detect
-        self.interface = interface or self.detect_wifi_interface() or ("Wi-Fi" if IS_WINDOWS else "wlan0")
-        self.ip_address = "Desconocida"
-        self.gateway_ip = "8.8.8.8"
-        self.ping_latency_ms = None
-        self.rating_text = "Sin Señal"
-        self.rating_score = 0
-        self.rating_badge_color = "#ef4444"
-        self.vendor_name = "Desconocido"
-        self.candidate_aps = []
-        self.roaming_events = []
-        self.last_update_time = time.time()
-        self.is_monitoring = True
-    
-    def detect_wifi_interface(self):
-        """Detecta la primera interfaz Wi-Fi disponible (Linux o Windows)"""
-        if IS_WINDOWS:
-            available = get_available_wifi_interfaces()
-            return available[0] if available else "Wi-Fi"
-        else:
-            try:
-                out = subprocess.check_output(['iw', 'dev'], text=True, errors='replace', stderr=subprocess.DEVNULL)
-                m = re.search(r'Interface\s+(\w+)', out)
-                if m:
-                    return m.group(1)
-            except:
-                pass
-            return None
-    
-    def set_interface(self, interface_name):
-        """Cambia la interfaz Wi-Fi activa"""
-        with self.lock:
-            self.interface = interface_name
-            self.current_bssid = None
-            self.current_ssid = None
-            self.signal_dbm = -100
-
-state = WiFiState()
-
 # Known MAC OUI vendors for common APs
 OUI_VENDORS = {
     "8C:53:C3": "Huawei Technologies",
@@ -354,6 +302,53 @@ def measure_ping(target):
     except:
         pass
     return None
+
+# State management
+class WiFiState:
+    def __init__(self, interface=None):
+        self.lock = threading.Lock()
+        self.current_bssid = None
+        self.current_ssid = None
+        self.signal_dbm = -100
+        self.signal_pct = 0
+        self.tx_bitrate = "N/A"
+        self.rx_bitrate = "N/A"
+        self.frequency_mhz = 0
+        self.channel = 0
+        self.band = "Desconocida"
+        # Use provided interface or auto-detect
+        self.interface = interface or self.detect_wifi_interface() or ("Wi-Fi" if IS_WINDOWS else "wlan0")
+        self.ip_address = "Desconocida"
+        self.gateway_ip = "8.8.8.8"
+        self.ping_latency_ms = None
+        self.rating_text = "Sin Señal"
+        self.rating_score = 0
+        self.rating_badge_color = "#ef4444"
+        self.vendor_name = "Desconocido"
+        self.candidate_aps = []
+        self.roaming_events = []
+        self.last_update_time = time.time()
+        self.is_monitoring = True
+    
+    def detect_wifi_interface(self):
+        """Detecta la primera interfaz Wi-Fi disponible (Linux o Windows)"""
+        try:
+            available = get_available_wifi_interfaces()
+            if available:
+                return available[0]
+        except Exception:
+            pass
+        return "Wi-Fi" if IS_WINDOWS else "wlan0"
+    
+    def set_interface(self, interface_name):
+        """Cambia la interfaz Wi-Fi activa"""
+        with self.lock:
+            self.interface = interface_name
+            self.current_bssid = None
+            self.current_ssid = None
+            self.signal_dbm = -100
+
+state = WiFiState()
 
 def update_wifi_telemetry():
     with state.lock:
