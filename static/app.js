@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Chart setup
   const ctx = document.getElementById('telemetryChart').getContext('2d');
-  const maxDataPoints = 30;
+  const maxDataPoints = 40;
   const timeLabels = [];
   const signalData = [];
   const pingData = [];
@@ -158,19 +158,30 @@ document.addEventListener('DOMContentLoaded', () => {
       infoSameSsidCount.textContent = `${data.same_ssid_aps_count} AP(s)`;
       infoTotalApsCount.textContent = `${data.total_neighbor_aps} AP(s)`;
 
-      // Update Chart
-      const timeStr = data.last_update || new Date().toLocaleTimeString();
-      timeLabels.push(timeStr);
-      signalData.push(data.signal_dbm);
-      pingData.push(data.ping_ms || 0);
+      // Update Chart with persistence across page refresh
+      if (timeLabels.length === 0 && data.telemetry_history && data.telemetry_history.length > 0) {
+        data.telemetry_history.forEach(item => {
+          timeLabels.push(item.time);
+          signalData.push(item.signal_dbm);
+          pingData.push(item.ping_ms || 0);
+        });
+        telemetryChart.update();
+      } else {
+        const timeStr = data.last_update || new Date().toLocaleTimeString();
+        if (timeLabels.length === 0 || timeLabels[timeLabels.length - 1] !== timeStr) {
+          timeLabels.push(timeStr);
+          signalData.push(data.signal_dbm);
+          pingData.push(data.ping_ms || 0);
 
-      if (timeLabels.length > maxDataPoints) {
-        timeLabels.shift();
-        signalData.shift();
-        pingData.shift();
+          if (timeLabels.length > maxDataPoints) {
+            timeLabels.shift();
+            signalData.shift();
+            pingData.shift();
+          }
+
+          telemetryChart.update();
+        }
       }
-
-      telemetryChart.update();
 
     } catch (err) {
       console.error('Error al actualizar telemetría:', err);
@@ -245,7 +256,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      apScannerTableBody.innerHTML = data.aps.map(ap => `
+      // Ordenar APs: Conectado/activo primero, luego por mayor potencia de señal
+      const sortedAps = [...data.aps].sort((a, b) => {
+        if (a.active && !b.active) return -1;
+        if (!a.active && b.active) return 1;
+        return (b.signal || 0) - (a.signal || 0);
+      });
+
+      apScannerTableBody.innerHTML = sortedAps.map(ap => `
         <tr style="${ap.active ? 'background: rgba(6, 182, 212, 0.08); font-weight: 600;' : ''}">
           <td>
             ${ap.active 
@@ -272,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
         </tr>
       `).join('');
+
 
     } catch (err) {
       console.error('Error al obtener escaneo de APs:', err);

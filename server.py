@@ -77,6 +77,28 @@ def get_available_wifi_interfaces():
     
     return interfaces
 
+HISTORY_FILE = os.path.join(PROJECT_DIR, 'roaming_history.json')
+
+def load_saved_roaming_events():
+    """Carga los eventos de roaming guardados del archivo json"""
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    return []
+
+def save_roaming_events(events):
+    """Guarda los eventos de roaming en el archivo json"""
+    try:
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(events[:50], f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
 def parse_windows_interface(output, target_iface=None):
     """Parsea la salida de 'netsh wlan show interfaces' en Windows (Español e Inglés)"""
     res = {
@@ -102,7 +124,7 @@ def parse_windows_interface(output, target_iface=None):
                 break
     else:
         for b in blocks:
-            if re.search(r'^\s*(?:State|Estado)\s*:\s*(?:connected|conectado)', b, re.MULTILINE | re.IGNORECASE):
+            if re.search(r'^\s*(?:State|Estado)\s*:\s*(?:connected|conectado|asociado|associated)', b, re.MULTILINE | re.IGNORECASE):
                 target_block = b
                 break
 
@@ -110,16 +132,19 @@ def parse_windows_interface(output, target_iface=None):
     if state_m:
         st = state_m.group(1).strip().lower()
         res["state"] = st
-        if st not in ("connected", "conectado"):
+        if st not in ("connected", "conectado", "asociado", "associated"):
             return res
 
     ssid_m = re.search(r'^\s*SSID\s*:\s*(.+)$', target_block, re.MULTILINE | re.IGNORECASE)
     if ssid_m:
         res["ssid"] = ssid_m.group(1).strip()
 
-    bssid_m = re.search(r'^\s*BSSID\s*:\s*([0-9a-fA-F:]{17})', target_block, re.MULTILINE | re.IGNORECASE)
+    # BSSID (admite dos puntos o guiones, e ignora espacios)
+    bssid_m = re.search(r'BSSID\s*:\s*([0-9a-fA-F:-]{11,20})', target_block, re.IGNORECASE)
     if bssid_m:
-        res["bssid"] = bssid_m.group(1).upper()
+        raw_b = bssid_m.group(1).strip().replace('-', ':').upper()
+        if len(raw_b) == 17:
+            res["bssid"] = raw_b
 
     sig_m = re.search(r'^\s*(?:Signal|Se[ñn]al)\s*:\s*(\d+)%', target_block, re.MULTILINE | re.IGNORECASE)
     if sig_m:
@@ -141,11 +166,13 @@ def parse_windows_interface(output, target_iface=None):
             res["freq_mhz"] = 5950 + ch * 5
             res["band"] = "6 GHz (Wi-Fi 6E/7)"
 
-    tx_m = re.search(r'^\s*(?:Transmit rate \(Mbps\)|Transmisi[oó]n \(Mbps\))\s*:\s*([0-9.]+)', target_block, re.MULTILINE | re.IGNORECASE)
+    # TX rate (soporta: "Velocidad de transmisión (Mbps): 866", "Velocidad de transmisión: 866 (Mbps)", "Transmit rate (Mbps): 866")
+    tx_m = re.search(r'(?:Transmit|Transmisi[oó]n|Velocidad de transmisi[oó]n).*?:\s*([0-9.]+)', target_block, re.IGNORECASE)
     if tx_m:
         res["tx_bitrate"] = f"{tx_m.group(1).strip()} Mbps"
 
-    rx_m = re.search(r'^\s*(?:Receive rate \(Mbps\)|Recepci[oó]n \(Mbps\))\s*:\s*([0-9.]+)', target_block, re.MULTILINE | re.IGNORECASE)
+    # RX rate (soporta: "Velocidad de recepción (Mbps): 866", "Velocidad de recepción: 866 (Mbps)", "Receive rate (Mbps): 866")
+    rx_m = re.search(r'(?:Receive|Recepci[oó]n|Velocidad de recepci[oó]n).*?:\s*([0-9.]+)', target_block, re.IGNORECASE)
     if rx_m:
         res["rx_bitrate"] = f"{rx_m.group(1).strip()} Mbps"
 
@@ -167,11 +194,12 @@ def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
             current_ssid = ssid_match.group(1).strip()
             continue
 
-        bssid_match = re.match(r'^BSSID\s+\d+\s*:\s*([0-9a-fA-F:]{17})', line_clean, re.IGNORECASE)
+        bssid_match = re.match(r'^BSSID(?:\s+\d+)?\s*:\s*([0-9a-fA-F:-]{11,20})', line_clean, re.IGNORECASE)
         if bssid_match:
             if current_ap:
                 candidate_aps.append(current_ap)
-            bssid_str = bssid_match.group(1).upper()
+            bssid_str = bssid_match.group(1).strip().replace('-', ':').upper()
+            is_same = (current_ssid.strip().lower() == connected_ssid.strip().lower()) if connected_ssid and current_ssid else False
             current_ap = {
                 "active": (bssid_str == connected_bssid) if connected_bssid else False,
                 "ssid": current_ssid,
@@ -181,7 +209,7 @@ def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
                 "channel": "0",
                 "rate": "N/A",
                 "vendor": lookup_vendor(bssid_str),
-                "is_same_ssid": (current_ssid == connected_ssid) if connected_ssid and current_ssid else False
+                "is_same_ssid": is_same
             }
             continue
 
@@ -212,6 +240,7 @@ def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
         candidate_aps.append(current_ap)
 
     return candidate_aps
+
 
 def calculate_rating(dbm, ping_ms):
     if dbm >= -50:
@@ -326,7 +355,8 @@ class WiFiState:
         self.rating_badge_color = "#ef4444"
         self.vendor_name = "Desconocido"
         self.candidate_aps = []
-        self.roaming_events = []
+        self.roaming_events = load_saved_roaming_events()
+        self.telemetry_history = []
         self.last_update_time = time.time()
         self.is_monitoring = True
     
@@ -371,8 +401,6 @@ def update_wifi_telemetry():
     if IS_WINDOWS:
         try:
             cmd = ['netsh', 'wlan', 'show', 'interfaces']
-            if iface and iface != "Wi-Fi":
-                cmd.extend([f'interface={iface}'])
             iw_out = subprocess.check_output(cmd, text=True, errors='replace', stderr=subprocess.DEVNULL)
             parsed_iface = parse_windows_interface(iw_out, target_iface=iface)
             connected_bssid = parsed_iface["bssid"]
@@ -389,14 +417,31 @@ def update_wifi_telemetry():
 
         try:
             net_cmd = ['netsh', 'wlan', 'show', 'networks', 'mode=bssid']
-            if iface and iface != "Wi-Fi":
-                net_cmd.extend([f'interface={iface}'])
             net_out = subprocess.check_output(net_cmd, text=True, errors='replace', stderr=subprocess.DEVNULL)
             candidate_aps = parse_windows_networks(net_out, connected_bssid=connected_bssid, connected_ssid=connected_ssid)
             for ap in candidate_aps:
                 ap["vendor"] = lookup_vendor(ap.get("bssid"))
         except Exception:
             pass
+
+        # Fallback BSSID resolver si netsh show interfaces no devolvió el BSSID directamente
+        if (not connected_bssid or connected_bssid == "No conectado") and connected_ssid:
+            matching_aps = [ap for ap in candidate_aps if ap.get('ssid', '').strip().lower() == connected_ssid.strip().lower()]
+            if matching_aps:
+                chan_matching = [ap for ap in matching_aps if str(ap.get('channel', '')) == str(channel)]
+                if chan_matching:
+                    best = min(chan_matching, key=lambda ap: abs(ap.get('signal', 0) - signal_pct))
+                    connected_bssid = best['bssid']
+                else:
+                    best = min(matching_aps, key=lambda ap: abs(ap.get('signal', 0) - signal_pct))
+                    connected_bssid = best['bssid']
+
+        # Actualizar banderas de activo y mismo SSID una vez resuelto el BSSID
+        if connected_bssid:
+            for ap in candidate_aps:
+                ap["active"] = (ap.get("bssid") == connected_bssid)
+                if connected_ssid and ap.get("ssid"):
+                    ap["is_same_ssid"] = (ap["ssid"].strip().lower() == connected_ssid.strip().lower())
 
     else:
         # Query iw link (Linux)
@@ -475,15 +520,28 @@ def update_wifi_telemetry():
                         "channel": ap_chan,
                         "rate": ap_rate,
                         "vendor": lookup_vendor(ap_bssid),
-                        "is_same_ssid": (ap_ssid == connected_ssid) if connected_ssid else False
+                        "is_same_ssid": (ap_ssid.strip().lower() == connected_ssid.strip().lower()) if connected_ssid else False
                     })
         except Exception:
             pass
+
+    # Ordenar APs candidatos: Activo primero, luego por porcentaje de señal descendente
+    candidate_aps.sort(key=lambda ap: (1 if ap.get('active') else 0, ap.get('signal', 0)), reverse=True)
 
     rating_text, rating_score, badge_color = calculate_rating(signal_dbm, ping_ms)
     vendor_name = lookup_vendor(connected_bssid)
 
     with state.lock:
+        # Registrar historial de telemetría para persistencia del gráfico al refrescar
+        time_str = time.strftime("%H:%M:%S")
+        state.telemetry_history.append({
+            "time": time_str,
+            "signal_dbm": signal_dbm,
+            "ping_ms": ping_ms
+        })
+        if len(state.telemetry_history) > 40:
+            state.telemetry_history.pop(0)
+
         # Detect Roaming Handoff event
         if state.current_bssid and connected_bssid and state.current_bssid != connected_bssid:
             event = {
@@ -502,6 +560,7 @@ def update_wifi_telemetry():
             # Keep max 50 roaming events
             if len(state.roaming_events) > 50:
                 state.roaming_events.pop()
+            save_roaming_events(state.roaming_events)
 
         state.current_bssid = connected_bssid
         state.current_ssid = connected_ssid
@@ -566,6 +625,7 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == '/api/clear-roaming-log':
             with state.lock:
                 state.roaming_events.clear()
+            save_roaming_events([])
             self.send_json_response({"status": "success", "message": "Historial de roaming limpiado"})
         elif parsed.path == '/api/set-interface':
             content_length = int(self.headers.get('Content-Length', 0))
@@ -636,18 +696,23 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             # Find candidate APs with same SSID
             same_ssid_aps = [ap for ap in state.candidate_aps if ap.get('is_same_ssid')]
             better_candidate = None
-            for ap in same_ssid_aps:
-                if ap['bssid'] != state.current_bssid and ap['signal'] > (state.signal_pct + 15):
-                    better_candidate = ap
-                    break
+            better_candidates = [
+                ap for ap in same_ssid_aps 
+                if ap.get('bssid') != state.current_bssid and ap.get('signal', 0) > (state.signal_pct + 8)
+            ]
+            if better_candidates:
+                better_candidate = max(better_candidates, key=lambda ap: ap.get('signal', 0))
 
             roaming_verdict = "Conectado al mejor AP disponible"
             if better_candidate:
-                roaming_verdict = f"Candidato a Roaming disponible: AP {better_candidate['bssid']} (+{better_candidate['signal'] - state.signal_pct}% señal)"
+                diff = better_candidate['signal'] - state.signal_pct
+                roaming_verdict = f"Candidato a Roaming disponible: AP {better_candidate['bssid']} (+{diff}% señal)"
             elif len(same_ssid_aps) > 1:
                 roaming_verdict = f"Red Mesh/Multi-AP activa ({len(same_ssid_aps)} APs detectados con mismo SSID)"
-            elif not state.current_bssid:
+            elif not state.current_bssid or state.current_bssid == "No conectado":
                 roaming_verdict = "Sin conexión Wi-Fi activa"
+            elif len(same_ssid_aps) == 1:
+                roaming_verdict = "Conectado al único AP detectado para este SSID"
 
             return {
                 "bssid": state.current_bssid or "No conectado",
@@ -671,8 +736,10 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "total_neighbor_aps": len(state.candidate_aps),
                 "roaming_verdict": roaming_verdict,
                 "recent_roaming_count": len(state.roaming_events),
+                "telemetry_history": list(state.telemetry_history),
                 "last_update": time.strftime("%H:%M:%S", time.localtime(state.last_update_time))
             }
+
 
 def main():
     # Parsear argumentos de línea de comandos

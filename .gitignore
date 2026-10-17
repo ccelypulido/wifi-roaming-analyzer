@@ -35,6 +35,7 @@ desktop.ini
 *.tmp
 
 # Logs y Archivos Temporales
+roaming_history.json
 *.log
 *.pot
 logs/
