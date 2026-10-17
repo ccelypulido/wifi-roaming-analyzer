@@ -74,8 +74,11 @@ python3 server.py
 
 ### 3️⃣ Detener el Proyecto
 
-- En la terminal (Windows o Linux), presiona **`Ctrl + C`**.
-- En Linux también puedes ejecutar: `./stop.sh`
+- En la consola donde se está ejecutando, presiona **`Ctrl + C`**.
+- O usa los scripts de detención y liberación de puerto incluidos:
+  - **Windows (PowerShell):** `.\stop.ps1`
+  - **Windows (CMD / Doble clic):** `stop.bat`
+  - **Linux:** `./stop.sh`
 
 ---
 
