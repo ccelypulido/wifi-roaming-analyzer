@@ -50,5 +50,10 @@ echo "Iniciando servidor de telemetría Wi-Fi en http://localhost:8050 ..."
 
 cd "$(dirname "$0")"
 
+# Liberar el puerto 8050 si quedó ocupado por alguna instancia previa en segundo plano
+if command -v fuser &> /dev/null; then
+    fuser -k 8050/tcp 2>/dev/null || true
+fi
+
 # Pasar argumentos a server.py (server.py abre el navegador automáticamente)
 python3 server.py $INTERFACE_ARG $PORT_ARG

@@ -782,6 +782,22 @@ Ejemplos de uso:
     state = WiFiState(interface=args.interface)
     port = args.port
     
+    # Permitir reutilización inmediata de dirección/puerto (evita TIME_WAIT / Address already in use)
+    socketserver.TCPServer.allow_reuse_address = True
+
+    try:
+        server = socketserver.TCPServer(("", port), WiFiRequestHandler)
+    except OSError as e:
+        if e.errno == 98 or getattr(e, 'winerror', None) == 10048:
+            print(f"\n❌ Error: El puerto {port} ya está en uso.")
+            print(f"👉 Solución:")
+            print(f"   - En Linux: ejecuta './stop.sh' para liberar el puerto.")
+            print(f"   - En Windows: cierra cualquier otra consola que esté corriendo server.py.")
+            print(f"   - O ejecuta en otro puerto: python server.py --port {port + 1}")
+            sys.exit(1)
+        else:
+            raise
+
     # Start background telemetry thread
     thread = threading.Thread(target=background_loop, daemon=True)
     thread.start()
@@ -796,7 +812,6 @@ Ejemplos de uso:
                 pass
         threading.Thread(target=open_browser, daemon=True).start()
 
-    server = socketserver.TCPServer(("", port), WiFiRequestHandler)
     print(f"=====================================================")
     print(f" 🚀 WiFi & Roaming Analyzer iniciado en:")
     print(f" 👉 http://localhost:{port}")
