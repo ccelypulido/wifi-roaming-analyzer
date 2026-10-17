@@ -9,8 +9,10 @@ import threading
 import time
 import sys
 import argparse
+import webbrowser
 from urllib.parse import parse_qs, urlparse
 
+IS_WINDOWS = sys.platform == 'win32'
 PORT = 8050
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
@@ -29,7 +31,7 @@ class WiFiState:
         self.channel = 0
         self.band = "Desconocida"
         # Use provided interface or auto-detect
-        self.interface = interface or self.detect_wifi_interface() or "wlp2s0"
+        self.interface = interface or self.detect_wifi_interface() or ("Wi-Fi" if IS_WINDOWS else "wlan0")
         self.ip_address = "Desconocida"
         self.gateway_ip = "8.8.8.8"
         self.ping_latency_ms = None
@@ -43,15 +45,19 @@ class WiFiState:
         self.is_monitoring = True
     
     def detect_wifi_interface(self):
-        """Detecta la primera interfaz Wi-Fi disponible"""
-        try:
-            out = subprocess.check_output(['iw', 'dev'], text=True, stderr=subprocess.DEVNULL)
-            m = re.search(r'Interface\s+(\w+)', out)
-            if m:
-                return m.group(1)
-        except:
-            pass
-        return None
+        """Detecta la primera interfaz Wi-Fi disponible (Linux o Windows)"""
+        if IS_WINDOWS:
+            available = get_available_wifi_interfaces()
+            return available[0] if available else "Wi-Fi"
+        else:
+            try:
+                out = subprocess.check_output(['iw', 'dev'], text=True, errors='replace', stderr=subprocess.DEVNULL)
+                m = re.search(r'Interface\s+(\w+)', out)
+                if m:
+                    return m.group(1)
+            except:
+                pass
+            return None
     
     def set_interface(self, interface_name):
         """Cambia la interfaz Wi-Fi activa"""
@@ -89,8 +95,21 @@ def lookup_vendor(bssid):
 def get_available_wifi_interfaces():
     """Obtiene lista de todas las interfaces Wi-Fi disponibles"""
     interfaces = []
+    if IS_WINDOWS:
+        try:
+            out = subprocess.check_output(['netsh', 'wlan', 'show', 'interfaces'], text=True, errors='replace', stderr=subprocess.DEVNULL)
+            for m in re.finditer(r'^\s*(?:Name|Nombre)\s*:\s*(.+)$', out, re.MULTILINE | re.IGNORECASE):
+                iface_name = m.group(1).strip()
+                if iface_name and iface_name not in interfaces:
+                    interfaces.append(iface_name)
+        except Exception:
+            pass
+        if not interfaces:
+            interfaces.append("Wi-Fi")
+        return interfaces
+
     try:
-        out = subprocess.check_output(['iw', 'dev'], text=True, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(['iw', 'dev'], text=True, errors='replace', stderr=subprocess.DEVNULL)
         # Busca todas las líneas que comienzan con "Interface"
         for match in re.finditer(r'Interface\s+(\w+)', out):
             interfaces.append(match.group(1))
@@ -100,7 +119,7 @@ def get_available_wifi_interfaces():
     # Si no encuentra interfaz, intenta con iwconfig como fallback
     if not interfaces:
         try:
-            out = subprocess.check_output(['iwconfig'], text=True, stderr=subprocess.DEVNULL)
+            out = subprocess.check_output(['iwconfig'], text=True, errors='replace', stderr=subprocess.DEVNULL)
             for line in out.split('\n'):
                 if line and not line.startswith(' '):
                     iface = line.split()[0]
@@ -109,6 +128,142 @@ def get_available_wifi_interfaces():
             pass
     
     return interfaces
+
+def parse_windows_interface(output, target_iface=None):
+    """Parsea la salida de 'netsh wlan show interfaces' en Windows (Español e Inglés)"""
+    res = {
+        "bssid": None,
+        "ssid": None,
+        "signal_pct": 0,
+        "signal_dbm": -100,
+        "freq_mhz": 0,
+        "channel": 0,
+        "band": "Desconocida",
+        "tx_bitrate": "N/A",
+        "rx_bitrate": "N/A",
+        "state": "desconectado"
+    }
+
+    blocks = re.split(r'\n(?=\s*(?:Name|Nombre)\s*:)', output)
+    target_block = output
+    if target_iface:
+        for b in blocks:
+            m = re.search(r'^\s*(?:Name|Nombre)\s*:\s*(.+)$', b, re.MULTILINE | re.IGNORECASE)
+            if m and m.group(1).strip().lower() == target_iface.strip().lower():
+                target_block = b
+                break
+    else:
+        for b in blocks:
+            if re.search(r'^\s*(?:State|Estado)\s*:\s*(?:connected|conectado)', b, re.MULTILINE | re.IGNORECASE):
+                target_block = b
+                break
+
+    state_m = re.search(r'^\s*(?:State|Estado)\s*:\s*(.+)$', target_block, re.MULTILINE | re.IGNORECASE)
+    if state_m:
+        st = state_m.group(1).strip().lower()
+        res["state"] = st
+        if st not in ("connected", "conectado"):
+            return res
+
+    ssid_m = re.search(r'^\s*SSID\s*:\s*(.+)$', target_block, re.MULTILINE | re.IGNORECASE)
+    if ssid_m:
+        res["ssid"] = ssid_m.group(1).strip()
+
+    bssid_m = re.search(r'^\s*BSSID\s*:\s*([0-9a-fA-F:]{17})', target_block, re.MULTILINE | re.IGNORECASE)
+    if bssid_m:
+        res["bssid"] = bssid_m.group(1).upper()
+
+    sig_m = re.search(r'^\s*(?:Signal|Se[ñn]al)\s*:\s*(\d+)%', target_block, re.MULTILINE | re.IGNORECASE)
+    if sig_m:
+        pct = int(sig_m.group(1))
+        res["signal_pct"] = max(0, min(100, pct))
+        res["signal_dbm"] = int((res["signal_pct"] / 2) - 100)
+
+    chan_m = re.search(r'^\s*(?:Channel|Canal)\s*:\s*(\d+)', target_block, re.MULTILINE | re.IGNORECASE)
+    if chan_m:
+        ch = int(chan_m.group(1))
+        res["channel"] = ch
+        if 1 <= ch <= 14:
+            res["freq_mhz"] = 2412 + (ch - 1) * 5 if ch != 14 else 2484
+            res["band"] = "2.4 GHz"
+        elif 32 <= ch <= 177:
+            res["freq_mhz"] = 5000 + ch * 5
+            res["band"] = "5.0 GHz"
+        elif ch > 177:
+            res["freq_mhz"] = 5950 + ch * 5
+            res["band"] = "6 GHz (Wi-Fi 6E/7)"
+
+    tx_m = re.search(r'^\s*(?:Transmit rate \(Mbps\)|Transmisi[oó]n \(Mbps\))\s*:\s*([0-9.]+)', target_block, re.MULTILINE | re.IGNORECASE)
+    if tx_m:
+        res["tx_bitrate"] = f"{tx_m.group(1).strip()} Mbps"
+
+    rx_m = re.search(r'^\s*(?:Receive rate \(Mbps\)|Recepci[oó]n \(Mbps\))\s*:\s*([0-9.]+)', target_block, re.MULTILINE | re.IGNORECASE)
+    if rx_m:
+        res["rx_bitrate"] = f"{rx_m.group(1).strip()} Mbps"
+
+    return res
+
+def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
+    """Parsea la salida de 'netsh wlan show networks mode=bssid' para APs vecinos"""
+    candidate_aps = []
+    current_ssid = ""
+    current_ap = None
+
+    for line in output.splitlines():
+        line_clean = line.strip()
+        if not line_clean:
+            continue
+
+        ssid_match = re.match(r'^SSID\s+\d+\s*:\s*(.*)$', line_clean, re.IGNORECASE)
+        if ssid_match:
+            current_ssid = ssid_match.group(1).strip()
+            continue
+
+        bssid_match = re.match(r'^BSSID\s+\d+\s*:\s*([0-9a-fA-F:]{17})', line_clean, re.IGNORECASE)
+        if bssid_match:
+            if current_ap:
+                candidate_aps.append(current_ap)
+            bssid_str = bssid_match.group(1).upper()
+            current_ap = {
+                "active": (bssid_str == connected_bssid) if connected_bssid else False,
+                "ssid": current_ssid,
+                "bssid": bssid_str,
+                "signal": 0,
+                "freq": "Desconocida",
+                "channel": "0",
+                "rate": "N/A",
+                "vendor": lookup_vendor(bssid_str),
+                "is_same_ssid": (current_ssid == connected_ssid) if connected_ssid and current_ssid else False
+            }
+            continue
+
+        if current_ap:
+            sig_m = re.match(r'^(?:Signal|Se[ñn]al)\s*:\s*(\d+)%', line_clean, re.IGNORECASE)
+            if sig_m:
+                current_ap["signal"] = int(sig_m.group(1))
+                continue
+
+            chan_m = re.match(r'^(?:Channel|Canal)\s*:\s*(\d+)', line_clean, re.IGNORECASE)
+            if chan_m:
+                ch = int(chan_m.group(1))
+                current_ap["channel"] = str(ch)
+                if 1 <= ch <= 14:
+                    current_ap["freq"] = f"{2412 + (ch-1)*5} MHz" if ch != 14 else "2484 MHz"
+                elif 32 <= ch <= 177:
+                    current_ap["freq"] = f"{5000 + ch*5} MHz"
+                elif ch > 177:
+                    current_ap["freq"] = f"{5950 + ch*5} MHz"
+                continue
+
+            radio_m = re.match(r'^(?:Radio type|Tipo de radio)\s*:\s*(.+)$', line_clean, re.IGNORECASE)
+            if radio_m:
+                current_ap["rate"] = radio_m.group(1).strip()
+                continue
+
+    if current_ap:
+        candidate_aps.append(current_ap)
+
+    return candidate_aps
 
 def calculate_rating(dbm, ping_ms):
     if dbm >= -50:
@@ -144,8 +299,31 @@ def calculate_rating(dbm, ping_ms):
 def get_local_ip_and_gateway(iface):
     ip_addr = "N/A"
     gw_ip = "8.8.8.8"
+    if IS_WINDOWS:
+        try:
+            out = subprocess.check_output(['route', 'print', '0.0.0.0'], text=True, errors='replace', stderr=subprocess.DEVNULL)
+            for line in out.splitlines():
+                m = re.search(r'0\.0\.0\.0\s+0\.0\.0\.0\s+([0-9.]+)\s+([0-9.]+)', line)
+                if m:
+                    gw_ip = m.group(1)
+                    ip_addr = m.group(2)
+                    break
+        except Exception:
+            pass
+
+        if ip_addr == "N/A":
+            try:
+                import socket
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect((gw_ip if gw_ip != "8.8.8.8" else "8.8.8.8", 80))
+                ip_addr = s.getsockname()[0]
+                s.close()
+            except Exception:
+                pass
+        return ip_addr, gw_ip
+
     try:
-        out = subprocess.check_output(['ip', 'addr', 'show', iface], text=True, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(['ip', 'addr', 'show', iface], text=True, errors='replace', stderr=subprocess.DEVNULL)
         m = re.search(r'inet\s+([0-9.]+)', out)
         if m:
             ip_addr = m.group(1)
@@ -153,7 +331,7 @@ def get_local_ip_and_gateway(iface):
         pass
 
     try:
-        out = subprocess.check_output(['ip', 'route', 'show', 'default'], text=True, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(['ip', 'route', 'show', 'default'], text=True, errors='replace', stderr=subprocess.DEVNULL)
         m = re.search(r'via\s+([0-9.]+)', out)
         if m:
             gw_ip = m.group(1)
@@ -164,10 +342,15 @@ def get_local_ip_and_gateway(iface):
 
 def measure_ping(target):
     try:
-        out = subprocess.check_output(['ping', '-c', '1', '-W', '1', target], text=True, stderr=subprocess.DEVNULL)
-        m = re.search(r'(?:tiempo|time)=([0-9.,]+)', out)
+        if IS_WINDOWS:
+            cmd = ['ping', '-n', '1', '-w', '1000', target]
+        else:
+            cmd = ['ping', '-c', '1', '-W', '1', target]
+        out = subprocess.check_output(cmd, text=True, errors='replace', stderr=subprocess.DEVNULL)
+        m = re.search(r'(?:tiempo|time)[=<]([0-9.,]+)', out, re.IGNORECASE)
         if m:
-            return float(m.group(1).replace(',', '.'))
+            val_str = m.group(1).replace(',', '.')
+            return float(val_str)
     except:
         pass
     return None
@@ -187,88 +370,120 @@ def update_wifi_telemetry():
     channel = 0
     tx_bitrate = "N/A"
     rx_bitrate = "N/A"
-
-    # Query iw link
-    try:
-        iw_out = subprocess.check_output(['iw', 'dev', iface, 'link'], text=True, stderr=subprocess.DEVNULL)
-        bssid_m = re.search(r'Connected to ([0-9a-fA-F:]+)', iw_out)
-        if bssid_m:
-            connected_bssid = bssid_m.group(1).upper()
-        
-        ssid_m = re.search(r'SSID:\s*(.+)', iw_out)
-        if ssid_m:
-            connected_ssid = ssid_m.group(1).strip()
-            
-        signal_m = re.search(r'signal:\s*(-?\d+)\s*dBm', iw_out)
-        if signal_m:
-            signal_dbm = int(signal_m.group(1))
-            signal_pct = max(0, min(100, int((signal_dbm + 100) * 2)))
-
-        freq_m = re.search(r'freq:\s*([0-9.]+)', iw_out)
-        if freq_m:
-            freq_mhz = int(float(freq_m.group(1)))
-            if 2400 <= freq_mhz <= 2500:
-                channel = int((freq_mhz - 2407) / 5)
-            elif 5000 <= freq_mhz <= 5900:
-                channel = int((freq_mhz - 5000) / 5)
-
-        tx_m = re.search(r'tx bitrate:\s*(.+)', iw_out)
-        if tx_m:
-            tx_bitrate = tx_m.group(1).strip()
-
-        rx_m = re.search(r'rx bitrate:\s*(.+)', iw_out)
-        if rx_m:
-            rx_bitrate = rx_m.group(1).strip()
-    except Exception as e:
-        pass
-
-    # Determine band
-    if freq_mhz >= 5900:
-        band = "6 GHz (Wi-Fi 6E/7)"
-    elif freq_mhz >= 5000:
-        band = "5.0 GHz"
-    elif freq_mhz >= 2400:
-        band = "2.4 GHz"
-    else:
-        band = "Desconocida"
-
-    # Query neighbor APs via nmcli
+    band = "Desconocida"
     candidate_aps = []
-    try:
-        nm_out = subprocess.check_output(
-            ['nmcli', '-t', '-f', 'active,ssid,bssid,signal,freq,chan,rate', 'device', 'wifi'],
-            text=True, stderr=subprocess.DEVNULL
-        )
-        for line in nm_out.strip().split('\n'):
-            if not line:
-                continue
-            parts = line.split(':')
-            if len(parts) >= 7:
-                is_active = (parts[0] == 'sí' or parts[0] == 'yes')
-                ap_ssid = parts[1]
-                raw_bssid = ':'.join(parts[2:-4]) if len(parts) > 7 else parts[2]
-                ap_bssid = raw_bssid.replace('\\:', ':').upper()
-                try:
-                    ap_sig = int(parts[-4])
-                except:
-                    ap_sig = 0
-                ap_freq = parts[-3]
-                ap_chan = parts[-2]
-                ap_rate = parts[-1]
 
-                candidate_aps.append({
-                    "active": is_active,
-                    "ssid": ap_ssid,
-                    "bssid": ap_bssid,
-                    "signal": ap_sig,
-                    "freq": ap_freq,
-                    "channel": ap_chan,
-                    "rate": ap_rate,
-                    "vendor": lookup_vendor(ap_bssid),
-                    "is_same_ssid": (ap_ssid == connected_ssid) if connected_ssid else False
-                })
-    except Exception as e:
-        pass
+    if IS_WINDOWS:
+        try:
+            cmd = ['netsh', 'wlan', 'show', 'interfaces']
+            if iface and iface != "Wi-Fi":
+                cmd.extend([f'interface={iface}'])
+            iw_out = subprocess.check_output(cmd, text=True, errors='replace', stderr=subprocess.DEVNULL)
+            parsed_iface = parse_windows_interface(iw_out, target_iface=iface)
+            connected_bssid = parsed_iface["bssid"]
+            connected_ssid = parsed_iface["ssid"]
+            signal_dbm = parsed_iface["signal_dbm"]
+            signal_pct = parsed_iface["signal_pct"]
+            freq_mhz = parsed_iface["freq_mhz"]
+            channel = parsed_iface["channel"]
+            band = parsed_iface["band"]
+            tx_bitrate = parsed_iface["tx_bitrate"]
+            rx_bitrate = parsed_iface["rx_bitrate"]
+        except Exception:
+            pass
+
+        try:
+            net_cmd = ['netsh', 'wlan', 'show', 'networks', 'mode=bssid']
+            if iface and iface != "Wi-Fi":
+                net_cmd.extend([f'interface={iface}'])
+            net_out = subprocess.check_output(net_cmd, text=True, errors='replace', stderr=subprocess.DEVNULL)
+            candidate_aps = parse_windows_networks(net_out, connected_bssid=connected_bssid, connected_ssid=connected_ssid)
+            for ap in candidate_aps:
+                ap["vendor"] = lookup_vendor(ap.get("bssid"))
+        except Exception:
+            pass
+
+    else:
+        # Query iw link (Linux)
+        try:
+            iw_out = subprocess.check_output(['iw', 'dev', iface, 'link'], text=True, errors='replace', stderr=subprocess.DEVNULL)
+            bssid_m = re.search(r'Connected to ([0-9a-fA-F:]+)', iw_out)
+            if bssid_m:
+                connected_bssid = bssid_m.group(1).upper()
+            
+            ssid_m = re.search(r'SSID:\s*(.+)', iw_out)
+            if ssid_m:
+                connected_ssid = ssid_m.group(1).strip()
+                
+            signal_m = re.search(r'signal:\s*(-?\d+)\s*dBm', iw_out)
+            if signal_m:
+                signal_dbm = int(signal_m.group(1))
+                signal_pct = max(0, min(100, int((signal_dbm + 100) * 2)))
+
+            freq_m = re.search(r'freq:\s*([0-9.]+)', iw_out)
+            if freq_m:
+                freq_mhz = int(float(freq_m.group(1)))
+                if 2400 <= freq_mhz <= 2500:
+                    channel = int((freq_mhz - 2407) / 5)
+                elif 5000 <= freq_mhz <= 5900:
+                    channel = int((freq_mhz - 5000) / 5)
+
+            tx_m = re.search(r'tx bitrate:\s*(.+)', iw_out)
+            if tx_m:
+                tx_bitrate = tx_m.group(1).strip()
+
+            rx_m = re.search(r'rx bitrate:\s*(.+)', iw_out)
+            if rx_m:
+                rx_bitrate = rx_m.group(1).strip()
+        except Exception:
+            pass
+
+        # Determine band
+        if freq_mhz >= 5900:
+            band = "6 GHz (Wi-Fi 6E/7)"
+        elif freq_mhz >= 5000:
+            band = "5.0 GHz"
+        elif freq_mhz >= 2400:
+            band = "2.4 GHz"
+        else:
+            band = "Desconocida"
+
+        # Query neighbor APs via nmcli
+        try:
+            nm_out = subprocess.check_output(
+                ['nmcli', '-t', '-f', 'active,ssid,bssid,signal,freq,chan,rate', 'device', 'wifi'],
+                text=True, errors='replace', stderr=subprocess.DEVNULL
+            )
+            for line in nm_out.strip().split('\n'):
+                if not line:
+                    continue
+                parts = line.split(':')
+                if len(parts) >= 7:
+                    is_active = (parts[0] == 'sí' or parts[0] == 'yes')
+                    ap_ssid = parts[1]
+                    raw_bssid = ':'.join(parts[2:-4]) if len(parts) > 7 else parts[2]
+                    ap_bssid = raw_bssid.replace('\\:', ':').upper()
+                    try:
+                        ap_sig = int(parts[-4])
+                    except:
+                        ap_sig = 0
+                    ap_freq = parts[-3]
+                    ap_chan = parts[-2]
+                    ap_rate = parts[-1]
+
+                    candidate_aps.append({
+                        "active": is_active,
+                        "ssid": ap_ssid,
+                        "bssid": ap_bssid,
+                        "signal": ap_sig,
+                        "freq": ap_freq,
+                        "channel": ap_chan,
+                        "rate": ap_rate,
+                        "vendor": lookup_vendor(ap_bssid),
+                        "is_same_ssid": (ap_ssid == connected_ssid) if connected_ssid else False
+                    })
+        except Exception:
+            pass
 
     rating_text, rating_score, badge_color = calculate_rating(signal_dbm, ping_ms)
     vendor_name = lookup_vendor(connected_bssid)
@@ -471,19 +686,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Ejemplos de uso:
-  python3 server.py                    # Detecta interfaz automáticamente
-  python3 server.py -i wlp2s0         # Usa la interfaz wlp2s0
-  python3 server.py --interface wlan0 # Usa la interfaz wlan0
-  python3 server.py --list             # Lista todas las interfaces disponibles
-  python3 server.py --port 9000        # Usa puerto 9000
+  python server.py                    # Detecta interfaz automáticamente
+  python server.py -i Wi-Fi           # Usa interfaz específica (ej: Wi-Fi en Windows, wlan0 en Linux)
+  python server.py --list             # Lista todas las interfaces disponibles
+  python server.py --port 9000        # Usa puerto 9000
+  python server.py --no-browser       # No abre el navegador automáticamente
         '''
     )
     parser.add_argument('-i', '--interface', type=str, 
-                        help='Interfaz Wi-Fi a usar (ej: wlp2s0, wlan0)')
+                        help='Interfaz Wi-Fi a usar (ej: Wi-Fi, wlp2s0, wlan0)')
     parser.add_argument('--list', action='store_true',
                         help='Lista todas las interfaces Wi-Fi disponibles y sale')
     parser.add_argument('--port', type=int, default=PORT,
                         help=f'Puerto para el servidor (defecto: {PORT})')
+    parser.add_argument('--no-browser', action='store_true',
+                        help='No abre el navegador automáticamente al iniciar')
     
     args = parser.parse_args()
     
@@ -507,11 +724,21 @@ Ejemplos de uso:
     thread = threading.Thread(target=background_loop, daemon=True)
     thread.start()
 
+    # Abrir el navegador automáticamente si no se desactivó
+    if not args.no_browser:
+        def open_browser():
+            time.sleep(1.2)
+            try:
+                webbrowser.open(f"http://localhost:{port}")
+            except Exception:
+                pass
+        threading.Thread(target=open_browser, daemon=True).start()
+
     server = socketserver.TCPServer(("", port), WiFiRequestHandler)
     print(f"=====================================================")
     print(f" 🚀 WiFi & Roaming Analyzer iniciado en:")
     print(f" 👉 http://localhost:{port}")
-    print(f" 📡 Interfaz: {state.interface}")
+    print(f" 📡 Interfaz: {state.interface} ({'Windows' if IS_WINDOWS else 'Linux'})")
     print(f"=====================================================")
     
     try:

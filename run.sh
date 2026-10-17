@@ -50,8 +50,5 @@ echo "Iniciando servidor de telemetría Wi-Fi en http://localhost:8050 ..."
 
 cd "$(dirname "$0")"
 
-# Open browser if available after 1 second
-(sleep 1.5 && (xdg-open http://localhost:8050 2>/dev/null || true)) &
-
-# Pasar argumentos a server.py
+# Pasar argumentos a server.py (server.py abre el navegador automáticamente)
 python3 server.py $INTERFACE_ARG $PORT_ARG

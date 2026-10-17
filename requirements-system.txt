@@ -1,7 +1,11 @@
 # Dependencias del Sistema para Wi-Fi Roaming Analyzer
 # 
-# Este archivo documenta las herramientas del sistema necesarias
-# para que el proyecto funcione correctamente en Linux
+# En Windows:
+#   NO se requiere instalar herramientas adicionales. Windows ya incluye
+#   de forma nativa netsh, route y ping. Solo necesitas tener Python 3.6+.
+#
+# En Linux:
+#   Se requieren las siguientes herramientas del sistema:
 
 # === REQUERIMIENTOS OBLIGATORIOS ===
 

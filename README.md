@@ -16,78 +16,92 @@ Este es un dashboard visual que te muestra todo lo que necesitas saber sobre tu 
 
 ### 1️⃣ Requisitos Previos
 
-Necesitas tener instalado:
-- **Python 3.6+** 🐍
-- Herramientas de Wi-Fi: `iw`, `iwconfig` (en Linux)
+- **Python 3.6+** 🐍 (instalado en el sistema)
 - Una conexión Wi-Fi activa
 
-#### ⚙️ Instalación Automática de Dependencias
+> [!NOTE]
+> **En Windows:** ¡No necesitas instalar nada más! Windows ya incluye todas las utilidades de red necesarias (`netsh`, `route`, `ping`) de forma nativa.
+> 
+> **En Linux:** Se requieren herramientas del sistema (`iw`, `iproute2`, `ping`).
 
-El proyecto incluye un script automático para instalar todas las dependencias del sistema:
+#### ⚙️ Instalación de Dependencias del Sistema (Solo Linux)
+
+El proyecto incluye un script automático para Linux:
 
 ```bash
-# Instalación automática (recomendado)
 sudo chmod +x install-dependencies.sh
 sudo ./install-dependencies.sh
 ```
 
-El script detecta automáticamente tu distribución Linux (Ubuntu, Debian, Fedora, Arch, etc.) e instala:
-- ✅ Herramientas obligatorias (`iw`, `iproute2`, `ping`)
-- ✅ Herramientas opcionales recomendadas (`network-manager`, `wireless-tools`)
+O instala manualmente según tu distribución ([ver requirements-system.txt](requirements-system.txt)):
+- **Ubuntu/Debian:** `sudo apt-get install -y iw iproute2 iputils-ping network-manager wireless-tools`
+- **Fedora/RHEL:** `sudo dnf install -y iw iproute iputils NetworkManager wireless-tools`
+- **Arch/Manjaro:** `sudo pacman -S iw iproute2 iputils networkmanager wireless_tools`
 
-#### 📋 Instalación Manual
-
-Si prefieres instalar manualmente, consulta [requirements-system.txt](requirements-system.txt):
-
-**Ubuntu/Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install -y iw iproute2 iputils-ping network-manager wireless-tools
-```
-
-**Fedora/RHEL:**
-```bash
-sudo dnf install -y iw iproute iputils NetworkManager wireless-tools
-```
-
-**Arch/Manjaro:**
-```bash
-sudo pacman -S iw iproute2 iputils networkmanager wireless_tools
-```
+---
 
 ### 2️⃣ Ejecutar el Proyecto
 
-Es muy fácil, solo dos pasos:
+#### 🪟 En Windows (PowerShell o CMD)
+
+Solo necesitas abrir tu terminal (PowerShell o Símbolo del sistema / CMD) en la carpeta del proyecto y ejecutar:
+
+```powershell
+# Opción 1: Directamente con Python (Recomendado)
+python server.py
+
+# Opción 2: Usando el script de PowerShell
+.\run.ps1
+
+# Opción 3: Usando el script Batch (o doble clic en run.bat)
+run.bat
+```
+
+#### 🐧 En Linux
 
 ```bash
-# Dale permisos de ejecución al script
+# Con el script de inicio
 chmod +x run.sh
-
-# Ejecuta el analizador
 ./run.sh
+
+# O directamente con Python:
+python3 server.py
 ```
 
 ¡Eso es todo! El servidor se iniciará en `http://localhost:8050` y tu navegador se abrirá automáticamente.
 
+---
+
 ### 3️⃣ Detener el Proyecto
 
-Para parar el servidor:
-```bash
-./stop.sh
-```
+- En la terminal (Windows o Linux), presiona **`Ctrl + C`**.
+- En Linux también puedes ejecutar: `./stop.sh`
+
+---
 
 ## 🎯 Seleccionar Interfaz Wi-Fi
 
-Si tienes múltiples adaptadores Wi-Fi o la interfaz detectada automáticamente no es la correcta, puedes especificarlo:
+Si tienes múltiples adaptadores Wi-Fi o deseas especificar uno concreto:
 
 ### Listar interfaces disponibles
 ```bash
+# En Windows (PowerShell / CMD):
+python server.py --list
+
+# En Linux:
 ./run.sh --list
-# O directamente:
+# O:
 python3 server.py --list
 ```
 
-Ejemplo de salida:
+Ejemplo de salida en Windows:
+```
+Interfaces Wi-Fi disponibles:
+  - Wi-Fi
+  - Wi-Fi 2
+```
+
+Ejemplo de salida en Linux:
 ```
 Interfaces Wi-Fi disponibles:
   - wlp2s0
@@ -96,35 +110,41 @@ Interfaces Wi-Fi disponibles:
 
 ### Usar una interfaz específica
 ```bash
-# Con el script run.sh
-./run.sh -i wlan0
+# En Windows:
+python server.py -i "Wi-Fi"
 
-# O directamente con Python
-python3 server.py --interface wlan0
+# En Linux:
+./run.sh -i wlan0
+# O:
+python3 server.py -i wlan0
 ```
 
 ### Cambiar de puerto (opcional)
 ```bash
-./run.sh --port 9000
+python server.py --port 9000
 ```
 
-**Nota**: El dashboard también permite cambiar la interfaz en tiempo real desde la API (`/api/set-interface`)
+**Nota**: El dashboard web también permite cambiar la interfaz en tiempo real desde la API (`/api/set-interface`).
+
+---
 
 ## 📁 Estructura del Proyecto
 
 ```
 wifi-roaming-analyzer/
-├── README.md                    # Este archivo (documentación)
-├── .gitignore                   # Excluye carpetas y archivos innecesarios
-├── requirements.txt             # Dependencias de Python (vacío, usa solo librerías estándar)
-├── requirements-system.txt      # Dependencias del sistema operativo Linux
-├── install-dependencies.sh      # Script automático de instalación de dependencias
-├── run.sh                       # Script para iniciar fácilmente
-├── stop.sh                      # Script para detener el servidor
-├── server.py                    # Cerebro del proyecto (backend en Python)
+├── README.md                    # Documentación y guía de uso
+├── .gitignore                   # Excluye archivos temporales
+├── requirements.txt             # Dependencias de Python (solo librerías estándar)
+├── requirements-system.txt      # Documentación de herramientas del sistema
+├── install-dependencies.sh      # Instalador de herramientas para Linux
+├── run.bat                      # Lanzador para Windows CMD y doble clic
+├── run.ps1                      # Lanzador para Windows PowerShell
+├── run.sh                       # Lanzador para Linux (Bash)
+├── stop.sh                      # Script para detener en Linux
+├── server.py                    # Cerebro multiplataforma (Windows y Linux)
 └── static/                      # Dashboard web (frontend)
     ├── index.html               # Página principal
-    ├── app.js                   # Lógica interactiva
+    ├── app.js                   # Lógica interactiva y gráficos
     └── styles.css               # Estilos y diseño
 ```
 
