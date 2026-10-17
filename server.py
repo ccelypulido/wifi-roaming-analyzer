@@ -68,18 +68,19 @@ def lookup_vendor(bssid):
     return OUI_VENDORS.get(prefix, "AP Genérico / Router Wi-Fi")
 
 def run_windows_cmd(cmd_args, timeout=3):
-    """Ejecuta un comando en Windows y decodifica la salida manejando páginas de códigos OEM (cp850/cp437), UTF-8 y CP1252."""
+    """Ejecuta un comando en Windows y decodifica la salida manejando páginas de códigos UTF-8, OEM (cp850/cp437) y CP1252."""
     try:
         proc = subprocess.run(cmd_args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=timeout)
         raw = proc.stdout
-        encodings = []
+        # Probar UTF-8 primero porque valida secuencias multibyte estrictas (evita corromper ñ y ó)
+        encodings = ['utf-8']
         try:
             import ctypes
             oem_cp = ctypes.windll.kernel32.GetOEMCP()
             encodings.append(f'cp{oem_cp}')
         except Exception:
             pass
-        encodings.extend(['cp850', 'cp437', 'utf-8', 'cp1252', 'latin1'])
+        encodings.extend(['cp850', 'cp437', 'cp1252', 'latin1'])
         for enc in encodings:
             try:
                 decoded = raw.decode(enc)
@@ -209,7 +210,8 @@ def parse_windows_interface(output, target_iface=None):
     if state_m:
         st = state_m.group(1).strip().lower()
         res["state"] = st
-        if st not in ("connected", "conectado", "asociado", "associated"):
+        is_conn = any(w in st for w in ("connect", "conectad", "asociad"))
+        if not is_conn:
             return res
 
     ssid_m = re.search(r'(?i)^\s*SSID\s*:\s*(.+)$', target_block, re.MULTILINE)
@@ -223,8 +225,10 @@ def parse_windows_interface(output, target_iface=None):
         if len(raw_b) == 17:
             res["bssid"] = raw_b
 
-    # Señal en % (soporta Signal, Señal, Senal, Se¤al, Seal en cualquier codificación)
-    sig_m = re.search(r'(?i)(?:Signal|Se.al)[^:\n]*:\s*(\d+)%', target_block)
+    # Señal en % (soporta Signal, Señal, Senal, Se¤al, Seal, Se├▒al o cualquier texto con %)
+    sig_m = re.search(r'(?i)(?:Signal|Se.*al)[^:\n]*:\s*(\d+)%', target_block)
+    if not sig_m:
+        sig_m = re.search(r':\s*(\d+)%', target_block)
     if sig_m:
         pct = int(sig_m.group(1))
         res["signal_pct"] = max(0, min(100, pct))
@@ -295,7 +299,9 @@ def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
             continue
 
         if current_ap:
-            sig_m = re.search(r'(?i)(?:Signal|Se.al)[^:\n]*:\s*(\d+)%', line_clean)
+            sig_m = re.search(r'(?i)(?:Signal|Se.*al)[^:\n]*:\s*(\d+)%', line_clean)
+            if not sig_m:
+                sig_m = re.search(r':\s*(\d+)%', line_clean)
             if sig_m:
                 current_ap["signal"] = int(sig_m.group(1))
                 continue
@@ -540,6 +546,20 @@ def update_wifi_telemetry():
                 ap["active"] = (ap.get("bssid") == connected_bssid)
                 if connected_ssid and ap.get("ssid"):
                     ap["is_same_ssid"] = (ap["ssid"].strip(' "\'').lower() == connected_ssid.strip(' "\'').lower())
+
+        # Rescate de nivel de señal si quedó en 0 pero candidate_aps tiene la información del AP activo
+        if signal_pct == 0:
+            if connected_bssid:
+                active_ap = next((ap for ap in candidate_aps if ap.get('bssid') == connected_bssid), None)
+                if active_ap and active_ap.get('signal', 0) > 0:
+                    signal_pct = active_ap['signal']
+                    signal_dbm = int((signal_pct / 2) - 100)
+            if signal_pct == 0 and connected_ssid:
+                clean_conn_ssid = connected_ssid.strip(' "\'').lower()
+                matching_aps = [ap for ap in candidate_aps if ap.get('ssid', '').strip(' "\'').lower() == clean_conn_ssid and ap.get('signal', 0) > 0]
+                if matching_aps:
+                    signal_pct = max(ap.get('signal', 0) for ap in matching_aps)
+                    signal_dbm = int((signal_pct / 2) - 100)
 
     else:
         # Query iw link (Linux)
