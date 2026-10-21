@@ -34,8 +34,9 @@ desktop.ini
 *.bak
 *.tmp
 
-# Logs y Archivos Temporales
+# Logs y Archivos Temporales / Datos Locales
 roaming_history.json
+ap_names.json
 *.log
 *.pot
 logs/

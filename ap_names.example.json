@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "last_updated": "2026-10-21 00:00:00",
+    "total_entries": 3,
+    "source": "Plantilla de ejemplo"
+  },
+  "aps": {
+    "B0:14:DF:11:22:30": {
+      "name": "AP-Piso1-Recepcion",
+      "location": "Piso 1",
+      "model": "Cisco Catalyst 9120"
+    },
+    "B0:14:DF:11:22:40": {
+      "name": "AP-Piso2-SalaJuntas",
+      "location": "Piso 2",
+      "model": "Cisco Catalyst 9120"
+    },
+    "00:1A:1E:00:11:22": {
+      "name": "AP-Almacen-Norte",
+      "location": "Bodega Principal",
+      "model": "Aruba AP-515"
+    }
+  }
+}
