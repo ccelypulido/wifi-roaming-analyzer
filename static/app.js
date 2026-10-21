@@ -309,8 +309,234 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (target === 'tab-roaming-log') fetchRoamingHistory();
       if (target === 'tab-ap-scanner') fetchApScan();
+      if (target === 'tab-oui-manager') {
+        fetchOuiInfo();
+        searchOuiVendors(ouiSearchInput ? ouiSearchInput.value : '');
+      }
     });
   });
+
+  // OUI Manager DOM Elements
+  const ouiStatTotal = document.getElementById('oui-stat-total');
+  const ouiStatCustom = document.getElementById('oui-stat-custom');
+  const ouiStatUpdated = document.getElementById('oui-stat-updated');
+  const btnUpdateOui = document.getElementById('btn-update-oui');
+  const ouiUpdateBanner = document.getElementById('oui-update-banner');
+  const ouiUpdateStatusText = document.getElementById('oui-update-status-text');
+  const ouiSearchInput = document.getElementById('oui-search-input');
+  const btnToggleAddOui = document.getElementById('btn-toggle-add-oui');
+  const ouiAddFormContainer = document.getElementById('oui-add-form-container');
+  const ouiInputPrefix = document.getElementById('oui-input-prefix');
+  const ouiInputVendor = document.getElementById('oui-input-vendor');
+  const btnSaveCustomOui = document.getElementById('btn-save-custom-oui');
+  const btnCancelCustomOui = document.getElementById('btn-cancel-custom-oui');
+  const ouiTableBody = document.getElementById('oui-table-body');
+
+  let ouiSearchTimeout = null;
+
+  // Fetch OUI Stats
+  async function fetchOuiInfo() {
+    try {
+      const res = await fetch('/api/oui');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (ouiStatTotal) ouiStatTotal.textContent = Number(data.total).toLocaleString();
+      if (ouiStatCustom) ouiStatCustom.textContent = Number(data.custom_count).toLocaleString();
+      if (ouiStatUpdated) ouiStatUpdated.textContent = data.last_updated ? data.last_updated.split(' ')[0] : 'Sin datos';
+    } catch (e) {
+      console.error('Error cargando estadísticas OUI:', e);
+    }
+  }
+
+  // Search & Render OUI Table
+  async function searchOuiVendors(query = '') {
+    if (!ouiTableBody) return;
+    try {
+      const res = await fetch(`/api/oui/search?q=${encodeURIComponent(query)}&limit=100`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const results = data.results || [];
+
+      if (results.length === 0) {
+        ouiTableBody.innerHTML = `
+          <tr>
+            <td colspan="4">
+              <div class="empty-state">
+                <i class="fa-solid fa-folder-open"></i>
+                <p>No se encontraron fabricantes que coincidan con "${query}".</p>
+                <small>Verifica el prefijo MAC o prueba buscar una palabra clave como "Cisco", "Aruba" o "Ubiquiti".</small>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      ouiTableBody.innerHTML = results.map(item => `
+        <tr>
+          <td><code style="color: var(--accent-cyan); font-weight: 700; font-size: 0.9rem;">${item.prefix}</code></td>
+          <td style="font-weight: 500;">${item.vendor}</td>
+          <td>
+            ${item.is_custom 
+              ? '<span class="badge-oui-custom"><i class="fa-solid fa-star"></i> Personalizado</span>' 
+              : '<span class="badge-oui-ieee"><i class="fa-solid fa-check-double"></i> Registro IEEE</span>'}
+          </td>
+          <td style="text-align: center;">
+            ${item.is_custom 
+              ? `<button class="btn-icon-danger btn-remove-custom-oui" data-prefix="${item.prefix}" title="Eliminar registro personalizado">
+                   <i class="fa-solid fa-trash"></i>
+                 </button>` 
+              : '<span style="color: var(--text-muted); font-size: 0.8rem;">Estándar</span>'}
+          </td>
+        </tr>
+      `).join('');
+
+      // Attach remove events
+      ouiTableBody.querySelectorAll('.btn-remove-custom-oui').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const prefix = btn.getAttribute('data-prefix');
+          if (confirm(`¿Eliminar la entrada personalizada para ${prefix}?`)) {
+            await fetch('/api/oui/remove', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prefix })
+            });
+            fetchOuiInfo();
+            searchOuiVendors(ouiSearchInput.value);
+          }
+        });
+      });
+
+    } catch (e) {
+      console.error('Error buscando OUI:', e);
+    }
+  }
+
+  // Update from IEEE with Polling
+  let isUpdatingOui = false;
+  if (btnUpdateOui) {
+    btnUpdateOui.addEventListener('click', async () => {
+      if (isUpdatingOui) return;
+      if (!confirm('¿Deseas descargar y actualizar la base de datos completa de fabricantes desde el registro oficial del IEEE?\n\nEsto sincronizará más de 40,000 fabricantes conservando tus registros personalizados.')) {
+        return;
+      }
+
+      isUpdatingOui = true;
+      btnUpdateOui.disabled = true;
+      btnUpdateOui.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Actualizando...';
+      ouiUpdateBanner.style.display = 'flex';
+      ouiUpdateStatusText.textContent = 'Iniciando conexión con el IEEE...';
+
+      try {
+        await fetch('/api/oui/update', { method: 'POST' });
+        
+        // Poll status
+        const pollInterval = setInterval(async () => {
+          try {
+            const res = await fetch('/api/oui/status');
+            const status = await res.json();
+            
+            if (status.status === 'downloading' || status.status === 'processing') {
+              ouiUpdateStatusText.textContent = `${status.message} (${status.progress}%)`;
+            } else if (status.status === 'completed') {
+              clearInterval(pollInterval);
+              ouiUpdateStatusText.textContent = status.message;
+              setTimeout(() => {
+                ouiUpdateBanner.style.display = 'none';
+              }, 4000);
+              fetchOuiInfo();
+              searchOuiVendors(ouiSearchInput.value);
+              btnUpdateOui.disabled = false;
+              btnUpdateOui.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE';
+              isUpdatingOui = false;
+              alert(`¡Base de datos OUI actualizada con éxito!\n\n${status.message}`);
+            } else if (status.status === 'error') {
+              clearInterval(pollInterval);
+              ouiUpdateStatusText.textContent = status.message;
+              btnUpdateOui.disabled = false;
+              btnUpdateOui.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE';
+              isUpdatingOui = false;
+              alert(`Error al actualizar la base de datos: ${status.message}`);
+            }
+          } catch (err) {
+            console.error('Error consultando estado OUI:', err);
+          }
+        }, 1500);
+
+      } catch (err) {
+        btnUpdateOui.disabled = false;
+        btnUpdateOui.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE';
+        isUpdatingOui = false;
+        ouiUpdateBanner.style.display = 'none';
+        alert('Error al iniciar la actualización de fabricantes.');
+      }
+    });
+  }
+
+  // Toggle Add Form
+  if (btnToggleAddOui && ouiAddFormContainer) {
+    btnToggleAddOui.addEventListener('click', () => {
+      const isVisible = ouiAddFormContainer.style.display !== 'none';
+      ouiAddFormContainer.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible && ouiInputPrefix) {
+        ouiInputPrefix.focus();
+      }
+    });
+  }
+
+  if (btnCancelCustomOui && ouiAddFormContainer) {
+    btnCancelCustomOui.addEventListener('click', () => {
+      ouiAddFormContainer.style.display = 'none';
+      if (ouiInputPrefix) ouiInputPrefix.value = '';
+      if (ouiInputVendor) ouiInputVendor.value = '';
+    });
+  }
+
+  // Save Custom OUI
+  if (btnSaveCustomOui) {
+    btnSaveCustomOui.addEventListener('click', async () => {
+      const prefix = (ouiInputPrefix.value || '').trim();
+      const vendor = (ouiInputVendor.value || '').trim();
+
+      if (!prefix || !vendor) {
+        alert('Por favor completa tanto el prefijo MAC como el nombre del fabricante.');
+        return;
+      }
+
+      try {
+        btnSaveCustomOui.disabled = true;
+        const res = await fetch('/api/oui/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefix, vendor })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          ouiInputPrefix.value = '';
+          ouiInputVendor.value = '';
+          ouiAddFormContainer.style.display = 'none';
+          fetchOuiInfo();
+          searchOuiVendors(ouiSearchInput.value);
+        } else {
+          alert(`Error: ${data.message || 'No se pudo guardar la entrada'}`);
+        }
+      } catch (e) {
+        alert('Error de conexión al guardar fabricante.');
+      } finally {
+        btnSaveCustomOui.disabled = false;
+      }
+    });
+  }
+
+  // Search input debounce
+  if (ouiSearchInput) {
+    ouiSearchInput.addEventListener('input', (e) => {
+      clearTimeout(ouiSearchTimeout);
+      ouiSearchTimeout = setTimeout(() => {
+        searchOuiVendors(e.target.value);
+      }, 250);
+    });
+  }
 
   // Action Buttons
   btnTestRoaming.addEventListener('click', async () => {

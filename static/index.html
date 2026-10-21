@@ -190,6 +190,9 @@
         <button class="tab-btn" data-tab="tab-ap-scanner">
           <i class="fa-solid fa-list-check"></i> Escáner de APs Candidatos (Mesh)
         </button>
+        <button class="tab-btn" data-tab="tab-oui-manager">
+          <i class="fa-solid fa-industry"></i> Base de Fabricantes (OUI)
+        </button>
       </div>
 
       <!-- Tab 1: Roaming Log -->
@@ -259,6 +262,104 @@
                   <div class="empty-state">
                     <i class="fa-solid fa-spinner fa-spin"></i>
                     <p>Cargando lista de Puntos de Acceso cercanos...</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: OUI / MAC Vendor Database -->
+      <div id="tab-oui-manager" class="tab-content">
+        <div class="oui-summary-panel">
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon"><i class="fa-solid fa-microchip"></i></div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">Total Fabricantes</span>
+              <span id="oui-stat-total" class="oui-stat-val">--</span>
+            </div>
+          </div>
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon"><i class="fa-solid fa-sliders"></i></div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">Personalizados</span>
+              <span id="oui-stat-custom" class="oui-stat-val">--</span>
+            </div>
+          </div>
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">Última Actualización</span>
+              <span id="oui-stat-updated" class="oui-stat-val">--</span>
+            </div>
+          </div>
+          <div class="oui-actions-wrapper">
+            <button id="btn-update-oui" class="btn-primary" title="Descargar y sincronizar con el registro oficial IEEE">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE
+            </button>
+          </div>
+        </div>
+
+        <div id="oui-update-banner" class="oui-alert-banner" style="display: none;">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span id="oui-update-status-text">Actualizando base de datos desde IEEE...</span>
+        </div>
+
+        <!-- Add Custom OUI & Search bar -->
+        <div class="oui-controls-row">
+          <div class="oui-search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="oui-search-input" placeholder="Buscar por MAC (ej: 00:1A:2B) o nombre (ej: Cisco, Aruba, Ubiquiti)...">
+          </div>
+          <button id="btn-toggle-add-oui" class="btn-secondary">
+            <i class="fa-solid fa-plus"></i> Registrar Fabricante
+          </button>
+        </div>
+
+        <!-- Form for Adding / Overriding OUI -->
+        <div id="oui-add-form-container" class="oui-add-panel" style="display: none;">
+          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-plus-circle"></i> Agregar o Modificar Fabricante Personalizado
+          </h4>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Asigna un nombre descriptivo a un prefijo MAC de 3 octetos (OUI). Esta entrada tiene prioridad absoluta y se conservará intacta tras actualizaciones oficiales.
+          </p>
+          <div class="oui-form-fields">
+            <div class="form-group">
+              <label for="oui-input-prefix">Prefijo MAC (3 octetos)</label>
+              <input type="text" id="oui-input-prefix" placeholder="Ej: 00:1A:1E o 00-1A-1E" maxlength="17">
+            </div>
+            <div class="form-group" style="flex: 2;">
+              <label for="oui-input-vendor">Nombre del Fabricante / AP</label>
+              <input type="text" id="oui-input-vendor" placeholder="Ej: Cisco Catalyst Lab / Aruba AP-515">
+            </div>
+            <div class="form-group-actions">
+              <button id="btn-save-custom-oui" class="btn-primary">
+                <i class="fa-solid fa-floppy-disk"></i> Guardar
+              </button>
+              <button id="btn-cancel-custom-oui" class="btn-secondary">Cancelar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- OUI Table -->
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 140px;">Prefijo OUI</th>
+                <th>Fabricante Asignado</th>
+                <th style="width: 140px;">Tipo Registro</th>
+                <th style="width: 100px; text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="oui-table-body">
+              <tr>
+                <td colspan="4">
+                  <div class="empty-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <p>Cargando lista de fabricantes...</p>
                   </div>
                 </td>
               </tr>

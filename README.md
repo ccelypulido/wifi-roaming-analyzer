@@ -400,6 +400,49 @@ python3 server.py --list
 ./run.sh --help
 ```
 
+---
+
+## 🏢 Gestión y Actualización de Fabricantes de APs (OUI)
+
+El analizador identifica la marca y fabricante de cada Punto de Acceso analizando el **OUI** (*Organizationally Unique Identifier* - los primeros 3 octetos de la dirección MAC del AP).
+
+### 1️⃣ Base de Datos Externa (`oui_vendors.json`)
+La base de datos se guarda en un archivo externo independiente: `oui_vendors.json`.
+- Viene precargado con los fabricantes más habituales (Aruba/HPE, Cisco/Meraki, Ubiquiti, Ruckus, Fortinet, Mikrotik, TP-Link, Huawei, etc.).
+- Permite registros **personalizados** (*custom overrides*) para asignar nombres amigables a APs de laboratorio o routers específicos. Los registros personalizados tienen prioridad absoluta y **no se borran ni sobrescriben** al actualizar.
+
+### 2️⃣ Actualización Automática desde el Registro Oficial IEEE
+Puedes sincronizar **más de 40,000 fabricantes** actualizados directamente desde el registro oficial del IEEE (MA-L Registry) de dos formas:
+
+#### A. Desde la Interfaz Web (1 Clic)
+1. Abre el dashboard en `http://localhost:8050`.
+2. Ve a la pestaña **"Base de Fabricantes (OUI)"**.
+3. Haz clic en el botón **"Actualizar desde IEEE"**.
+4. Verás una barra de progreso en vivo indicando la descarga y procesamiento.
+
+#### B. Desde la Línea de Comandos (CLI)
+Incluye la herramienta `update_oui.py` para automatizaciones y consultas en terminal:
+
+```bash
+# Descargar y sincronizar con la base de datos oficial del IEEE
+python3 update_oui.py
+
+# Ver estadísticas actuales de la base de datos
+python3 update_oui.py --stats
+
+# Consultar el fabricante de una MAC o BSSID
+python3 update_oui.py --lookup 00:27:0D:11:22:33
+
+# Buscar fabricantes por nombre o prefijo
+python3 update_oui.py --search ubiquiti
+python3 update_oui.py --search "cisco"
+
+# Registrar o modificar un fabricante personalizado
+python3 update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab AP"
+```
+
+---
+
 ## 📄 Licencia
 
 Este proyecto es libre para usar y modificar. ¡Siéntete libre de adaptarlo a tus necesidades!
@@ -407,6 +450,9 @@ Este proyecto es libre para usar y modificar. ¡Siéntete libre de adaptarlo a t
 ## 🎓 Aprende Más
 
 ¿Interesado en cómo funciona internamente? Revisa:
-- `server.py` - Toda la lógica de captura de datos Wi-Fi
-- `app.js` - Cómo actualiza el dashboard en tiempo real
-- `index.html` - Estructura del HTML y elementos visuales
+- `server.py` - Toda la lógica de captura de datos Wi-Fi y endpoints REST
+- `oui_manager.py` - Motor de resolución, almacenamiento y descarga de fabricantes OUI
+- `update_oui.py` - Herramienta de línea de comandos para gestionar la base OUI
+- `static/app.js` - Telemetría, gráficos en tiempo real y módulo de gestión de fabricantes
+- `static/index.html` - Estructura del HTML y elementos visuales
+- `static/styles.css` - Estilos modernos glassmórficos y temas responsivos

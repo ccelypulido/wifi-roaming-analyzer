@@ -17,55 +17,10 @@ PORT = 8050
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
-# Known MAC OUI vendors for common APs and enterprise systems
-OUI_VENDORS = {
-    # Aruba / HPE
-    "94:64:24": "Aruba Networks / HPE",
-    "20:A6:CD": "Aruba Networks / HPE",
-    "00:0B:86": "Aruba Networks / HPE",
-    "F0:5C:19": "Aruba Networks / HPE",
-    "D8:C7:C8": "Aruba Networks / HPE",
-    # Cisco & Meraki
-    "0A:02:05": "Cisco Systems / Meraki",
-    "24:DE:C6": "Cisco Systems",
-    "00:27:0D": "Cisco Systems",
-    "00:1A:2B": "Cisco Systems",
-    "BC:16:65": "Cisco Systems",
-    "00:25:9C": "Cisco-Linksys",
-    # Ubiquiti
-    "B0:14:DF": "Ubiquiti Networks",
-    "E0:63:DA": "Ubiquiti Inc.",
-    "74:83:C2": "Ubiquiti Inc.",
-    "18:E8:29": "Ubiquiti Inc.",
-    "44:D9:E7": "Ubiquiti Inc.",
-    "B4:FB:E4": "Ubiquiti Inc.",
-    "68:D7:9A": "Ubiquiti Inc.",
-    "DC:9F:DB": "Ubiquiti Inc.",
-    # Ruckus / CommScope
-    "70:69:79": "Ruckus Wireless / CommScope",
-    "C0:C5:20": "Ruckus Wireless / CommScope",
-    # Huawei, ZTE, Xiaomi
-    "8C:53:C3": "Huawei Technologies",
-    "0C:F0:7B": "TP-Link Corporation",
-    "50:C7:BF": "TP-Link Corporation",
-    "60:A4:4C": "TP-Link Corporation",
-    "8C:90:2D": "ZTE Corporation",
-    "CC:ED:DC": "Xiaomi Communications",
-    "24:2F:D0": "Sagemcom Broadband",
-    "8C:5A:25": "ARRIS Group",
-    "D8:47:32": "Linksys / Belkin",
-    "14:91:82": "Linksys / Belkin",
-    "54:47:CC": "Asustek Computer",
-    "74:3A:EF": "Netgear",
-    "E4:DA:DF": "Intel Mobile"
-}
+from oui_manager import oui_manager
 
 def lookup_vendor(bssid):
-    if not bssid or bssid == "No conectado":
-        return "Desconocido"
-    clean_bssid = bssid.replace("\\:", ":").replace("-", ":").upper()
-    prefix = clean_bssid[:8]
-    return OUI_VENDORS.get(prefix, "AP Genérico / Router Wi-Fi")
+    return oui_manager.lookup(bssid)
 
 def run_windows_cmd(cmd_args, timeout=3):
     """Ejecuta un comando en Windows y decodifica la salida manejando páginas de códigos UTF-8, OEM (cp850/cp437) y CP1252."""
@@ -732,6 +687,19 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             with state.lock:
                 aps = list(state.candidate_aps)
             self.send_json_response({"aps": aps})
+        elif parsed.path == '/api/oui':
+            self.send_json_response(oui_manager.get_info())
+        elif parsed.path == '/api/oui/search':
+            qs = parse_qs(parsed.query)
+            q = qs.get('q', [''])[0]
+            try:
+                limit = int(qs.get('limit', [50])[0])
+            except ValueError:
+                limit = 50
+            results = oui_manager.search(q, limit=limit)
+            self.send_json_response({"results": results, "count": len(results)})
+        elif parsed.path == '/api/oui/status':
+            self.send_json_response(oui_manager.get_update_status())
         else:
             # Fallback to static files
             if parsed.path == '/':
@@ -745,6 +713,32 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 state.roaming_events.clear()
             save_roaming_events([])
             self.send_json_response({"status": "success", "message": "Historial de roaming limpiado"})
+        elif parsed.path == '/api/oui/update':
+            res = oui_manager.trigger_ieee_update(background=True)
+            self.send_json_response(res)
+        elif parsed.path == '/api/oui/add':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                prefix = data.get('prefix', '').strip()
+                vendor = data.get('vendor', '').strip()
+                res = oui_manager.add_custom(prefix, vendor)
+                self.send_json_response({"status": "success", "entry": res})
+            except ValueError as e:
+                self.send_json_response({"status": "error", "message": str(e)})
+            except json.JSONDecodeError:
+                self.send_json_response({"status": "error", "message": "JSON inválido"})
+        elif parsed.path == '/api/oui/remove':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                prefix = data.get('prefix', '').strip()
+                removed = oui_manager.remove_custom(prefix)
+                self.send_json_response({"status": "success", "removed": removed})
+            except Exception as e:
+                self.send_json_response({"status": "error", "message": str(e)})
         elif parsed.path == '/api/set-interface':
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
