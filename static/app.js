@@ -887,28 +887,92 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnExportReport.addEventListener('click', async () => {
-    const resStatus = await fetch('/api/status');
-    const statusData = await resStatus.json();
-    const resRoaming = await fetch('/api/roaming-history');
-    const roamingData = await resRoaming.json();
-    const resScan = await fetch('/api/scan');
-    const scanData = await resScan.json();
+    const originalText = btnExportReport.innerHTML;
+    btnExportReport.disabled = true;
+    btnExportReport.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Exportando...';
 
-    const report = {
-      title: "Informe Diagnóstico de Cobertura Wi-Fi & Roaming",
-      timestamp: new Date().toISOString(),
-      current_status: statusData,
-      roaming_history: roamingData.events,
-      neighbor_aps: scanData.aps
-    };
+    try {
+      const [resStatus, resRoaming, resScan, resApNames] = await Promise.all([
+        fetch('/api/status'),
+        fetch('/api/roaming-history'),
+        fetch('/api/scan'),
+        fetch('/api/ap-names').catch(() => null)
+      ]);
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wifi_roaming_report_${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+      if (!resStatus.ok || !resRoaming.ok || !resScan.ok) {
+        throw new Error('No se pudo obtener la telemetría completa del servidor.');
+      }
+
+      const statusData = await resStatus.json();
+      const roamingData = await resRoaming.json();
+      const scanData = await resScan.json();
+      const apNamesData = resApNames && resApNames.ok ? await resApNames.json() : null;
+
+      const now = new Date();
+      const timestampIso = now.toISOString();
+      const dateForFile = now.getFullYear() +
+        '-' + String(now.getMonth() + 1).padStart(2, '0') +
+        '-' + String(now.getDate()).padStart(2, '0') +
+        '_' + String(now.getHours()).padStart(2, '0') +
+        '-' + String(now.getMinutes()).padStart(2, '0') +
+        '-' + String(now.getSeconds()).padStart(2, '0');
+
+      const cleanSsid = (statusData.ssid && statusData.ssid !== 'Desconectado') 
+        ? statusData.ssid.replace(/[^a-zA-Z0-9_\-]/g, '_') 
+        : 'wifi';
+
+      const report = {
+        metadata: {
+          title: "Informe Diagnóstico de Cobertura Wi-Fi & Roaming",
+          generator: "Wi-Fi & AP Roaming Telemetry Analyzer",
+          export_time: timestampIso,
+          network_ssid: statusData.ssid || 'N/A',
+          connected_bssid: statusData.bssid || 'N/A',
+          connected_ap_name: statusData.ap_name || 'Sin nombre asignado',
+          vendor: statusData.vendor_name || 'Desconocido',
+          signal_dbm: statusData.signal_dbm,
+          signal_pct: statusData.signal_pct,
+          link_speed: `TX: ${statusData.tx_bitrate} | RX: ${statusData.rx_bitrate}`,
+          gateway_ip: statusData.gateway_ip,
+          ping_latency_ms: statusData.ping_ms,
+          rating_score: statusData.rating_score,
+          rating_text: statusData.rating_text,
+          total_roaming_events: (roamingData.events || []).length,
+          total_neighbor_aps: (scanData.aps || []).length
+        },
+        current_status: statusData,
+        roaming_history: roamingData.events || [],
+        neighbor_aps: scanData.aps || [],
+        configured_controller_aps: apNamesData ? apNamesData.aps || [] : []
+      };
+
+      const jsonStr = JSON.stringify(report, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte_roaming_${cleanSsid}_${dateForFile}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Delay revokeObjectURL to ensure browser download pipeline has consumed the blob
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 2000);
+
+      btnExportReport.innerHTML = '<i class="fa-solid fa-check"></i> ¡Exportado!';
+      setTimeout(() => {
+        btnExportReport.disabled = false;
+        btnExportReport.innerHTML = originalText;
+      }, 2000);
+
+    } catch (err) {
+      console.error('Error al exportar informe:', err);
+      alert('Error al generar el informe de exportación:\n' + (err.message || err));
+      btnExportReport.disabled = false;
+      btnExportReport.innerHTML = originalText;
+    }
   });
 
   // Initial Loop
