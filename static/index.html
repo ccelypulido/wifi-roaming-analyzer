@@ -102,6 +102,10 @@
             <span id="info-ssid" class="info-value highlight">--</span>
           </div>
           <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-tag"></i> Nombre AP:</span>
+            <span id="info-ap-name" class="info-value highlight">--</span>
+          </div>
+          <div class="info-item">
             <span class="info-label"><i class="fa-solid fa-barcode"></i> BSSID (MAC AP):</span>
             <span id="info-bssid" class="info-value">--:--:--:--:--:--</span>
           </div>
@@ -190,6 +194,9 @@
         <button class="tab-btn" data-tab="tab-ap-scanner">
           <i class="fa-solid fa-list-check"></i> Escáner de APs Candidatos (Mesh)
         </button>
+        <button class="tab-btn" data-tab="tab-ap-names">
+          <i class="fa-solid fa-tags"></i> Nombres APs (Controladora)
+        </button>
         <button class="tab-btn" data-tab="tab-oui-manager">
           <i class="fa-solid fa-industry"></i> Base de Fabricantes (OUI)
         </button>
@@ -248,7 +255,7 @@
               <tr>
                 <th>Estado</th>
                 <th>SSID</th>
-                <th>BSSID (MAC)</th>
+                <th>Nombre AP / BSSID (MAC)</th>
                 <th>Fabricante</th>
                 <th>Señal %</th>
                 <th>Frecuencia</th>
@@ -270,7 +277,143 @@
         </div>
       </div>
 
-      <!-- Tab 3: OUI / MAC Vendor Database -->
+      <!-- Tab 3: AP Names (Controller Mapping) -->
+      <div id="tab-ap-names" class="tab-content">
+        <div class="oui-summary-panel">
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">
+              <i class="fa-solid fa-tags"></i>
+            </div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">APs Mapeados</span>
+              <span id="ap-stat-total" class="oui-stat-val">0</span>
+            </div>
+          </div>
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald);">
+              <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">AP Activo Conectado</span>
+              <span id="ap-stat-current" class="oui-stat-val" style="font-size: 0.95rem;">--</span>
+            </div>
+          </div>
+          <div class="oui-stat-card">
+            <div class="oui-stat-icon" style="background: rgba(6, 182, 212, 0.12); color: var(--accent-cyan);">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div class="oui-stat-info">
+              <span class="oui-stat-label">Última Modificación</span>
+              <span id="ap-stat-updated" class="oui-stat-val">--</span>
+            </div>
+          </div>
+          <div class="oui-actions-wrapper" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button id="btn-toggle-import-csv" class="btn-primary" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));">
+              <i class="fa-solid fa-file-csv"></i> Importar CSV Controladora
+            </button>
+            <button id="btn-toggle-add-ap" class="btn-secondary">
+              <i class="fa-solid fa-plus"></i> Registrar AP
+            </button>
+          </div>
+        </div>
+
+        <!-- Import CSV Accordion/Panel -->
+        <div id="ap-import-panel" class="oui-add-panel" style="display: none; border-color: rgba(139, 92, 246, 0.35);">
+          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-purple); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-file-import"></i> Importar Listado de APs desde Controladora Wi-Fi
+          </h4>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Pega el contenido exportado desde tu controladora (Cisco Catalyst/WLC, Aruba Central, UniFi, Huawei, FortiGate, Ruijie, Omada) o selecciona un archivo <code>.csv</code> desde tu equipo.
+            Soporta formatos estándar (<code>B0:14:DF:11:22:33</code>, Windows <code>B0-14-DF-11-22-33</code> o Cisco <code>b014.df11.2233</code>).
+          </p>
+          <div style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+            <input type="file" id="ap-csv-file-input" accept=".csv,.txt" style="display: none;">
+            <button id="btn-select-csv-file" class="btn-secondary" style="font-size: 0.82rem; padding: 0.4rem 0.8rem;">
+              <i class="fa-solid fa-folder-open"></i> Seleccionar archivo .CSV
+            </button>
+            <span id="ap-csv-file-name" style="font-size: 0.82rem; color: var(--text-secondary);"></span>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <textarea id="ap-csv-textarea" rows="5" class="custom-textarea" placeholder="Pega el contenido CSV aquí (ej: MAC,Nombre,Ubicación,Modelo)&#10;B0:14:DF:11:22:30,AP-Piso2-SalaJuntas,Piso 2,Cisco 9120&#10;70-69-79-AA-BB-00,AP-Recepcion-P1,Piso 1,Ruckus R650&#10;0027.0d12.3456,AP-Bodega-Norte,Bodega,Aruba 515"></textarea>
+          </div>
+          <div class="form-group-actions">
+            <button id="btn-process-csv" class="btn-primary" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Procesar e Importar APs
+            </button>
+            <button id="btn-cancel-import-csv" class="btn-secondary">Cancelar</button>
+          </div>
+        </div>
+
+        <!-- Add Single AP Form -->
+        <div id="ap-add-form-container" class="oui-add-panel" style="display: none;">
+          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-plus-circle"></i> Registrar o Modificar Nombre de AP
+          </h4>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Asocia la dirección MAC/BSSID del AP con su nombre identificativo en la red.
+          </p>
+          <div class="oui-form-fields">
+            <div class="form-group">
+              <label for="ap-input-mac">Dirección MAC / BSSID</label>
+              <input type="text" id="ap-input-mac" placeholder="Ej: B0:14:DF:11:22:33 o b014.df11.2233" maxlength="20">
+            </div>
+            <div class="form-group">
+              <label for="ap-input-name">Nombre en Controladora</label>
+              <input type="text" id="ap-input-name" placeholder="Ej: AP-Piso2-SalaJuntas">
+            </div>
+            <div class="form-group">
+              <label for="ap-input-location">Ubicación (Opcional)</label>
+              <input type="text" id="ap-input-location" placeholder="Ej: Piso 2 - Sala A">
+            </div>
+            <div class="form-group">
+              <label for="ap-input-model">Modelo (Opcional)</label>
+              <input type="text" id="ap-input-model" placeholder="Ej: Cisco 9120 / Aruba 515">
+            </div>
+            <div class="form-group-actions">
+              <button id="btn-save-ap" class="btn-primary">
+                <i class="fa-solid fa-floppy-disk"></i> Guardar AP
+              </button>
+              <button id="btn-cancel-add-ap" class="btn-secondary">Cancelar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AP Search Bar -->
+        <div class="oui-controls-row">
+          <div class="oui-search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="ap-search-input" placeholder="Buscar por MAC, nombre de AP, ubicación o modelo...">
+          </div>
+        </div>
+
+        <!-- AP Table -->
+        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 170px;">BSSID (MAC)</th>
+                <th>Nombre en Controladora</th>
+                <th>Ubicación</th>
+                <th>Modelo</th>
+                <th style="width: 100px; text-align: center;">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="ap-table-body">
+              <tr>
+                <td colspan="5">
+                  <div class="empty-state">
+                    <i class="fa-solid fa-tags"></i>
+                    <p>No hay nombres de APs registrados aún.</p>
+                    <small>Usa "Registrar AP" o "Importar CSV Controladora" para vincular los nombres a sus MACs.</small>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 4: OUI / MAC Vendor Database -->
       <div id="tab-oui-manager" class="tab-content">
         <div class="oui-summary-panel">
           <div class="oui-stat-card">

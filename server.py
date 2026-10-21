@@ -18,9 +18,13 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
 from oui_manager import oui_manager
+from ap_manager import ap_manager
 
 def lookup_vendor(bssid):
     return oui_manager.lookup(bssid)
+
+def lookup_ap_name(bssid):
+    return ap_manager.lookup_name(bssid)
 
 def run_windows_cmd(cmd_args, timeout=3):
     """Ejecuta un comando en Windows y decodifica la salida manejando páginas de códigos UTF-8, OEM (cp850/cp437) y CP1252."""
@@ -397,6 +401,7 @@ class WiFiState:
         self.rating_score = 0
         self.rating_badge_color = "#ef4444"
         self.vendor_name = "Desconocido"
+        self.ap_name = None
         self.candidate_aps = []
         self.roaming_events = load_saved_roaming_events()
         self.telemetry_history = []
@@ -419,6 +424,7 @@ class WiFiState:
             self.interface = interface_name
             self.current_bssid = None
             self.current_ssid = None
+            self.ap_name = None
             self.signal_dbm = -100
 
 state = WiFiState()
@@ -464,6 +470,7 @@ def update_wifi_telemetry():
             candidate_aps = parse_windows_networks(net_out, connected_bssid=connected_bssid, connected_ssid=connected_ssid)
             for ap in candidate_aps:
                 ap["vendor"] = lookup_vendor(ap.get("bssid"))
+                ap["ap_name"] = lookup_ap_name(ap.get("bssid"))
         except Exception:
             pass
 
@@ -593,6 +600,7 @@ def update_wifi_telemetry():
                         "channel": ap_chan,
                         "rate": ap_rate,
                         "vendor": lookup_vendor(ap_bssid),
+                        "ap_name": lookup_ap_name(ap_bssid),
                         "is_same_ssid": (ap_ssid.strip().lower() == connected_ssid.strip().lower()) if connected_ssid else False
                     })
         except Exception:
@@ -603,6 +611,7 @@ def update_wifi_telemetry():
 
     rating_text, rating_score, badge_color = calculate_rating(signal_dbm, ping_ms)
     vendor_name = lookup_vendor(connected_bssid)
+    current_ap_name = lookup_ap_name(connected_bssid)
 
     with state.lock:
         # Registrar historial de telemetría para persistencia del gráfico al refrescar
@@ -621,7 +630,9 @@ def update_wifi_telemetry():
                 "timestamp": time.strftime("%H:%M:%S"),
                 "date": time.strftime("%Y-%m-%d"),
                 "prev_bssid": state.current_bssid,
+                "prev_ap_name": lookup_ap_name(state.current_bssid),
                 "new_bssid": connected_bssid,
+                "new_ap_name": current_ap_name,
                 "ssid": connected_ssid,
                 "prev_signal_dbm": state.signal_dbm,
                 "new_signal_dbm": signal_dbm,
@@ -652,6 +663,7 @@ def update_wifi_telemetry():
         state.rating_score = rating_score
         state.rating_badge_color = badge_color
         state.vendor_name = vendor_name
+        state.ap_name = current_ap_name
         state.candidate_aps = candidate_aps
         state.last_update_time = time.time()
 
@@ -700,6 +712,17 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response({"results": results, "count": len(results)})
         elif parsed.path == '/api/oui/status':
             self.send_json_response(oui_manager.get_update_status())
+        elif parsed.path == '/api/ap-names':
+            qs = parse_qs(parsed.query)
+            q = qs.get('q', [''])[0]
+            try:
+                limit = int(qs.get('limit', [100])[0])
+            except ValueError:
+                limit = 100
+            self.send_json_response({
+                "info": ap_manager.get_info(),
+                "aps": ap_manager.search(q, limit=limit)
+            })
         else:
             # Fallback to static files
             if parsed.path == '/':
@@ -739,6 +762,46 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json_response({"status": "success", "removed": removed})
             except Exception as e:
                 self.send_json_response({"status": "error", "message": str(e)})
+        elif parsed.path == '/api/ap-names/add':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                mac = data.get('mac', '').strip()
+                name = data.get('name', '').strip()
+                loc = data.get('location', '').strip()
+                model = data.get('model', '').strip()
+                res = ap_manager.add_or_update(mac, name, location=loc, model=model)
+                self.send_json_response({"status": "success", "ap": res})
+            except ValueError as e:
+                self.send_json_response({"status": "error", "message": str(e)})
+            except json.JSONDecodeError:
+                self.send_json_response({"status": "error", "message": "JSON inválido"})
+        elif parsed.path == '/api/ap-names/remove':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                mac = data.get('mac', '').strip()
+                removed = ap_manager.remove(mac)
+                self.send_json_response({"status": "success", "removed": removed})
+            except Exception as e:
+                self.send_json_response({"status": "error", "message": str(e)})
+        elif parsed.path == '/api/ap-names/import-csv':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                csv_data = data.get('csv', '')
+                res = ap_manager.import_csv(csv_data)
+                self.send_json_response(res)
+            except ValueError as e:
+                self.send_json_response({"status": "error", "message": str(e)})
+            except Exception as e:
+                self.send_json_response({"status": "error", "message": f"Error importando CSV: {str(e)}"})
+        elif parsed.path == '/api/ap-names/clear':
+            ap_manager.clear()
+            self.send_json_response({"status": "success", "message": "Base de datos de APs limpiada"})
         elif parsed.path == '/api/set-interface':
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
@@ -818,7 +881,9 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             roaming_verdict = "Conectado al mejor AP disponible"
             if better_candidate:
                 diff = better_candidate['signal'] - state.signal_pct
-                roaming_verdict = f"Candidato a Roaming disponible: AP {better_candidate['bssid']} (+{diff}% señal)"
+                cand_name = better_candidate.get('ap_name')
+                cand_label = f"{cand_name} ({better_candidate['bssid']})" if cand_name else f"AP {better_candidate['bssid']}"
+                roaming_verdict = f"Candidato a Roaming disponible: {cand_label} (+{diff}% señal)"
             elif len(same_ssid_aps) > 1:
                 roaming_verdict = f"Red Mesh/Multi-AP activa ({len(same_ssid_aps)} APs detectados con mismo SSID)"
             elif not state.current_bssid or state.current_bssid == "No conectado":
@@ -828,6 +893,7 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             return {
                 "bssid": state.current_bssid or "No conectado",
+                "ap_name": state.ap_name,
                 "ssid": state.current_ssid or "Desconectado",
                 "signal_dbm": state.signal_dbm,
                 "signal_pct": state.signal_pct,

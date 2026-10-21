@@ -443,6 +443,55 @@ python3 update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab AP"
 
 ---
 
+## 🏷️ Nombres de APs de Controladoras Wi-Fi (Cisco, Aruba, UniFi, Huawei, etc.)
+
+En redes corporativas, educativas o de oficina, cada Punto de Acceso tiene un nombre configurado en la controladora (por ejemplo: `AP-Piso2-SalaJuntas`, `AP-Bodega-Norte`, `AP-Auditorio-01`).
+
+Esta función permite asociar cada dirección MAC/BSSID con su nombre en la controladora, mostrando **ambos valores simultáneamente** en todo el dashboard:
+- **Cabecera y Tarjeta de AP Conectado:** Muestra el Nombre del AP y su MAC física.
+- **Historial de Roaming (Handoffs):** Indica de qué AP a qué AP te moviste (ej: `AP-Piso2-SalaA` ➡️ `AP-Piso2-Pasillo`).
+- **Escáner de APs Cercanos (Mesh):** Muestra el nombre asignado junto al BSSID y permite nombrar nuevos APs con un solo clic.
+
+### 1️⃣ Carga Masiva desde CSV de Controladora
+Puedes importar el listado completo exportado desde cualquier controladora:
+- **Cisco Catalyst Center / DNA Center / Cisco WLC:** Soporta formato de puntos (ej: `b014.df11.2230`).
+- **Aruba Central / Mobility Controller:** Exportaciones estándar de AP inventory.
+- **Ubiquiti UniFi, Huawei iMaster NCE, FortiGate, Ruijie Reyee, TP-Link Omada.**
+
+#### Cómo importar desde la Web:
+1. Abre el dashboard en `http://localhost:8050` y ve a la pestaña **"Nombres APs (Controladora)"**.
+2. Haz clic en **"Importar CSV Controladora"**.
+3. Selecciona tu archivo `.csv` o pega el texto directamente.
+4. Presiona **"Procesar e Importar APs"**. El sistema detecta automáticamente las columnas y normaliza cualquier formato de MAC.
+
+### 2️⃣ Gestión por Línea de Comandos (`manage_aps.py`)
+Compatible tanto con **Windows** (PowerShell / CMD) como con **Linux**:
+
+```bash
+# En Windows (PowerShell / CMD) o Linux:
+python manage_aps.py --list
+
+# Consultar el nombre de un BSSID / MAC:
+python manage_aps.py --lookup B0:14:DF:11:22:30
+
+# Buscar APs por nombre, MAC o ubicación:
+python manage_aps.py --search "Piso 2"
+
+# Registrar un AP manualmente:
+python manage_aps.py --add "B0:14:DF:11:22:30" "AP-Piso2-SalaJuntas" --location "Piso 2" --model "Cisco 9120"
+
+# Importar un archivo CSV desde la consola:
+python manage_aps.py --import-csv mis_aps_controladora.csv
+
+# Eliminar un AP:
+python manage_aps.py --remove "B0:14:DF:11:22:30"
+```
+
+> [!TIP]
+> **Compatibilidad con vBSSID / MBSSID:** Los puntos de acceso corporativos suelen emitir múltiples BSSIDs virtuales (uno por SSID y radio). Si tu controladora exporta la MAC Base Ethernet del AP, el analizador detecta automáticamente el prefijo y asocia los vBSSIDs correspondientes a ese mismo nombre.
+
+---
+
 ## 📄 Licencia
 
 Este proyecto es libre para usar y modificar. ¡Siéntete libre de adaptarlo a tus necesidades!
@@ -451,8 +500,10 @@ Este proyecto es libre para usar y modificar. ¡Siéntete libre de adaptarlo a t
 
 ¿Interesado en cómo funciona internamente? Revisa:
 - `server.py` - Toda la lógica de captura de datos Wi-Fi y endpoints REST
-- `oui_manager.py` - Motor de resolución, almacenamiento y descarga de fabricantes OUI
+- `ap_manager.py` - Motor de resolución, almacenamiento y mapeo de nombres de APs
+- `manage_aps.py` - Herramienta de línea de comandos para importar y consultar APs
+- `oui_manager.py` - Motor de resolución y descarga de fabricantes OUI
 - `update_oui.py` - Herramienta de línea de comandos para gestionar la base OUI
-- `static/app.js` - Telemetría, gráficos en tiempo real y módulo de gestión de fabricantes
+- `static/app.js` - Telemetría, gráficos en tiempo real, escáner y módulo de nombres de APs
 - `static/index.html` - Estructura del HTML y elementos visuales
 - `static/styles.css` - Estilos modernos glassmórficos y temas responsivos

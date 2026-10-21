@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   
   const bandBadge = document.getElementById('band-badge');
   const infoSsid = document.getElementById('info-ssid');
+  const infoApName = document.getElementById('info-ap-name');
   const infoBssid = document.getElementById('info-bssid');
   const infoVendor = document.getElementById('info-vendor');
   const infoChanFreq = document.getElementById('info-chan-freq');
@@ -133,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Header
       headerSsid.textContent = data.ssid || 'Desconectado';
-      headerBssid.textContent = data.bssid || '--:--:--:--:--:--';
+      headerBssid.textContent = data.ap_name ? `${data.ap_name} (${data.bssid})` : (data.bssid || '--:--:--:--:--:--');
       headerPing.textContent = data.ping_ms ? `${data.ping_ms} ms` : 'Sin Respuesta';
       signalDbmPill.textContent = `${data.signal_dbm} dBm (${data.signal_pct}%)`;
 
@@ -146,6 +147,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Connected AP Details
       bandBadge.textContent = data.band;
       infoSsid.textContent = data.ssid;
+      if (infoApName) {
+        infoApName.textContent = data.ap_name || 'Sin nombre asignado';
+      }
       infoBssid.textContent = data.bssid;
       infoVendor.textContent = data.vendor_name;
       infoChanFreq.textContent = `Canal ${data.channel} (${data.frequency_mhz} MHz)`;
@@ -214,8 +218,20 @@ document.addEventListener('DOMContentLoaded', () => {
         <tr>
           <td><i class="fa-regular fa-clock"></i> ${e.timestamp}</td>
           <td style="font-weight: 600;">${e.ssid}</td>
-          <td><code style="color: var(--text-muted);">${e.prev_bssid}</code> (${e.prev_signal_dbm} dBm)</td>
-          <td><code style="color: var(--accent-cyan);">${e.new_bssid}</code> (${e.new_signal_dbm} dBm)</td>
+          <td>
+            <div class="ap-cell">
+              ${e.prev_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${e.prev_ap_name}</span>` : ''}
+              <code class="${e.prev_ap_name ? 'mac-subtext' : ''}" style="color: var(--text-muted);">${e.prev_bssid}</code>
+              <small style="color: var(--text-muted); font-size: 0.75rem;">(${e.prev_signal_dbm} dBm)</small>
+            </div>
+          </td>
+          <td>
+            <div class="ap-cell">
+              ${e.new_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${e.new_ap_name}</span>` : ''}
+              <code class="${e.new_ap_name ? 'mac-subtext' : ''}" style="color: var(--accent-cyan); font-weight: 600;">${e.new_bssid}</code>
+              <small style="color: var(--accent-cyan); font-size: 0.75rem;">(${e.new_signal_dbm} dBm)</small>
+            </div>
+          </td>
           <td>
             <span style="color: ${e.delta_dbm >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'}; font-weight: bold;">
               ${e.delta_dbm >= 0 ? '+' : ''}${e.delta_dbm} dBm
@@ -271,7 +287,17 @@ document.addEventListener('DOMContentLoaded', () => {
               : '<span style="color: var(--text-muted);">Disponible</span>'}
           </td>
           <td>${ap.ssid || '<i style="color: var(--text-muted);">(Oculto)</i>'}</td>
-          <td><code>${ap.bssid}</code></td>
+          <td>
+            <div class="ap-cell">
+              ${ap.ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${ap.ap_name}</span>` : ''}
+              <div style="display: flex; align-items: center;">
+                <code class="${ap.ap_name ? 'mac-subtext' : ''}">${ap.bssid}</code>
+                <button class="btn-quick-name-ap" data-bssid="${ap.bssid}" data-name="${ap.ap_name || ''}" title="Asignar o editar nombre para este AP">
+                  <i class="fa-solid ${ap.ap_name ? 'fa-pen' : 'fa-plus'}"></i>
+                </button>
+              </div>
+            </div>
+          </td>
           <td>${ap.vendor}</td>
           <td>
             <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -291,6 +317,27 @@ document.addEventListener('DOMContentLoaded', () => {
         </tr>
       `).join('');
 
+      // Quick name button listener
+      apScannerTableBody.querySelectorAll('.btn-quick-name-ap').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const bssid = btn.getAttribute('data-bssid');
+          const current = btn.getAttribute('data-name');
+          const newName = prompt(`Asignar nombre en controladora para el AP con MAC:\n${bssid}`, current);
+          if (newName !== null && newName.trim()) {
+            await fetch('/api/ap-names/add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mac: bssid, name: newName.trim() })
+            });
+            fetchStatus();
+            fetchApScan();
+            if (typeof fetchApInfo === 'function') fetchApInfo();
+            if (typeof searchAps === 'function') searchAps();
+          }
+        });
+      });
+
 
     } catch (err) {
       console.error('Error al obtener escaneo de APs:', err);
@@ -309,12 +356,290 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (target === 'tab-roaming-log') fetchRoamingHistory();
       if (target === 'tab-ap-scanner') fetchApScan();
+      if (target === 'tab-ap-names') {
+        fetchApInfo();
+        searchAps(apSearchInput ? apSearchInput.value : '');
+      }
       if (target === 'tab-oui-manager') {
         fetchOuiInfo();
         searchOuiVendors(ouiSearchInput ? ouiSearchInput.value : '');
       }
     });
   });
+
+  // AP Manager DOM Elements
+  const apStatTotal = document.getElementById('ap-stat-total');
+  const apStatCurrent = document.getElementById('ap-stat-current');
+  const apStatUpdated = document.getElementById('ap-stat-updated');
+  const btnToggleImportCsv = document.getElementById('btn-toggle-import-csv');
+  const btnToggleAddAp = document.getElementById('btn-toggle-add-ap');
+  const apImportPanel = document.getElementById('ap-import-panel');
+  const apAddFormContainer = document.getElementById('ap-add-form-container');
+  const apCsvFileInput = document.getElementById('ap-csv-file-input');
+  const btnSelectCsvFile = document.getElementById('btn-select-csv-file');
+  const apCsvFileName = document.getElementById('ap-csv-file-name');
+  const apCsvTextarea = document.getElementById('ap-csv-textarea');
+  const btnProcessCsv = document.getElementById('btn-process-csv');
+  const btnCancelImportCsv = document.getElementById('btn-cancel-import-csv');
+  const apInputMac = document.getElementById('ap-input-mac');
+  const apInputName = document.getElementById('ap-input-name');
+  const apInputLocation = document.getElementById('ap-input-location');
+  const apInputModel = document.getElementById('ap-input-model');
+  const btnSaveAp = document.getElementById('btn-save-ap');
+  const btnCancelAddAp = document.getElementById('btn-cancel-add-ap');
+  const apSearchInput = document.getElementById('ap-search-input');
+  const apTableBody = document.getElementById('ap-table-body');
+
+  let apSearchTimeout = null;
+
+  async function fetchApInfo() {
+    try {
+      const res = await fetch('/api/ap-names');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (apStatTotal) apStatTotal.textContent = Number(data.info.total || 0).toLocaleString();
+      if (apStatUpdated) apStatUpdated.textContent = data.info.last_updated ? data.info.last_updated.split(' ')[0] : 'Sin datos';
+      
+      // Update current connected AP name in stat card
+      if (apStatCurrent) {
+        const curName = infoApName ? infoApName.textContent : '--';
+        apStatCurrent.textContent = curName && curName !== 'Sin nombre asignado' ? curName : 'No asignado';
+      }
+    } catch (e) {
+      console.error('Error cargando información de APs:', e);
+    }
+  }
+
+  async function searchAps(query = '') {
+    if (!apTableBody) return;
+    try {
+      const res = await fetch(`/api/ap-names?q=${encodeURIComponent(query)}&limit=100`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const aps = data.aps || [];
+
+      if (aps.length === 0) {
+        apTableBody.innerHTML = `
+          <tr>
+            <td colspan="5">
+              <div class="empty-state">
+                <i class="fa-solid fa-tags"></i>
+                <p>No se encontraron APs${query ? ` para "${query}"` : ' registrados aún'}.</p>
+                <small>Usa "Registrar AP" o "Importar CSV Controladora" para vincular nombres a direcciones MAC.</small>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      apTableBody.innerHTML = aps.map(item => `
+        <tr>
+          <td><code style="color: var(--accent-cyan); font-weight: 700; font-size: 0.9rem;">${item.mac}</code></td>
+          <td style="font-weight: 600; color: var(--text-primary);">
+            <i class="fa-solid fa-tag" style="color: var(--accent-purple); font-size: 0.8rem; margin-right: 0.35rem;"></i>${item.name}
+          </td>
+          <td>${item.location || '<span style="color: var(--text-muted); font-size: 0.8rem;">--</span>'}</td>
+          <td>${item.model || '<span style="color: var(--text-muted); font-size: 0.8rem;">--</span>'}</td>
+          <td style="text-align: center;">
+            <div style="display: flex; gap: 0.35rem; justify-content: center;">
+              <button class="btn-icon-danger btn-edit-ap" data-mac="${item.mac}" data-name="${item.name}" data-loc="${item.location || ''}" data-mod="${item.model || ''}" title="Editar este AP" style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.3); color: var(--accent-purple);">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button class="btn-icon-danger btn-remove-ap" data-mac="${item.mac}" title="Eliminar este AP">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      // Attach edit & remove handlers
+      apTableBody.querySelectorAll('.btn-edit-ap').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (apAddFormContainer) {
+            apAddFormContainer.style.display = 'block';
+            if (apInputMac) apInputMac.value = btn.getAttribute('data-mac');
+            if (apInputName) apInputName.value = btn.getAttribute('data-name');
+            if (apInputLocation) apInputLocation.value = btn.getAttribute('data-loc');
+            if (apInputModel) apInputModel.value = btn.getAttribute('data-mod');
+            if (apInputName) apInputName.focus();
+          }
+        });
+      });
+
+      apTableBody.querySelectorAll('.btn-remove-ap').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const mac = btn.getAttribute('data-mac');
+          if (confirm(`¿Eliminar el AP con MAC ${mac}?`)) {
+            await fetch('/api/ap-names/remove', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mac })
+            });
+            fetchApInfo();
+            searchAps(apSearchInput ? apSearchInput.value : '');
+            fetchStatus();
+            fetchApScan();
+          }
+        });
+      });
+
+    } catch (e) {
+      console.error('Error buscando APs:', e);
+    }
+  }
+
+  // Toggle Forms
+  if (btnToggleAddAp && apAddFormContainer) {
+    btnToggleAddAp.addEventListener('click', () => {
+      const isVisible = apAddFormContainer.style.display !== 'none';
+      apAddFormContainer.style.display = isVisible ? 'none' : 'block';
+      if (!isVisible && apInputMac) apInputMac.focus();
+    });
+  }
+
+  if (btnCancelAddAp && apAddFormContainer) {
+    btnCancelAddAp.addEventListener('click', () => {
+      apAddFormContainer.style.display = 'none';
+      if (apInputMac) apInputMac.value = '';
+      if (apInputName) apInputName.value = '';
+      if (apInputLocation) apInputLocation.value = '';
+      if (apInputModel) apInputModel.value = '';
+    });
+  }
+
+  if (btnToggleImportCsv && apImportPanel) {
+    btnToggleImportCsv.addEventListener('click', () => {
+      const isVisible = apImportPanel.style.display !== 'none';
+      apImportPanel.style.display = isVisible ? 'none' : 'block';
+    });
+  }
+
+  if (btnCancelImportCsv && apImportPanel) {
+    btnCancelImportCsv.addEventListener('click', () => {
+      apImportPanel.style.display = 'none';
+      if (apCsvTextarea) apCsvTextarea.value = '';
+      if (apCsvFileName) apCsvFileName.textContent = '';
+      if (apCsvFileInput) apCsvFileInput.value = '';
+    });
+  }
+
+  // File picker handler for CSV
+  if (btnSelectCsvFile && apCsvFileInput) {
+    btnSelectCsvFile.addEventListener('click', () => {
+      apCsvFileInput.click();
+    });
+  }
+
+  if (apCsvFileInput) {
+    apCsvFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        if (apCsvFileName) apCsvFileName.textContent = `Archivo: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          if (apCsvTextarea) apCsvTextarea.value = event.target.result;
+        };
+        reader.readAsText(file);
+      }
+    });
+  }
+
+  // Process CSV import
+  if (btnProcessCsv) {
+    btnProcessCsv.addEventListener('click', async () => {
+      const csvText = (apCsvTextarea ? apCsvTextarea.value : '').trim();
+      if (!csvText) {
+        alert('Por favor pega contenido CSV o selecciona un archivo antes de importar.');
+        return;
+      }
+
+      btnProcessCsv.disabled = true;
+      btnProcessCsv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+      try {
+        const res = await fetch('/api/ap-names/import-csv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ csv: csvText })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          let msg = `¡Importación exitosa!\n\n• Nuevos APs agregados: ${data.added}\n• APs actualizados: ${data.updated}\n• Total en base de datos: ${data.total}`;
+          if (data.errors && data.errors.length > 0) {
+            msg += `\n\nAdvertencias (${data.errors.length}):\n${data.errors.join('\n')}`;
+          }
+          alert(msg);
+          if (apImportPanel) apImportPanel.style.display = 'none';
+          if (apCsvTextarea) apCsvTextarea.value = '';
+          if (apCsvFileName) apCsvFileName.textContent = '';
+          fetchApInfo();
+          searchAps();
+          fetchStatus();
+          fetchApScan();
+        } else {
+          alert(`Error al importar: ${data.message || 'Formato no reconocido'}`);
+        }
+      } catch (e) {
+        alert('Error de conexión al importar CSV.');
+      } finally {
+        btnProcessCsv.disabled = false;
+        btnProcessCsv.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Procesar e Importar APs';
+      }
+    });
+  }
+
+  // Save single AP
+  if (btnSaveAp) {
+    btnSaveAp.addEventListener('click', async () => {
+      const mac = (apInputMac ? apInputMac.value : '').trim();
+      const name = (apInputName ? apInputName.value : '').trim();
+      const location = (apInputLocation ? apInputLocation.value : '').trim();
+      const model = (apInputModel ? apInputModel.value : '').trim();
+
+      if (!mac || !name) {
+        alert('Por favor ingresa al menos la dirección MAC y el nombre del AP.');
+        return;
+      }
+
+      btnSaveAp.disabled = true;
+      try {
+        const res = await fetch('/api/ap-names/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mac, name, location, model })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          if (apAddFormContainer) apAddFormContainer.style.display = 'none';
+          if (apInputMac) apInputMac.value = '';
+          if (apInputName) apInputName.value = '';
+          if (apInputLocation) apInputLocation.value = '';
+          if (apInputModel) apInputModel.value = '';
+          fetchApInfo();
+          searchAps(apSearchInput ? apSearchInput.value : '');
+          fetchStatus();
+          fetchApScan();
+        } else {
+          alert(`Error: ${data.message || 'No se pudo guardar el AP'}`);
+        }
+      } catch (e) {
+        alert('Error de conexión al guardar el AP.');
+      } finally {
+        btnSaveAp.disabled = false;
+      }
+    });
+  }
+
+  // AP search debounce
+  if (apSearchInput) {
+    apSearchInput.addEventListener('input', (e) => {
+      clearTimeout(apSearchTimeout);
+      apSearchTimeout = setTimeout(() => {
+        searchAps(e.target.value);
+      }, 250);
+    });
+  }
 
   // OUI Manager DOM Elements
   const ouiStatTotal = document.getElementById('oui-stat-total');
@@ -590,6 +915,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchStatus();
   fetchRoamingHistory();
   fetchApScan();
+  fetchApInfo();
 
   setInterval(fetchStatus, 1500);
   setInterval(fetchRoamingHistory, 3000);
