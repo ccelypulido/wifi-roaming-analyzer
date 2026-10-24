@@ -117,7 +117,34 @@ def init_db():
             )
         """)
 
-        # 4. Config Key-Value Store
+        # 4. HTTP Probe History (Individual Phase Latency Tests)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS http_probe_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                location TEXT DEFAULT 'Sede Principal',
+                zone TEXT DEFAULT '',
+                bssid TEXT,
+                ap_name TEXT,
+                signal_dbm INTEGER DEFAULT -100,
+                target_url TEXT,
+                dns_ms REAL DEFAULT 0.0,
+                tcp_ms REAL DEFAULT 0.0,
+                tls_ms REAL DEFAULT 0.0,
+                ttfb_ms REAL DEFAULT 0.0,
+                transfer_ms REAL DEFAULT 0.0,
+                total_ms REAL DEFAULT 0.0,
+                cold_total_ms REAL DEFAULT 0.0,
+                status_code INTEGER DEFAULT 0,
+                is_error INTEGER DEFAULT 0,
+                error_message TEXT,
+                response_size_bytes INTEGER DEFAULT 0
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_probe_hist_time ON http_probe_history(timestamp DESC)")
+
+        # 5. Config Key-Value Store
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS config (
                 key TEXT PRIMARY KEY,
@@ -330,6 +357,108 @@ def get_net_diag_history(limit: int = 15, location_filter: Optional[str] = None)
             except Exception:
                 d['results'] = []
             result.append(d)
+        return result
+
+def save_http_probe(
+    probe_res: Dict[str, Any],
+    location: Optional[str] = None,
+    zone: Optional[str] = None,
+    bssid: Optional[str] = None,
+    ap_name: Optional[str] = None,
+    signal_dbm: Optional[int] = None
+) -> int:
+    """Saves an individual HTTP latency test probe record."""
+    ts = probe_res.get('timestamp') or datetime.datetime.now().timestamp()
+    created_at = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
+    cfg = get_config()
+    loc = location or cfg.get('location_name', 'Sede Principal')
+    z = zone if zone is not None else cfg.get('current_zone', '')
+    url = probe_res.get('url') or cfg.get('target_url', '')
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO http_probe_history (
+                timestamp, created_at, location, zone,
+                bssid, ap_name, signal_dbm, target_url,
+                dns_ms, tcp_ms, tls_ms, ttfb_ms, transfer_ms,
+                total_ms, cold_total_ms, status_code, is_error,
+                error_message, response_size_bytes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            ts, created_at, loc, z,
+            bssid or '', ap_name or '', signal_dbm if signal_dbm is not None else -100,
+            url,
+            probe_res.get('dns_ms', 0.0) or 0.0,
+            probe_res.get('tcp_ms', 0.0) or 0.0,
+            probe_res.get('tls_ms', 0.0) or 0.0,
+            probe_res.get('ttfb_ms', 0.0) or 0.0,
+            probe_res.get('transfer_ms', 0.0) or 0.0,
+            probe_res.get('total_ms', 0.0) or 0.0,
+            probe_res.get('cold_total_ms', 0.0) or 0.0,
+            probe_res.get('status_code', 0) or 0,
+            1 if probe_res.get('is_error') else 0,
+            probe_res.get('error_message') or '',
+            probe_res.get('response_size_bytes', 0) or 0
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_http_probe_history(
+    limit: int = 50,
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Retrieves recent HTTP latency probe tests."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM http_probe_history WHERE 1=1"
+        params = []
+        if location_filter and location_filter != 'all':
+            query += " AND location = ?"
+            params.append(location_filter)
+        if zone_filter and zone_filter != 'all':
+            query += " AND zone = ?"
+            params.append(zone_filter)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        result = []
+        for r in rows:
+            d = dict(r)
+            dt = datetime.datetime.fromtimestamp(d['timestamp'])
+            d['time'] = dt.strftime("%H:%M:%S")
+            d['date'] = dt.strftime("%Y-%m-%d")
+            result.append(d)
+
+        # Fallback to distinct samples from telemetry_samples if http_probe_history is empty
+        if len(result) == 0:
+            query_fallback = """
+                SELECT id, timestamp, created_at, location, zone, bssid, ap_name, signal_dbm,
+                       target_url, dns_ms, tcp_ms, tls_ms, ttfb_ms, transfer_ms,
+                       total_ms, cold_total_ms, status_code, is_error, error_message, response_size_bytes
+                FROM telemetry_samples
+                WHERE total_ms > 0
+            """
+            params_fallback = []
+            if location_filter and location_filter != 'all':
+                query_fallback += " AND location = ?"
+                params_fallback.append(location_filter)
+            if zone_filter and zone_filter != 'all':
+                query_fallback += " AND zone = ?"
+                params_fallback.append(zone_filter)
+            query_fallback += " ORDER BY id DESC LIMIT ?"
+            params_fallback.append(limit)
+            cursor.execute(query_fallback, params_fallback)
+            for r in cursor.fetchall():
+                d = dict(r)
+                dt = datetime.datetime.fromtimestamp(d['timestamp'])
+                d['time'] = dt.strftime("%H:%M:%S")
+                d['date'] = dt.strftime("%Y-%m-%d")
+                result.append(d)
+
         return result
 
 def get_recent_samples(limit: int = 60, location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -623,8 +752,30 @@ def export_roaming_csv(location_filter: Optional[str] = None, zone_filter: Optio
             ])
     return output.getvalue()
 
+def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
+    """Exports HTTP probe phase latency history into CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Fecha_Hora_UTC", "Timestamp", "Hora", "Fecha", "Sede", "Zona",
+        "AP_Nombre", "BSSID", "Signal_dBm", "Target_URL", "HTTP_Status",
+        "DNS_ms", "TCP_ms", "TLS_ms", "TTFB_ms", "Transfer_ms",
+        "Total_Activo_ms", "Cold_Total_ms", "Error", "Error_Msg"
+    ])
+    probes = get_http_probe_history(limit=1000, location_filter=location_filter, zone_filter=zone_filter)
+    for r in probes:
+        writer.writerow([
+            r.get('id', ''), r.get('created_at', ''), r.get('timestamp', 0), r.get('time', ''), r.get('date', ''),
+            r.get('location', ''), r.get('zone', ''), r.get('ap_name', ''), r.get('bssid', ''),
+            r.get('signal_dbm', ''), r.get('target_url', ''), r.get('status_code', 0),
+            r.get('dns_ms', 0), r.get('tcp_ms', 0), r.get('tls_ms', 0), r.get('ttfb_ms', 0),
+            r.get('transfer_ms', 0), r.get('total_ms', 0), r.get('cold_total_ms', 0),
+            r.get('is_error', 0), r.get('error_message', '')
+        ])
+    return output.getvalue()
+
 def clear_history(scope: str = 'all'):
-    """Clears history tables according to scope ('telemetry', 'roaming', 'diag', 'all')."""
+    """Clears history tables according to scope ('telemetry', 'roaming', 'diag', 'probes', 'all')."""
     with get_connection() as conn:
         cursor = conn.cursor()
         if scope in ('telemetry', 'all'):
@@ -633,6 +784,8 @@ def clear_history(scope: str = 'all'):
             cursor.execute("DELETE FROM roaming_events")
         if scope in ('diag', 'all'):
             cursor.execute("DELETE FROM net_diag_history")
+        if scope in ('probes', 'all'):
+            cursor.execute("DELETE FROM http_probe_history")
         conn.commit()
 
 if __name__ == '__main__':

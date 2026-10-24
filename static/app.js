@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   // --- DOM Elements ---
   // Header badges
   const headerSsid = document.getElementById('header-ssid');
@@ -69,6 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardTtfbVal = document.getElementById('card-ttfb-val');
   const cardTransVal = document.getElementById('card-trans-val');
   const btnManualProbe = document.getElementById('btn-manual-probe');
+  const httpHistoryTableBody = document.getElementById('http-history-table-body');
+  const httpHistoryCounter = document.getElementById('http-history-counter');
+  const btnRefreshHttpHistory = document.getElementById('btn-refresh-http-history');
+  const btnExportHttpHistory = document.getElementById('btn-export-http-history');
 
   // Tab 3: Network Diagnostics
   const btnRunDiag = document.getElementById('btn-run-diag');
@@ -315,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.dataset.tab === 'tab-config') loadConfigView();
         if (btn.dataset.tab === 'tab-roaming-log') loadRoamingHistory();
         if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
+        if (btn.dataset.tab === 'tab-http-phases') loadHttpPhasesHistory();
       }
     });
   });
@@ -416,6 +431,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const z = selZone.value;
     await saveConfig({ location_name: loc, current_zone: z });
     loadStatistics();
+    loadRoamingHistory();
+    loadHttpPhasesHistory();
   });
 
   selZone.addEventListener('change', async () => {
@@ -423,6 +440,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const z = selZone.value;
     await saveConfig({ location_name: loc, current_zone: z });
     loadStatistics();
+    loadRoamingHistory();
+    loadHttpPhasesHistory();
   });
 
   btnQuickAddZone.addEventListener('click', async () => {
@@ -682,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Tab 2: Manual Probe Trigger ---
+  // --- Tab 2: Manual Probe Trigger & History ---
   btnManualProbe.addEventListener('click', async () => {
     btnManualProbe.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Midiendo...';
     btnManualProbe.disabled = true;
@@ -690,6 +709,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const res = await fetch('/api/probe/now', { method: 'POST' });
       const data = await res.json();
       updateAppCard(data);
+      loadHttpPhasesHistory();
     } catch (e) {
       alert("Error en medición: " + e);
     } finally {
@@ -697,6 +717,119 @@ document.addEventListener('DOMContentLoaded', () => {
       btnManualProbe.disabled = false;
     }
   });
+
+  async function loadHttpPhasesHistory() {
+    if (!httpHistoryTableBody) return;
+    try {
+      const loc = selLocation.value;
+      const zone = selZone.value;
+      const res = await fetch(`/api/http-phases/history?limit=50&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`);
+      const data = await res.json();
+      const records = data.records || [];
+
+      if (httpHistoryCounter) {
+        httpHistoryCounter.textContent = `${records.length} prueba${records.length === 1 ? '' : 's'}`;
+      }
+
+      if (records.length === 0) {
+        httpHistoryTableBody.innerHTML = `
+          <tr>
+            <td colspan="11">
+              <div class="empty-state" style="padding: 2.5rem 1rem; text-align: center;">
+                <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Aún no hay mediciones registradas en el historial.</p>
+                <small style="color: rgba(255, 255, 255, 0.4);">Presiona "Medir Ahora" arriba para registrar la primera prueba de latencia.</small>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      httpHistoryTableBody.innerHTML = records.map((r, idx) => {
+        const statusCode = r.status_code || 0;
+        let badgeHtml = '';
+        if (r.is_error || (statusCode >= 500 && statusCode < 600)) {
+          badgeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700;" title="${escapeHtml(r.error_message || 'Error')}"><i class="fa-solid fa-triangle-exclamation"></i> ${statusCode || 'ERR'}</span>`;
+        } else if (statusCode >= 200 && statusCode < 300) {
+          badgeHtml = `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-weight: 700;"><i class="fa-solid fa-check"></i> ${statusCode}</span>`;
+        } else if (statusCode >= 300 && statusCode < 400) {
+          badgeHtml = `<span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; font-weight: 700;">${statusCode}</span>`;
+        } else if (statusCode >= 400 && statusCode < 500) {
+          badgeHtml = `<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; font-weight: 700;">${statusCode}</span>`;
+        } else {
+          badgeHtml = `<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text-muted); font-weight: 600;">${statusCode || '--'}</span>`;
+        }
+
+        const sig = r.signal_dbm !== undefined && r.signal_dbm > -100 ? `${r.signal_dbm} dBm` : '';
+        const sigColor = r.signal_dbm >= -65 ? 'var(--accent-emerald)' : (r.signal_dbm >= -75 ? 'var(--accent-amber)' : 'var(--accent-rose)');
+        const apLabel = r.ap_name ? `<span class="ap-name-tag" style="margin-right: 0.35rem;"><i class="fa-solid fa-tag"></i> ${escapeHtml(r.ap_name)}</span>` : '';
+        const bssidLabel = r.bssid ? `<span class="mac-subtext" style="font-family: monospace;">${escapeHtml(r.bssid)}</span>` : '<span style="color: var(--text-muted); font-size: 0.78rem;">--</span>';
+
+        return `
+          <tr>
+            <td style="text-align: center; color: var(--text-muted); font-size: 0.8rem; font-family: monospace;">${idx + 1}</td>
+            <td>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${escapeHtml(r.time || '--:--:--')}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(r.date || '')}</div>
+            </td>
+            <td>
+              <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(r.location || 'Sede Principal')}</div>
+              ${r.zone ? `<div style="font-size: 0.75rem; color: var(--accent-cyan);"><i class="fa-solid fa-location-dot" style="font-size: 0.7rem;"></i> ${escapeHtml(r.zone)}</div>` : ''}
+            </td>
+            <td>
+              <div class="ap-cell">
+                ${apLabel}
+                ${bssidLabel}
+                ${sig ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${sigColor}; margin-left: 0.35rem;">(${sig})</span>` : ''}
+              </div>
+            </td>
+            <td style="text-align: center;">
+              ${badgeHtml}
+            </td>
+            <td style="text-align: right; font-family: monospace; color: var(--text-muted);">${Number(r.dns_ms || 0).toFixed(1)} ms</td>
+            <td style="text-align: right; font-family: monospace; color: var(--text-muted);">${Number(r.tcp_ms || 0).toFixed(1)} ms</td>
+            <td style="text-align: right; font-family: monospace; color: var(--text-muted);">${Number(r.tls_ms || 0).toFixed(1)} ms</td>
+            <td style="text-align: right; font-family: monospace; font-weight: 600; color: var(--accent-emerald);">${Number(r.ttfb_ms || 0).toFixed(1)} ms</td>
+            <td style="text-align: right; font-family: monospace; color: var(--text-muted);">${Number(r.transfer_ms || 0).toFixed(1)} ms</td>
+            <td style="text-align: right;">
+              <span style="font-family: monospace; font-weight: 700; color: var(--accent-cyan); font-size: 0.92rem;">
+                ${Number(r.total_ms || 0).toFixed(1)} ms
+              </span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    } catch (e) {
+      console.warn("Error cargando historial de fases HTTP:", e);
+      if (httpHistoryTableBody) {
+        httpHistoryTableBody.innerHTML = `
+          <tr>
+            <td colspan="11" style="text-align: center; color: var(--accent-rose); padding: 1.5rem;">
+              <i class="fa-solid fa-circle-exclamation"></i> Error al cargar el historial de pruebas: ${escapeHtml(e.message || String(e))}
+            </td>
+          </tr>
+        `;
+      }
+    }
+  }
+
+  if (btnRefreshHttpHistory) {
+    btnRefreshHttpHistory.addEventListener('click', () => {
+      btnRefreshHttpHistory.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      loadHttpPhasesHistory().finally(() => {
+        btnRefreshHttpHistory.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Actualizar';
+      });
+    });
+  }
+
+  if (btnExportHttpHistory) {
+    btnExportHttpHistory.addEventListener('click', () => {
+      const loc = selLocation.value;
+      const zone = selZone.value;
+      window.location.href = `/api/export?type=http-phases&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
+    });
+  }
 
   // --- Tab 3: Network Diagnostics (ICMP & Traceroute) ---
   async function loadNetDiagView() {
@@ -1327,6 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadLocationsAndZones();
     await fetchStatus();
     loadRoamingHistory();
+    loadHttpPhasesHistory();
     loadApScanner();
     loadNetDiagView();
 

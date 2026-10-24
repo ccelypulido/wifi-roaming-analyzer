@@ -736,6 +736,15 @@ def http_probe_loop():
                     state.app_is_error = res.get('is_error', False)
                     state.app_error_message = res.get('error_message')
                     state.last_probe_time = time.time()
+                    curr_loc = state.location
+                    curr_zone = state.zone
+                    curr_bssid = state.current_bssid
+                    curr_ap = state.ap_name
+                    curr_sig = state.signal_dbm
+                try:
+                    database.save_http_probe(res, location=curr_loc, zone=curr_zone, bssid=curr_bssid, ap_name=curr_ap, signal_dbm=curr_sig)
+                except Exception:
+                    pass
         except Exception as e:
             pass
 
@@ -867,6 +876,15 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             zone = qs.get('zone', ['all'])[0]
             samples = database.get_recent_samples(limit=limit, location_filter=loc, zone_filter=zone)
             self.send_json_response({"samples": samples})
+        elif parsed.path in ('/api/http-phases/history', '/api/probe/history'):
+            try:
+                limit = int(qs.get('limit', [50])[0])
+            except (ValueError, TypeError):
+                limit = 50
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            records = database.get_http_probe_history(limit=limit, location_filter=loc, zone_filter=zone)
+            self.send_json_response({"records": records, "count": len(records)})
         elif parsed.path == '/api/net-diag':
             history = database.get_net_diag_history(limit=10)
             gw = net_diag.get_cached_gateway()
@@ -883,6 +901,9 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             if exp_type == 'roaming':
                 csv_str = database.export_roaming_csv(location_filter=loc, zone_filter=zone)
                 filename = f"roaming_history_{loc}.csv"
+            elif exp_type in ('http-phases', 'probes'):
+                csv_str = database.export_http_probes_csv(location_filter=loc, zone_filter=zone)
+                filename = f"http_phases_history_{loc}.csv"
             elif exp_type == 'ap-names':
                 aps = ap_manager.search('', limit=10000)
                 out = io.StringIO()
@@ -943,6 +964,15 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 state.app_is_error = res.get('is_error', False)
                 state.app_error_message = res.get('error_message')
                 state.last_probe_time = time.time()
+                curr_loc = state.location
+                curr_zone = state.zone
+                curr_bssid = state.current_bssid
+                curr_ap = state.ap_name
+                curr_sig = state.signal_dbm
+            try:
+                database.save_http_probe(res, location=curr_loc, zone=curr_zone, bssid=curr_bssid, ap_name=curr_ap, signal_dbm=curr_sig)
+            except Exception:
+                pass
             self.send_json_response(res)
 
         elif parsed.path == '/api/config':
