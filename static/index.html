@@ -583,54 +583,22 @@
             </button>
           </div>
 
-          <!-- Column 2: AP Friendly Names -->
+          <!-- Column 2: Domain & Application Authentication -->
           <div class="card" style="background: rgba(255, 255, 255, 0.02);">
-            <div class="card-title" style="margin-bottom: 1rem;">
-              <i class="fa-solid fa-tags"></i>
-              <span>Mapeo de Nombres de APs (BSSID ➔ Nombre)</span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Asignar Nombre a BSSID:</label>
-              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-                <input type="text" id="input-new-bssid" class="toolbar-input" placeholder="AA:BB:CC:DD:EE:FF" style="flex: 1;">
-                <input type="text" id="input-new-apname" class="toolbar-input" placeholder="AP-Tienda-Cajas" style="flex: 1;">
-                <button id="btn-add-apname" class="btn-primary"><i class="fa-solid fa-plus"></i> Guardar</button>
-              </div>
-            </div>
-
-            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
-              <table class="custom-table">
-                <thead>
-                  <tr>
-                    <th>BSSID</th>
-                    <th>Nombre Asignado</th>
-                    <th>Acción</th>
-                  </tr>
-                </thead>
-                <tbody id="ap-names-table-body">
-                  <!-- Loaded via JS -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Card 3: Domain & Application Authentication (Full Width) -->
-          <div class="card" style="background: rgba(255, 255, 255, 0.02); grid-column: 1 / -1;">
             <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem;">
               <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fa-solid fa-shield-halved" style="color: var(--accent-cyan);"></i>
-                <span style="font-weight: 600;">Autenticación de Dominio y Aplicación (NTLM v1/v2 / Bearer Token / Basic Auth)</span>
+                <span style="font-weight: 600;">Autenticación (NTLM / Bearer / Basic)</span>
               </div>
               <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; background: rgba(0, 210, 255, 0.08); padding: 0.4rem 0.85rem; border-radius: 6px; border: 1px solid rgba(0, 210, 255, 0.2); user-select: none;">
                 <input type="checkbox" id="cfg-auth-enabled" style="width: 1.15rem; height: 1.15rem; accent-color: var(--accent-cyan); cursor: pointer;">
-                <span id="cfg-auth-enabled-label" style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">Habilitar Autenticación</span>
+                <span id="cfg-auth-enabled-label" style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">Habilitar</span>
               </label>
             </div>
 
             <div id="auth-config-fields" style="margin-top: 0.5rem;">
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
-                <div class="form-group">
+              <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+                <div class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Método de Autenticación:</label>
                   <select id="cfg-auth-type" class="toolbar-select" style="width: 100%; cursor: pointer;">
                     <option value="ntlm">NTLM v2 (Active Directory / Windows / Manhattan SCE)</option>
@@ -639,17 +607,17 @@
                   </select>
                 </div>
 
-                <div id="grp-auth-domain" class="form-group">
+                <div id="grp-auth-domain" class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Dominio Active Directory:</label>
                   <input type="text" id="cfg-auth-domain" class="toolbar-input" placeholder="Ej: CORP o MANH" style="width: 100%;">
                 </div>
 
-                <div id="grp-auth-user" class="form-group">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Usuario de Dominio:</label>
+                <div id="grp-auth-user" class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Usuario de Red / Dominio:</label>
                   <input type="text" id="cfg-auth-user" class="toolbar-input" placeholder="Ej: operador_wifi" style="width: 100%;">
                 </div>
 
-                <div id="grp-auth-password" class="form-group">
+                <div id="grp-auth-password" class="form-group" style="margin-bottom: 0;">
                   <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Contraseña de Dominio:</label>
                   <div style="display: flex; gap: 0.5rem;">
                     <input type="password" id="cfg-auth-password" class="toolbar-input" placeholder="••••••••" style="flex: 1;">
@@ -659,23 +627,102 @@
                   </div>
                 </div>
 
-                <div id="grp-auth-token" class="form-group" style="display: none; grid-column: 1 / -1;">
+                <div id="grp-auth-token" class="form-group" style="display: none; margin-bottom: 0;">
                   <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Token Bearer / Cookie de Sesión:</label>
                   <textarea id="cfg-auth-token" class="toolbar-input" rows="2" placeholder="Ej: Bearer eyJhbGciOi... o Cookie: FedAuth=...; PHPSESSID=..." style="width: 100%; font-family: monospace; font-size: 0.85rem; resize: vertical;"></textarea>
                   <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
-                    Se enviará en el encabezado HTTP 'Authorization: Bearer &lt;token&gt;' o 'Cookie: &lt;cookie&gt;' según corresponda.
+                    Compatible con tokens JWT Bearer o cookies de sesión para Azure AD / Microsoft MFA.
                   </small>
                 </div>
               </div>
 
               <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-                <button type="button" id="btn-test-auth" class="btn-secondary">
-                  <i class="fa-solid fa-key"></i> Probar Credenciales Ahora
+                <button type="button" id="btn-test-auth" class="btn-secondary" style="font-size: 0.82rem;">
+                  <i class="fa-solid fa-key"></i> Probar Credenciales
                 </button>
-                <button type="button" id="btn-save-auth" class="btn-primary">
-                  <i class="fa-solid fa-floppy-disk"></i> Guardar Credenciales
+                <button type="button" id="btn-save-auth" class="btn-primary" style="font-size: 0.82rem;">
+                  <i class="fa-solid fa-floppy-disk"></i> Guardar
                 </button>
               </div>
+            </div>
+          </div>
+
+          <!-- Card 3: AP Friendly Names (Full Width & CSV Auto-Detector) -->
+          <div class="card" style="background: rgba(255, 255, 255, 0.02); grid-column: 1 / -1;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+              <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-tags" style="color: var(--accent-cyan);"></i>
+                <span style="font-weight: 600;">Mapeo de Nombres de APs (BSSID ➔ Nombre)</span>
+                <span id="ap-count-badge" class="badge" style="background: rgba(0, 210, 255, 0.12); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">0 APs</span>
+              </div>
+              
+              <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <input type="file" id="input-csv-ap-names" accept=".csv,.txt" style="display: none;">
+                <button type="button" id="btn-import-ap-csv" class="btn-primary" style="font-size: 0.82rem; padding: 0.45rem 0.85rem;">
+                  <i class="fa-solid fa-file-arrow-up"></i> Cargar CSV Controlador
+                </button>
+                <button type="button" id="btn-export-ap-csv" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.85rem;">
+                  <i class="fa-solid fa-file-arrow-down"></i> Exportar CSV
+                </button>
+                <button type="button" id="btn-clear-all-aps" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.85rem; color: #ef4444;" title="Limpiar todos los APs mapeados">
+                  <i class="fa-solid fa-trash-can"></i> Limpiar Todo
+                </button>
+              </div>
+            </div>
+
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+              Carga directamente el archivo CSV exportado desde la controladora de tu fabricante (<strong style="color: var(--accent-cyan);">Cisco Catalyst/WLC, Aruba Central, UniFi, Huawei, FortiGate</strong>, etc.). El sistema analiza automáticamente los encabezados, detecta delimitadores (coma, punto y coma, tabulación o pipe) y vincula los nombres de los APs con sus BSSID físicos y virtuales.
+            </p>
+
+            <!-- Form to add single AP -->
+            <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.9rem; margin-bottom: 1.25rem;">
+              <div style="font-size: 0.82rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.65rem;">
+                <i class="fa-solid fa-plus-circle" style="color: var(--accent-cyan); margin-right: 0.35rem;"></i> Registrar / Modificar Access Point Manualmente:
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 0.75rem; align-items: end;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Dirección MAC / BSSID:</label>
+                  <input type="text" id="input-new-bssid" class="toolbar-input" placeholder="AA:BB:CC:DD:EE:FF" style="width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Nombre Amigable del AP:</label>
+                  <input type="text" id="input-new-apname" class="toolbar-input" placeholder="Ej: DIBOG_P1-AP#1-ALMACEN" style="width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Ubicación / Notas (Opcional):</label>
+                  <input type="text" id="input-new-aploc" class="toolbar-input" placeholder="Ej: Piso 1 - Bodega Entrada" style="width: 100%;">
+                </div>
+                <button id="btn-add-apname" class="btn-primary" style="height: 38px; padding: 0 1rem; white-space: nowrap;">
+                  <i class="fa-solid fa-plus"></i> Guardar AP
+                </button>
+              </div>
+            </div>
+
+            <!-- Search Filter Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+              <div style="position: relative; max-width: 400px; width: 100%;">
+                <input type="text" id="input-search-ap-names" class="toolbar-input" placeholder="🔍 Buscar por MAC, nombre o ubicación..." style="width: 100%; padding-left: 0.75rem;">
+              </div>
+              <div id="ap-filtered-info" style="font-size: 0.8rem; color: var(--text-muted);">
+                Mostrando todos los APs
+              </div>
+            </div>
+
+            <!-- AP Inventory Table -->
+            <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+              <table class="custom-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th style="min-width: 180px;">BSSID (Dirección MAC)</th>
+                    <th style="min-width: 250px;">Nombre Asignado</th>
+                    <th style="min-width: 180px;">Ubicación / Notas</th>
+                    <th style="width: 90px; text-align: center;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="ap-names-table-body">
+                  <!-- Loaded via JS -->
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

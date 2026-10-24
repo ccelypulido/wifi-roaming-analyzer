@@ -103,8 +103,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveConfigGeneral = document.getElementById('btn-save-config-general');
   const inputNewBssid = document.getElementById('input-new-bssid');
   const inputNewApname = document.getElementById('input-new-apname');
+  const inputNewAploc = document.getElementById('input-new-aploc');
   const btnAddApname = document.getElementById('btnAddApname') || document.getElementById('btn-add-apname');
   const apNamesTableBody = document.getElementById('ap-names-table-body');
+  const apCountBadge = document.getElementById('ap-count-badge');
+  const inputCsvApNames = document.getElementById('input-csv-ap-names');
+  const btnImportApCsv = document.getElementById('btn-import-ap-csv');
+  const btnExportApCsv = document.getElementById('btn-export-ap-csv');
+  const btnClearAllAps = document.getElementById('btn-clear-all-aps');
+  const inputSearchApNames = document.getElementById('input-search-ap-names');
+  const apFilteredInfo = document.getElementById('ap-filtered-info');
 
   // Tab 7: Enterprise Authentication
   const cfgAuthEnabled = document.getElementById('cfg-auth-enabled');
@@ -126,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let presetsData = {};
   let locationsData = [];
   let zonesByLocation = {};
+  let allApList = [];
   let currentPreset = 'store';
   let isProbing = false;
 
@@ -973,29 +982,61 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cfgAuthToken) cfgAuthToken.value = cfg.auth_token || '';
       updateAuthFieldsVisibility();
 
-      // AP Names Table
-      renderApNamesTable(aps.aps || []);
+      // AP Names Inventory
+      allApList = aps.aps || [];
+      if (apCountBadge) apCountBadge.textContent = `${allApList.length} APs`;
+      applyApFilterAndRender();
     } catch (e) {
       console.error("Error cargando configuración:", e);
     }
   }
 
+  function applyApFilterAndRender() {
+    const q = inputSearchApNames ? inputSearchApNames.value.trim().toLowerCase() : '';
+    let filtered = allApList;
+    if (q) {
+      filtered = allApList.filter(a => {
+        const mac = (a.bssid || a.mac || '').toLowerCase();
+        const name = (a.name || '').toLowerCase();
+        const loc = (a.location || '').toLowerCase();
+        const mod = (a.model || '').toLowerCase();
+        return mac.includes(q) || name.includes(q) || loc.includes(q) || mod.includes(q);
+      });
+    }
+
+    if (apFilteredInfo) {
+      if (q) {
+        apFilteredInfo.textContent = `Mostrando ${filtered.length} de ${allApList.length} APs`;
+      } else {
+        apFilteredInfo.textContent = `Mostrando ${allApList.length} APs registrados`;
+      }
+    }
+    renderApNamesTable(filtered);
+  }
+
+  if (inputSearchApNames) {
+    inputSearchApNames.addEventListener('input', applyApFilterAndRender);
+  }
+
   function renderApNamesTable(apList) {
+    if (!apNamesTableBody) return;
     if (apList.length === 0) {
-      apNamesTableBody.innerHTML = `<tr><td colspan="3"><div class="empty-state" style="padding: 1rem;"><p>No hay nombres de APs asignados.</p></div></td></tr>`;
+      apNamesTableBody.innerHTML = `<tr><td colspan="4"><div class="empty-state" style="padding: 1.5rem;"><i class="fa-solid fa-tags"></i><p>No se encontraron Access Points registrados.</p></div></td></tr>`;
       return;
     }
     apNamesTableBody.innerHTML = apList.map(a => {
       const bssid = a.bssid || a.mac || '';
+      const locMod = [a.location, a.model].filter(Boolean).join(' • ') || '<span style="color: var(--text-muted); font-size: 0.8rem;">--</span>';
       return `
-      <tr>
-        <td style="font-family: monospace;">${bssid}</td>
-        <td><strong style="color: var(--accent-cyan);">${a.name}</strong></td>
-        <td>
-          <button class="btn-icon-danger" onclick="removeApName('${bssid}')"><i class="fa-solid fa-trash"></i></button>
-        </td>
-      </tr>
-    `;
+        <tr>
+          <td style="font-family: monospace; font-weight: 600; color: #e2e8f0;">${bssid}</td>
+          <td><strong style="color: var(--accent-cyan);">${a.name}</strong></td>
+          <td>${locMod}</td>
+          <td style="text-align: center;">
+            <button class="btn-icon-danger" onclick="removeApName('${bssid}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+          </td>
+        </tr>
+      `;
     }).join('');
   }
 
@@ -1008,26 +1049,107 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfigView();
   };
 
-  btnAddApname.addEventListener('click', async () => {
-    const bssid = inputNewBssid.value.trim();
-    const name = inputNewApname.value.trim();
-    if (!bssid || !name) {
-      alert("Por favor ingresa tanto el BSSID (MAC) como el Nombre del AP.");
-      return;
-    }
-    try {
-      await fetch('/api/ap-names/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bssid, name })
-      });
-      inputNewBssid.value = '';
-      inputNewApname.value = '';
-      loadConfigView();
-    } catch (e) {
-      alert("Error guardando AP: " + e);
-    }
-  });
+  if (btnAddApname) {
+    btnAddApname.addEventListener('click', async () => {
+      const bssid = inputNewBssid.value.trim();
+      const name = inputNewApname.value.trim();
+      const loc = inputNewAploc ? inputNewAploc.value.trim() : '';
+      if (!bssid || !name) {
+        alert("Por favor ingresa tanto el BSSID (MAC) como el Nombre del AP.");
+        return;
+      }
+      try {
+        const res = await fetch('/api/ap-names/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bssid, name, location: loc })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+          inputNewBssid.value = '';
+          inputNewApname.value = '';
+          if (inputNewAploc) inputNewAploc.value = '';
+          loadConfigView();
+        } else {
+          alert("Error: " + data.message);
+        }
+      } catch (e) {
+        alert("Error guardando AP: " + e);
+      }
+    });
+  }
+
+  // --- CSV Import / Export / Clear for AP Names ---
+  if (btnImportApCsv && inputCsvApNames) {
+    btnImportApCsv.addEventListener('click', () => {
+      inputCsvApNames.value = '';
+      inputCsvApNames.click();
+    });
+
+    inputCsvApNames.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const originalHtml = btnImportApCsv.innerHTML;
+      btnImportApCsv.disabled = true;
+      btnImportApCsv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analizando CSV...';
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const csvText = evt.target.result;
+          const res = await fetch('/api/ap-names/import-csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ csv_content: csvText })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
+            let msg = `¡Importación completada con éxito!\n\n• Nuevos APs registrados: ${data.added}\n• APs actualizados: ${data.updated}\n• Total en inventario: ${data.total}`;
+            if (data.errors && data.errors.length > 0) {
+              msg += `\n\nAvisos (${data.errors.length}):\n${data.errors.slice(0, 5).join('\n')}`;
+            }
+            alert(msg);
+            loadConfigView();
+          } else {
+            alert("Error al importar CSV: " + (data.message || 'Formato no reconocido'));
+          }
+        } catch (err) {
+          alert("Error de procesamiento: " + err);
+        } finally {
+          btnImportApCsv.disabled = false;
+          btnImportApCsv.innerHTML = originalHtml;
+        }
+      };
+      reader.onerror = () => {
+        alert("Error al leer el archivo seleccionado.");
+        btnImportApCsv.disabled = false;
+        btnImportApCsv.innerHTML = originalHtml;
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  if (btnExportApCsv) {
+    btnExportApCsv.addEventListener('click', () => {
+      window.location.href = '/api/export?type=ap-names';
+    });
+  }
+
+  if (btnClearAllAps) {
+    btnClearAllAps.addEventListener('click', async () => {
+      if (!confirm("¿Estás seguro de que deseas eliminar TODOS los nombres de APs registrados en la base de datos?\nEsta acción no se puede deshacer.")) {
+        return;
+      }
+      try {
+        await fetch('/api/ap-names/clear', { method: 'POST' });
+        alert("Base de datos de APs limpiada.");
+        loadConfigView();
+      } catch (e) {
+        alert("Error al limpiar APs: " + e);
+      }
+    });
+  }
 
   btnSaveInterface.addEventListener('click', async () => {
     const newIface = cfgWifiInterface.value;

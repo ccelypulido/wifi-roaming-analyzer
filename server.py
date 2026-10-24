@@ -10,6 +10,8 @@ import time
 import sys
 import argparse
 import webbrowser
+import io
+import csv
 from urllib.parse import parse_qs, urlparse
 
 IS_WINDOWS = sys.platform == 'win32'
@@ -835,6 +837,15 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             if exp_type == 'roaming':
                 csv_str = database.export_roaming_csv(location_filter=loc, zone_filter=zone)
                 filename = f"roaming_history_{loc}.csv"
+            elif exp_type == 'ap-names':
+                aps = ap_manager.search('', limit=10000)
+                out = io.StringIO()
+                writer = csv.writer(out)
+                writer.writerow(['MAC / BSSID', 'AP Name', 'Location', 'Model'])
+                for a in aps:
+                    writer.writerow([a.get('mac', ''), a.get('name', ''), a.get('location', ''), a.get('model', '')])
+                csv_str = out.getvalue()
+                filename = "ap_names_inventory.csv"
             else:
                 csv_str = database.export_telemetry_csv(location_filter=loc, zone_filter=zone)
                 filename = f"telemetry_{loc}.csv"
@@ -989,10 +1000,22 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 bssid = data.get('bssid', '').strip()
                 name = data.get('name', '').strip()
-                notes = data.get('notes', '').strip()
-                res = ap_manager.add_or_update(bssid, name, notes=notes)
+                location = data.get('location', '') or data.get('notes', '')
+                model = data.get('model', '').strip()
+                res = ap_manager.add_or_update(bssid, name, location=str(location).strip(), model=model)
                 self.send_json_response({"status": "success", "entry": res})
             except ValueError as e:
+                self.send_json_response({"status": "error", "message": str(e)})
+
+        elif parsed.path == '/api/ap-names/import-csv':
+            try:
+                csv_content = data.get('csv_content', '')
+                if not csv_content:
+                    self.send_json_response({"status": "error", "message": "El archivo CSV está vacío"})
+                    return
+                res = ap_manager.import_csv(csv_content)
+                self.send_json_response(res)
+            except Exception as e:
                 self.send_json_response({"status": "error", "message": str(e)})
 
         elif parsed.path == '/api/ap-names/remove':
