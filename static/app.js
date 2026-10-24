@@ -669,10 +669,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Card 3: Application Health
     updateAppCard(data);
 
-    // Auto-refresh HTTP Phases History when a new probe is recorded
+    // Auto-refresh HTTP Phases History when a new probe is recorded or on initial load
     const newProbeCount = data.http_probe_counter !== undefined ? data.http_probe_counter : 0;
     const newProbeTime = data.last_probe_time || 0;
-    if (lastKnownProbeCount !== null && (newProbeCount !== lastKnownProbeCount || (newProbeTime > 0 && newProbeTime !== lastKnownProbeTime))) {
+    if (lastKnownProbeCount === null || newProbeCount !== lastKnownProbeCount || (newProbeTime > 0 && newProbeTime !== lastKnownProbeTime)) {
       loadHttpPhasesHistory();
     }
     lastKnownProbeCount = newProbeCount;
@@ -757,7 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const loc = selLocation.value;
       const zone = selZone.value;
-      const res = await fetch(`/api/roaming-history?location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`);
+      const res = await fetch(`/api/roaming-history?location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const events = data.events || [];
 
@@ -852,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const prevScrollTop = container ? container.scrollTop : 0;
       const loc = selLocation.value;
       const zone = selZone.value;
-      const res = await fetch(`/api/http-phases/history?limit=50&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`);
+      const res = await fetch(`/api/http-phases/history?limit=50&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const records = data.records || [];
 
