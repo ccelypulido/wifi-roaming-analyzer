@@ -413,10 +413,15 @@
 
       <!-- Tab 3: Network Diagnostics -->
       <div id="tab-net-diag" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Diagnóstico integral de red con pings paralelos a la Puerta de Enlace, Servidores DNS locales y el Servidor Aplicativo, junto con Traceroute detallado salto por salto.
-          </p>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">
+              Diagnóstico integral de red con pings ICMP paralelos a la Puerta de Enlace, Servidores DNS locales y el Servidor Aplicativo, junto con Traceroute detallado salto por salto.
+            </p>
+            <span id="diag-last-run-badge" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 600;">
+              <i class="fa-solid fa-clock-rotate-left"></i> Último diagnóstico: Cargando historial...
+            </span>
+          </div>
           <button id="btn-run-diag" class="btn-primary">
             <i class="fa-solid fa-microscope"></i> Ejecutar Diagnóstico Completo
           </button>
@@ -576,6 +581,14 @@
             <div class="form-group">
               <label class="form-label">Targets Adicionales de Ping (separados por coma):</label>
               <input type="text" id="cfg-extra-ping" class="toolbar-input" placeholder="8.8.8.8, 1.1.1.1, 192.168.1.50">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Intervalo de Diagnóstico ICMP Automático (minutos):</label>
+              <input type="number" id="cfg-net-diag-interval" class="toolbar-input" min="2" max="60" value="10">
+              <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+                Ejecuta diagnósticos ICMP en segundo plano (pings a Gateway, DNS y Targets) sin bloquear la telemetría en vivo.
+              </small>
             </div>
 
             <button id="btn-save-config-general" class="btn-primary" style="width: 100%; margin-top: 0.5rem;">

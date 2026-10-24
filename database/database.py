@@ -148,6 +148,7 @@ def init_db():
             "auth_user": "",
             "auth_password": "",
             "auth_token": "",
+            "net_diag_interval_minutes": "10",
             "extra_ping_targets": "8.8.8.8, 1.1.1.1",
             "excluded_ping_targets": "",
             "selected_wifi_interface": ""

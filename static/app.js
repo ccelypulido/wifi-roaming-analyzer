@@ -100,6 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const cfgProbeTimeout = document.getElementById('cfg-probe-timeout');
   const cfgVerifySsl = document.getElementById('cfg-verify-ssl');
   const cfgExtraPing = document.getElementById('cfg-extra-ping');
+  const cfgNetDiagInterval = document.getElementById('cfg-net-diag-interval');
+  const diagLastRunBadge = document.getElementById('diag-last-run-badge');
   const btnSaveConfigGeneral = document.getElementById('btn-save-config-general');
   const inputNewBssid = document.getElementById('input-new-bssid');
   const inputNewApname = document.getElementById('input-new-apname');
@@ -312,6 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
         if (btn.dataset.tab === 'tab-config') loadConfigView();
         if (btn.dataset.tab === 'tab-roaming-log') loadRoamingHistory();
+        if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
       }
     });
   });
@@ -695,7 +698,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- Tab 3: Network Diagnostics ---
+  // --- Tab 3: Network Diagnostics (ICMP & Traceroute) ---
+  async function loadNetDiagView() {
+    try {
+      const res = await fetch('/api/net-diag');
+      const data = await res.json();
+      if (data.history && data.history.length > 0) {
+        const latest = data.history[0];
+        if (diagLastRunBadge) {
+          const runDate = latest.created_at || 'Reciente';
+          const targetCount = latest.results ? latest.results.length : 0;
+          diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Último diagnóstico ICMP automático: <strong>${runDate}</strong> (${targetCount} objetivos evaluados)`;
+        }
+        renderDiagResults(latest.results || []);
+      } else {
+        if (diagLastRunBadge) {
+          diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Sin diagnósticos automáticos previos.`;
+        }
+      }
+    } catch (e) {
+      console.warn("Error cargando vista de diagnóstico:", e);
+    }
+  }
+
   btnRunDiag.addEventListener('click', async () => {
     btnRunDiag.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ejecutando Diagnóstico (Traceroute)...';
     btnRunDiag.disabled = true;
@@ -703,13 +728,16 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="empty-state">
         <i class="fa-solid fa-spinner fa-spin"></i>
         <p>Realizando pings paralelos y trazando saltos hacia Puerta de Enlace, DNS y Servidor...</p>
-        <small>Esto puede tomar entre 5 y 15 segundos dependiendo de la cantidad de saltos.</small>
+        <small>Esto toma entre 5 y 15 segundos en segundo plano. La telemetría en vivo continúa activa.</small>
       </div>`;
 
     try {
       const res = await fetch('/api/net-diag/run', { method: 'POST' });
       const data = await res.json();
       renderDiagResults(data.results || []);
+      if (diagLastRunBadge) {
+        diagLastRunBadge.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--accent-emerald);"></i> Diagnóstico completado manualmente: <strong>${new Date().toLocaleTimeString()}</strong>`;
+      }
     } catch (e) {
       diagResultsContainer.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-rose);"></i><p>Error ejecutando diagnóstico: ${e}</p></div>`;
     } finally {
@@ -970,6 +998,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgProbeTimeout.value = cfg.probe_timeout_seconds || 5;
       cfgVerifySsl.value = cfg.verify_ssl || '1';
       cfgExtraPing.value = cfg.extra_ping_targets || '';
+      if (cfgNetDiagInterval) cfgNetDiagInterval.value = cfg.net_diag_interval_minutes || 10;
 
       // Auth inputs
       if (cfgAuthEnabled) {
@@ -1172,7 +1201,8 @@ document.addEventListener('DOMContentLoaded', () => {
       probe_interval_seconds: cfgProbeInterval.value,
       probe_timeout_seconds: cfgProbeTimeout.value,
       verify_ssl: cfgVerifySsl.value,
-      extra_ping_targets: cfgExtraPing.value.trim()
+      extra_ping_targets: cfgExtraPing.value.trim(),
+      net_diag_interval_minutes: cfgNetDiagInterval ? cfgNetDiagInterval.value : 10
     });
     alert("Configuración de telemetría guardada.");
   });
@@ -1298,6 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await fetchStatus();
     loadRoamingHistory();
     loadApScanner();
+    loadNetDiagView();
 
     // Fast polling for Wi-Fi Telemetry & App probe status (every 1.5s)
     setInterval(fetchStatus, 1500);

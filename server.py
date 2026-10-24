@@ -743,6 +743,52 @@ def http_probe_loop():
             sleep_sec = max(2.0, state.probe_interval_seconds)
         time.sleep(sleep_sec)
 
+def net_diag_scheduled_loop():
+    """Background loop that automatically executes multi-target ICMP network diagnostics periodically"""
+    time.sleep(4.0)  # Initial wait for server and Wi-Fi interface initialization
+    while state.is_monitoring:
+        try:
+            cfg = database.get_config()
+            try:
+                diag_interval_min = float(cfg.get("net_diag_interval_minutes", "10"))
+                if diag_interval_min <= 0:
+                    diag_interval_min = 10.0
+            except (ValueError, TypeError):
+                diag_interval_min = 10.0
+
+            extra = cfg.get("extra_ping_targets", "")
+            exclude = cfg.get("excluded_ping_targets", "")
+            with state.lock:
+                target_url = state.target_url
+                loc = state.location
+                zone = state.zone
+
+            target_h = urlparse(target_url).hostname if target_url else None
+            # Runs concurrent ICMP pings and traceroutes to Gateway, DNS, App Server & Extra nodes
+            res = net_diag.run_full_network_diagnostic(extra_hosts_str=extra, exclude_hosts_str=exclude, target_host=target_h)
+            database.save_net_diag(res, location=loc, zone=zone, target_url=target_url)
+
+            # Sleep in 2-second chunks to allow graceful shutdown
+            total_sleep = int(diag_interval_min * 60)
+            for _ in range(total_sleep // 2):
+                if not state.is_monitoring:
+                    break
+                time.sleep(2.0)
+        except Exception:
+            time.sleep(10.0)
+
+class QuietThreadingHTTPServer(http.server.ThreadingHTTPServer):
+    """Multi-threaded HTTP server that runs each connection concurrently in a separate daemon thread,
+    guaranteeing that slow operations (like traceroutes or manual pings) never block real-time telemetry."""
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def handle_error(self, request, client_address):
+        exc_type, exc_val, _ = sys.exc_info()
+        if exc_type in (BrokenPipeError, ConnectionResetError):
+            return
+        super().handle_error(request, client_address)
+
 class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
@@ -1184,10 +1230,8 @@ Ejemplos de uso:
     state = WiFiState(interface=args.interface)
     port = args.port
     
-    socketserver.TCPServer.allow_reuse_address = True
-
     try:
-        server = socketserver.TCPServer(("", port), WiFiRequestHandler)
+        server = QuietThreadingHTTPServer(("", port), WiFiRequestHandler)
     except OSError as e:
         if e.errno == 98 or getattr(e, 'winerror', None) == 10048:
             print(f"\n❌ Error: El puerto {port} ya está en uso.")
@@ -1200,12 +1244,16 @@ Ejemplos de uso:
             raise
 
     # 1. Start background Wi-Fi telemetry thread
-    thread_wifi = threading.Thread(target=wifi_telemetry_loop, daemon=True)
+    thread_wifi = threading.Thread(target=wifi_telemetry_loop, daemon=True, name="WiFiTelemetryThread")
     thread_wifi.start()
 
     # 2. Start background HTTP application probe thread
-    thread_probe = threading.Thread(target=http_probe_loop, daemon=True)
+    thread_probe = threading.Thread(target=http_probe_loop, daemon=True, name="HTTPProbeThread")
     thread_probe.start()
+
+    # 3. Start background scheduled ICMP network diagnostics thread
+    thread_net_diag = threading.Thread(target=net_diag_scheduled_loop, daemon=True, name="NetDiagScheduledThread")
+    thread_net_diag.start()
 
     if not args.no_browser:
         def open_browser():
