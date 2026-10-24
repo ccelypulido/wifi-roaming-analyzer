@@ -19,6 +19,104 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerAuthBadge = document.getElementById('header-auth-badge');
   const headerAuthStatus = document.getElementById('header-auth-status');
 
+  // Capture Toggle Elements (Pause / Resume continuous data collection without stopping roaming detection)
+  const btnToggleCapture = document.getElementById('btn-toggle-capture');
+  const captureStatusDot = document.getElementById('capture-status-dot');
+  const captureStatusLabel = document.getElementById('capture-status-label');
+  const captureStatusIcon = document.getElementById('capture-status-icon');
+  const btnChartToggleCapture = document.getElementById('btn-chart-toggle-capture');
+  const btnChartCaptureIcon = document.getElementById('btn-chart-capture-icon');
+  const btnChartCaptureLabel = document.getElementById('btn-chart-capture-label');
+  const cfgCaptureEnabled = document.getElementById('cfg-capture-enabled');
+  const cfgCaptureStatusText = document.getElementById('cfg-capture-status-text');
+
+  let currentCaptureState = true;
+  let lastKnownRoamingCount = null;
+
+  function updateCaptureUI(isCapturing) {
+    currentCaptureState = isCapturing;
+    if (isCapturing) {
+      if (btnToggleCapture) {
+        btnToggleCapture.classList.remove('paused');
+        btnToggleCapture.title = 'Captura de telemetría activa (Clic para pausar). El monitoreo de roaming se mantiene siempre activo.';
+      }
+      if (captureStatusLabel) captureStatusLabel.textContent = 'EN VIVO';
+      if (captureStatusIcon) captureStatusIcon.className = 'fa-solid fa-pause';
+      if (btnChartCaptureLabel) btnChartCaptureLabel.textContent = 'Pausar Captura';
+      if (btnChartCaptureIcon) btnChartCaptureIcon.className = 'fa-solid fa-pause';
+      if (btnChartToggleCapture) {
+        btnChartToggleCapture.classList.remove('btn-primary');
+        btnChartToggleCapture.classList.add('btn-secondary');
+        btnChartToggleCapture.title = 'Pausar captura continua de telemetría (El roaming se mantiene activo)';
+      }
+      if (cfgCaptureEnabled) cfgCaptureEnabled.value = '1';
+      if (cfgCaptureStatusText) {
+        cfgCaptureStatusText.textContent = 'Activa';
+        cfgCaptureStatusText.style.color = 'var(--accent-emerald)';
+      }
+    } else {
+      if (btnToggleCapture) {
+        btnToggleCapture.classList.add('paused');
+        btnToggleCapture.title = 'Captura de telemetría pausada (Clic para reanudar). El monitoreo de roaming continúa activo.';
+      }
+      if (captureStatusLabel) captureStatusLabel.textContent = 'PAUSADO';
+      if (captureStatusIcon) captureStatusIcon.className = 'fa-solid fa-play';
+      if (btnChartCaptureLabel) btnChartCaptureLabel.textContent = 'Reanudar Captura';
+      if (btnChartCaptureIcon) btnChartCaptureIcon.className = 'fa-solid fa-play';
+      if (btnChartToggleCapture) {
+        btnChartToggleCapture.classList.remove('btn-secondary');
+        btnChartToggleCapture.classList.add('btn-primary');
+        btnChartToggleCapture.title = 'Reanudar captura continua de telemetría';
+      }
+      if (cfgCaptureEnabled) cfgCaptureEnabled.value = '0';
+      if (cfgCaptureStatusText) {
+        cfgCaptureStatusText.textContent = 'Pausada';
+        cfgCaptureStatusText.style.color = '#f59e0b';
+      }
+    }
+  }
+
+  async function toggleCapture() {
+    const btns = [btnToggleCapture, btnChartToggleCapture].filter(Boolean);
+    btns.forEach(b => { b.style.pointerEvents = 'none'; b.style.opacity = '0.65'; });
+    try {
+      const res = await fetch('/api/capture/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateCaptureUI(data.capture_enabled !== false);
+      }
+    } catch (e) {
+      console.error('Error toggling capture:', e);
+    } finally {
+      btns.forEach(b => { b.style.pointerEvents = 'auto'; b.style.opacity = '1'; });
+    }
+  }
+
+  if (btnToggleCapture) {
+    btnToggleCapture.addEventListener('click', toggleCapture);
+  }
+  if (btnChartToggleCapture) {
+    btnChartToggleCapture.addEventListener('click', toggleCapture);
+  }
+  if (cfgCaptureEnabled) {
+    cfgCaptureEnabled.addEventListener('change', async () => {
+      const isEn = cfgCaptureEnabled.value === '1';
+      try {
+        await fetch('/api/capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: isEn })
+        });
+        updateCaptureUI(isEn);
+      } catch (e) {
+        console.error('Error setting capture from settings:', e);
+      }
+    });
+  }
+
   // Toolbar
   const selLocation = document.getElementById('sel-location');
   const selZone = document.getElementById('sel-zone');
@@ -568,26 +666,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Card 3: Application Health
     updateAppCard(data);
 
-    // 5. Card 4: Roaming & Mesh
-    roamingCountBadge.textContent = `${data.recent_roaming_count || 0} Handoffs`;
+    // 5. Card 4: Roaming & Mesh (Always active, regardless of telemetry pause)
+    const newRoamingCount = data.recent_roaming_count || 0;
+    if (lastKnownRoamingCount !== null && newRoamingCount !== lastKnownRoamingCount) {
+      loadRoamingHistory();
+    }
+    lastKnownRoamingCount = newRoamingCount;
+
+    roamingCountBadge.textContent = `${newRoamingCount} Handoffs`;
     roamingVerdict.textContent = data.roaming_verdict || 'Monitoreando...';
     infoSameSsidCount.textContent = `${data.same_ssid_aps_count || 0} APs`;
     infoTotalApsCount.textContent = `${data.total_neighbor_aps || 0} APs`;
 
-    // 6. Update Synchronized Chart
-    const nowStr = data.last_update || new Date().toLocaleTimeString();
-    timeLabels.push(nowStr);
-    signalData.push(data.signal_dbm);
-    pingData.push(data.ping_ms !== null ? data.ping_ms : null);
-    appLatencyData.push(data.app_latency_ms !== null && !data.app_is_error ? data.app_latency_ms : null);
+    // 6. Update Synchronized Chart (Pauses advancing graph when capture is paused)
+    const isCapturing = data.capture_enabled !== false;
+    updateCaptureUI(isCapturing);
 
-    if (timeLabels.length > maxDataPoints) {
-      timeLabels.shift();
-      signalData.shift();
-      pingData.shift();
-      appLatencyData.shift();
+    if (isCapturing) {
+      const nowStr = data.last_update || new Date().toLocaleTimeString();
+      timeLabels.push(nowStr);
+      signalData.push(data.signal_dbm);
+      pingData.push(data.ping_ms !== null ? data.ping_ms : null);
+      appLatencyData.push(data.app_latency_ms !== null && !data.app_is_error ? data.app_latency_ms : null);
+
+      if (timeLabels.length > maxDataPoints) {
+        timeLabels.shift();
+        signalData.shift();
+        pingData.shift();
+        appLatencyData.shift();
+      }
+      telemetryChart.update();
     }
-    telemetryChart.update();
   }
 
   function updateAppCard(data) {
@@ -1190,6 +1299,14 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgVerifySsl.value = cfg.verify_ssl || '1';
       cfgExtraPing.value = cfg.extra_ping_targets || '';
       if (cfgNetDiagInterval) cfgNetDiagInterval.value = cfg.net_diag_interval_minutes || 10;
+      if (cfgCaptureEnabled) {
+        const isCap = !(cfg.capture_enabled === '0' || cfg.capture_enabled === 0 || cfg.capture_enabled === false);
+        cfgCaptureEnabled.value = isCap ? '1' : '0';
+        if (cfgCaptureStatusText) {
+          cfgCaptureStatusText.textContent = isCap ? 'Activa' : 'Pausada';
+          cfgCaptureStatusText.style.color = isCap ? 'var(--accent-emerald)' : '#f59e0b';
+        }
+      }
 
       // Auth inputs
       if (cfgAuthEnabled) {
@@ -1389,6 +1506,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnSaveConfigGeneral.addEventListener('click', async () => {
     await saveConfig({
+      capture_enabled: cfgCaptureEnabled ? cfgCaptureEnabled.value : '1',
       probe_interval_seconds: cfgProbeInterval.value,
       probe_timeout_seconds: cfgProbeTimeout.value,
       verify_ssl: cfgVerifySsl.value,

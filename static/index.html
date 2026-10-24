@@ -34,10 +34,11 @@
       </div>
       
       <div class="status-badges">
-        <div class="badge badge-live">
-          <div class="badge-dot"></div>
-          <span>EN VIVO</span>
-        </div>
+        <button type="button" id="btn-toggle-capture" class="badge badge-live badge-btn" title="Captura de telemetría activa (Clic para pausar). El monitoreo de roaming se mantiene siempre activo.">
+          <div id="capture-status-dot" class="badge-dot"></div>
+          <span id="capture-status-label">EN VIVO</span>
+          <i id="capture-status-icon" class="fa-solid fa-pause" style="margin-left: 4px; font-size: 0.72rem; opacity: 0.85;"></i>
+        </button>
         <div class="badge" title="SSID de la red conectada">
           <i class="fa-solid fa-network-wired"></i>
           <span id="header-ssid">Conectando...</span>
@@ -276,7 +277,11 @@
           <i class="fa-solid fa-chart-line"></i>
           <span>Telemetría Sincronizada en Tiempo Real (Wi-Fi RF dBm, Ping Gateway y Latencia HTTP de Aplicación)</span>
         </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <button type="button" id="btn-chart-toggle-capture" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" title="Pausar o reanudar captura de datos de telemetría (El roaming continúa registrándose)">
+            <i id="btn-chart-capture-icon" class="fa-solid fa-pause"></i>
+            <span id="btn-chart-capture-label">Pausar Captura</span>
+          </button>
           <span class="badge" style="color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1);">● Señal Wi-Fi (dBm)</span>
           <span class="badge" style="color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1);">● App HTTP (ms)</span>
           <span class="badge" style="color: var(--accent-purple); background: rgba(139, 92, 246, 0.1);">┅ Ping GW (ms)</span>
@@ -616,6 +621,20 @@
                 <select id="cfg-wifi-interface" class="toolbar-select" style="flex: 1;"></select>
                 <button id="btn-save-interface" class="btn-secondary">Cambiar</button>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Captura Continua de Telemetría:</span>
+                <span id="cfg-capture-status-text" style="font-size: 0.75rem; color: var(--accent-emerald); font-weight: 700;">Activa</span>
+              </label>
+              <select id="cfg-capture-enabled" class="toolbar-select">
+                <option value="1">Activa (Guardar muestras y ejecutar sondas periódicas)</option>
+                <option value="0">Pausada (Solo monitoreo de roaming en segundo plano)</option>
+              </select>
+              <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+                Si se pausa, el detector de roaming Wi-Fi continúa operando al 100%, pero no se guardan muestras de telemetría masivas ni se ejecutan sondas HTTP periódicas.
+              </small>
             </div>
 
             <div class="form-group">

@@ -428,6 +428,7 @@ class WiFiState:
         self.probe_interval_seconds = float(cfg.get("probe_interval_seconds", "5"))
         self.probe_timeout_seconds = float(cfg.get("probe_timeout_seconds", "5"))
         self.auto_probe_enabled = (cfg.get("auto_probe_enabled", "1") == "1")
+        self.capture_enabled = (cfg.get("capture_enabled", "1") == "1")
         self.verify_ssl = (cfg.get("verify_ssl", "1") == "1")
 
         # HTTP Application Probe Latency Metrics
@@ -659,8 +660,9 @@ def update_wifi_telemetry():
         state.last_update_time = time.time()
         state.sample_counter += 1
 
-        # Persist to SQLite every ~3 samples (~4.5s) to avoid excessive disk I/O while maintaining high-fidelity history
-        if state.sample_counter % 2 == 0 and connected_bssid:
+        # Persist to SQLite every ~3 samples (~4.5s) to avoid excessive disk I/O while maintaining high-fidelity history.
+        # Only recorded when capture_enabled is active. Roaming handoff detection above ALWAYS executes uninterrupted.
+        if state.capture_enabled and state.sample_counter % 2 == 0 and connected_bssid:
             sample_data = {
                 "timestamp": time.time(),
                 "location": state.location,
@@ -708,7 +710,7 @@ def http_probe_loop():
     while state.is_monitoring:
         try:
             with state.lock:
-                enabled = state.auto_probe_enabled
+                enabled = state.auto_probe_enabled and state.capture_enabled
                 url = state.target_url
                 timeout = state.probe_timeout_seconds
                 verify = state.verify_ssl
@@ -757,6 +759,10 @@ def net_diag_scheduled_loop():
     time.sleep(4.0)  # Initial wait for server and Wi-Fi interface initialization
     while state.is_monitoring:
         try:
+            if not state.capture_enabled:
+                time.sleep(2.0)
+                continue
+
             cfg = database.get_config()
             try:
                 diag_interval_min = float(cfg.get("net_diag_interval_minutes", "10"))
@@ -1011,10 +1017,37 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                         pass
                 if 'auto_probe_enabled' in data:
                     state.auto_probe_enabled = (str(data['auto_probe_enabled']) in ('1', 'true', 'True'))
+                if 'capture_enabled' in data:
+                    state.capture_enabled = (str(data['capture_enabled']) in ('1', 'true', 'True'))
                 if 'verify_ssl' in data:
                     state.verify_ssl = (str(data['verify_ssl']) in ('1', 'true', 'True'))
 
             self.send_json_response({"status": "success", "config": database.get_config()})
+
+        elif parsed.path in ('/api/capture/toggle', '/api/auto-probe/toggle'):
+            with state.lock:
+                state.capture_enabled = not state.capture_enabled
+                new_val = "1" if state.capture_enabled else "0"
+            database.update_config({"capture_enabled": new_val})
+            msg = "Captura de telemetría reanudada" if state.capture_enabled else "Captura de telemetría pausada (Monitoreo de Roaming activo)"
+            self.send_json_response({
+                "status": "success",
+                "capture_enabled": state.capture_enabled,
+                "auto_probe_enabled": state.auto_probe_enabled,
+                "message": msg
+            })
+
+        elif parsed.path == '/api/capture':
+            enabled = data.get('enabled')
+            if enabled is not None:
+                is_on = (str(enabled).lower() in ('1', 'true'))
+                with state.lock:
+                    state.capture_enabled = is_on
+                    new_val = "1" if is_on else "0"
+                database.update_config({"capture_enabled": new_val})
+                self.send_json_response({"status": "success", "capture_enabled": state.capture_enabled})
+            else:
+                self.send_json_response({"status": "error", "message": "Parámetro enabled requerido"}, status=400)
 
         elif parsed.path == '/api/locations/sync':
             database.auto_preload_sedes_zonas()
@@ -1238,6 +1271,7 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "app_is_error": state.app_is_error,
                 "app_error_message": state.app_error_message,
                 "auto_probe_enabled": state.auto_probe_enabled,
+                "capture_enabled": state.capture_enabled,
                 "auth_enabled": (database.get_config().get("auth_enabled", "0") in ('1', True, 'true', 1)),
                 "auth_type": database.get_config().get("auth_type", "ntlm"),
                 "auth_user": database.get_config().get("auth_user", ""),

@@ -178,7 +178,8 @@ def init_db():
             "net_diag_interval_minutes": "10",
             "extra_ping_targets": "8.8.8.8, 1.1.1.1",
             "excluded_ping_targets": "",
-            "selected_wifi_interface": ""
+            "selected_wifi_interface": "",
+            "capture_enabled": "1"
         }
         for k, v in defaults.items():
             cursor.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)", (k, v))

@@ -115,11 +115,52 @@ body {
   border-radius: 50%;
   background: var(--accent-emerald);
   box-shadow: 0 0 8px var(--accent-emerald);
+  transition: all 0.3s ease;
+}
+
+@keyframes pulse-live-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
 }
 
 .badge-live {
-  border-color: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.35);
   color: var(--accent-emerald);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.badge-live:not(.paused) .badge-dot {
+  animation: pulse-live-dot 1.8s infinite ease-in-out;
+}
+
+.badge-btn {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+}
+
+.badge-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.badge-btn:active {
+  transform: translateY(1px);
+}
+
+.badge-live.paused {
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.badge-live.paused .badge-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: none;
 }
 
 /* Grid Layout */
