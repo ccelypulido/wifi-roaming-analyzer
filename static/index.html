@@ -294,14 +294,14 @@
         <button class="tab-btn active" data-tab="tab-roaming-log">
           <i class="fa-solid fa-history"></i> Historial de Roaming
         </button>
+        <button class="tab-btn" data-tab="tab-ap-scanner">
+          <i class="fa-solid fa-list-check"></i> Escáner de APs Vecinos
+        </button>
         <button class="tab-btn" data-tab="tab-http-phases">
           <i class="fa-solid fa-stopwatch"></i> Fases de Latencia HTTP
         </button>
         <button class="tab-btn" data-tab="tab-net-diag">
           <i class="fa-solid fa-network-wired"></i> Diagnóstico de Red (Traceroute)
-        </button>
-        <button class="tab-btn" data-tab="tab-ap-scanner">
-          <i class="fa-solid fa-list-check"></i> Escáner de APs Vecinos
         </button>
         <button class="tab-btn" data-tab="tab-sedes-zonas">
           <i class="fa-solid fa-map-location-dot"></i> Sedes y Zonas
@@ -359,7 +359,43 @@
         </div>
       </div>
 
-      <!-- Tab 2: HTTP Latency Phases -->
+      <!-- Tab 2: AP Candidate Scanner -->
+      <div id="tab-ap-scanner" class="tab-content">
+        <div style="margin-bottom: 1rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Puntos de acceso Wi-Fi detectados en el entorno. Los marcados con <span style="color: var(--accent-cyan); font-weight: bold;">[Mismo SSID]</span> son los APs de la red a los cuales tu adaptador puede conmutar automáticamente.
+          </p>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>SSID</th>
+                <th>Nombre AP / BSSID (MAC)</th>
+                <th>Fabricante</th>
+                <th>Señal %</th>
+                <th>Frecuencia</th>
+                <th>Canal</th>
+                <th>Candidato Roaming</th>
+              </tr>
+            </thead>
+            <tbody id="ap-scanner-table-body">
+              <tr>
+                <td colspan="8">
+                  <div class="empty-state">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <p>Cargando lista de Puntos de Acceso cercanos...</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: HTTP Latency Phases -->
       <div id="tab-http-phases" class="tab-content">
         <div style="margin-bottom: 1.25rem;">
           <p style="font-size: 0.85rem; color: var(--text-muted);">
@@ -484,39 +520,6 @@
         </div>
       </div>
 
-      <!-- Tab 4: AP Candidate Scanner -->
-      <div id="tab-ap-scanner" class="tab-content">
-        <div style="margin-bottom: 1rem;">
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Puntos de acceso Wi-Fi detectados en el entorno. Los marcados con <span style="color: var(--accent-cyan); font-weight: bold;">[Mismo SSID]</span> son los APs de la red a los cuales tu adaptador puede conmutar automáticamente.
-          </p>
-        </div>
-
-        <div class="table-responsive">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>Estado</th>
-                <th>SSID</th>
-                <th>Nombre AP / BSSID (MAC)</th>
-                <th>Fabricante</th>
-                <th>Señal %</th>
-                <th>Frecuencia</th>
-                <th>Canal</th>
-                <th>Candidato Roaming</th>
-              </tr>
-            </thead>
-            <tbody id="ap-scanner-table-body">
-              <tr>
-                <td colspan="8">
-                  <div class="empty-state">
-                    <i class="fa-solid fa-spinner fa-spin"></i>
-                    <p>Cargando lista de Puntos de Acceso cercanos...</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 

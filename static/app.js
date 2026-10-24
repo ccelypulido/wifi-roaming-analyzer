@@ -324,12 +324,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = document.getElementById(btn.dataset.tab);
       if (target) {
         target.classList.add('active');
-        if (btn.dataset.tab === 'tab-stats') loadStatistics();
-        if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
-        if (btn.dataset.tab === 'tab-config') loadConfigView();
         if (btn.dataset.tab === 'tab-roaming-log') loadRoamingHistory();
-        if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
+        if (btn.dataset.tab === 'tab-ap-scanner') loadApScanner();
         if (btn.dataset.tab === 'tab-http-phases') loadHttpPhasesHistory();
+        if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
+        if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
+        if (btn.dataset.tab === 'tab-stats') loadStatistics();
+        if (btn.dataset.tab === 'tab-config') loadConfigView();
       }
     });
   });
