@@ -444,6 +444,8 @@ class WiFiState:
         self.app_error_message = None
         self.last_probe_time = 0.0
         self.http_probe_counter = 0
+        self.last_net_diag_time = 0.0
+        self.net_diag_counter = 0
 
     def detect_wifi_interface(self):
         try:
@@ -784,6 +786,9 @@ def net_diag_scheduled_loop():
             # Runs concurrent ICMP pings and traceroutes to Gateway, DNS, App Server & Extra nodes
             res = net_diag.run_full_network_diagnostic(extra_hosts_str=extra, exclude_hosts_str=exclude, target_host=target_h)
             database.save_net_diag(res, location=loc, zone=zone, target_url=target_url)
+            with state.lock:
+                state.net_diag_counter += 1
+                state.last_net_diag_time = time.time()
 
             # Sleep in 2-second chunks to allow graceful shutdown
             total_sleep = int(diag_interval_min * 60)
@@ -1095,6 +1100,9 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             target_h = urlparse(state.target_url).hostname
             res = net_diag.run_full_network_diagnostic(extra_hosts_str=extra, exclude_hosts_str=exclude, target_host=target_h)
             database.save_net_diag(res, location=state.location, zone=state.zone, target_url=state.target_url)
+            with state.lock:
+                state.net_diag_counter += 1
+                state.last_net_diag_time = time.time()
             self.send_json_response({"status": "success", "results": res})
 
         elif parsed.path == '/api/clear':
@@ -1281,6 +1289,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "app_error_message": state.app_error_message,
                 "last_probe_time": state.last_probe_time,
                 "http_probe_counter": getattr(state, "http_probe_counter", 0),
+                "last_net_diag_time": getattr(state, "last_net_diag_time", 0.0),
+                "net_diag_counter": getattr(state, "net_diag_counter", 0),
                 "auto_probe_enabled": state.auto_probe_enabled,
                 "capture_enabled": state.capture_enabled,
                 "auth_enabled": (database.get_config().get("auth_enabled", "0") in ('1', True, 'true', 1)),

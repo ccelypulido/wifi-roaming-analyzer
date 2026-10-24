@@ -35,6 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastKnownProbeCount = null;
   let lastKnownProbeTime = null;
   let isLoadingHttpHistory = false;
+  let lastKnownNetDiagCount = null;
+  let netDiagRunsHistory = [];
+  let isLoadingNetDiag = false;
 
   function updateCaptureUI(isCapturing) {
     currentCaptureState = isCapturing;
@@ -188,6 +191,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tab 3: Network Diagnostics
   const btnRunDiag = document.getElementById('btn-run-diag');
   const diagResultsContainer = document.getElementById('diag-results-container');
+  const selDiagRunHistory = document.getElementById('sel-diag-run-history');
+  const btnRefreshNetDiag = document.getElementById('btn-refresh-net-diag');
 
   // Tab 4: AP Scanner
   const apScannerTableBody = document.getElementById('ap-scanner-table-body');
@@ -678,6 +683,13 @@ document.addEventListener('DOMContentLoaded', () => {
     lastKnownProbeCount = newProbeCount;
     lastKnownProbeTime = newProbeTime;
 
+    // Auto-refresh Network Diagnostics if a new diagnostic completed in background
+    const newNetDiagCount = data.net_diag_counter !== undefined ? data.net_diag_counter : 0;
+    if (lastKnownNetDiagCount !== null && newNetDiagCount !== lastKnownNetDiagCount) {
+      loadNetDiagView();
+    }
+    lastKnownNetDiagCount = newNetDiagCount;
+
     // 5. Card 4: Roaming & Mesh (Always active, regardless of telemetry pause)
     const newRoamingCount = data.recent_roaming_count || 0;
     if (lastKnownRoamingCount !== null && newRoamingCount !== lastKnownRoamingCount) {
@@ -968,17 +980,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Tab 3: Network Diagnostics (ICMP & Traceroute) ---
   async function loadNetDiagView() {
+    if (isLoadingNetDiag) return;
+    isLoadingNetDiag = true;
     try {
-      const res = await fetch('/api/net-diag');
+      const res = await fetch(`/api/net-diag?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
-      if (data.history && data.history.length > 0) {
-        const latest = data.history[0];
-        if (diagLastRunBadge) {
-          const runDate = latest.created_at || 'Reciente';
-          const targetCount = latest.results ? latest.results.length : 0;
-          diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Último diagnóstico ICMP automático: <strong>${runDate}</strong> (${targetCount} objetivos evaluados)`;
+      netDiagRunsHistory = data.history || [];
+
+      if (selDiagRunHistory) {
+        const prevSelectedIdx = selDiagRunHistory.value || '0';
+        selDiagRunHistory.innerHTML = '';
+        if (netDiagRunsHistory.length === 0) {
+          selDiagRunHistory.innerHTML = '<option value="0">Sin diagnósticos previos</option>';
+        } else {
+          netDiagRunsHistory.forEach((run, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx.toString();
+            const dateStr = run.created_at ? run.created_at.replace('T', ' ').substring(0, 19) : (run.time || `Ejecución #${idx + 1}`);
+            const locStr = run.location ? ` - ${run.location}` : '';
+            const zoneStr = run.zone ? ` (${run.zone})` : '';
+            opt.textContent = `${idx === 0 ? '● Más reciente: ' : ''}${dateStr}${locStr}${zoneStr}`;
+            selDiagRunHistory.appendChild(opt);
+          });
+          if (parseInt(prevSelectedIdx, 10) < netDiagRunsHistory.length) {
+            selDiagRunHistory.value = prevSelectedIdx;
+          } else {
+            selDiagRunHistory.value = '0';
+          }
         }
-        renderDiagResults(latest.results || []);
+      }
+
+      const selectedIdx = selDiagRunHistory ? (parseInt(selDiagRunHistory.value, 10) || 0) : 0;
+      const targetRun = netDiagRunsHistory[selectedIdx] || netDiagRunsHistory[0];
+
+      if (targetRun) {
+        if (diagLastRunBadge) {
+          const runDate = targetRun.created_at ? targetRun.created_at.replace('T', ' ').substring(0, 19) : (targetRun.time || 'Reciente');
+          const targetCount = targetRun.results ? targetRun.results.length : 0;
+          diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Histórico (${netDiagRunsHistory.length} ejecuciones): <strong>${runDate}</strong> (${targetCount} objetivos evaluados)`;
+        }
+        renderDiagResults(targetRun.results || []);
       } else {
         if (diagLastRunBadge) {
           diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Sin diagnósticos automáticos previos.`;
@@ -986,7 +1027,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (e) {
       console.warn("Error cargando vista de diagnóstico:", e);
+    } finally {
+      isLoadingNetDiag = false;
     }
+  }
+
+  if (selDiagRunHistory) {
+    selDiagRunHistory.addEventListener('change', () => {
+      const idx = parseInt(selDiagRunHistory.value, 10) || 0;
+      const run = netDiagRunsHistory[idx];
+      if (run) {
+        if (diagLastRunBadge) {
+          const runDate = run.created_at ? run.created_at.replace('T', ' ').substring(0, 19) : (run.time || 'Reciente');
+          const targetCount = run.results ? run.results.length : 0;
+          diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Visualizando ejecución #${idx + 1}: <strong>${runDate}</strong> (${targetCount} objetivos)`;
+        }
+        renderDiagResults(run.results || []);
+      }
+    });
+  }
+
+  if (btnRefreshNetDiag) {
+    btnRefreshNetDiag.addEventListener('click', async () => {
+      btnRefreshNetDiag.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      await loadNetDiagView();
+      btnRefreshNetDiag.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Actualizar';
+    });
   }
 
   btnRunDiag.addEventListener('click', async () => {
@@ -1002,9 +1068,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/net-diag/run', { method: 'POST' });
       const data = await res.json();
-      renderDiagResults(data.results || []);
+      await loadNetDiagView();
       if (diagLastRunBadge) {
-        diagLastRunBadge.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--accent-emerald);"></i> Diagnóstico completado manualmente: <strong>${new Date().toLocaleTimeString()}</strong>`;
+        diagLastRunBadge.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--accent-emerald);"></i> Diagnóstico completado: <strong>${new Date().toLocaleTimeString()}</strong>`;
       }
     } catch (e) {
       diagResultsContainer.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-rose);"></i><p>Error ejecutando diagnóstico: ${e}</p></div>`;
@@ -1674,6 +1740,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loadHttpPhasesHistory();
       }
     }, 3500);
+
+    // Auto-refresh Network Diagnostics history when the tab is active (every 4s)
+    setInterval(() => {
+      const netTab = document.getElementById('tab-net-diag');
+      if (netTab && netTab.classList.contains('active')) {
+        loadNetDiagView();
+      }
+    }, 4000);
   }
 
   init();

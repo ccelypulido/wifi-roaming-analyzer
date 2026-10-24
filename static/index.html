@@ -507,13 +507,26 @@
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem;">
               Diagnóstico integral de red con pings ICMP paralelos a la Puerta de Enlace, Servidores DNS locales y el Servidor Aplicativo, junto con Traceroute detallado salto por salto.
             </p>
-            <span id="diag-last-run-badge" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 600;">
-              <i class="fa-solid fa-clock-rotate-left"></i> Último diagnóstico: Cargando historial...
-            </span>
+            <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.4rem;">
+              <span id="diag-last-run-badge" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 600;">
+                <i class="fa-solid fa-clock-rotate-left"></i> Histórico: Cargando ejecuciones...
+              </span>
+              <div id="grp-diag-history-selector" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                <label for="sel-diag-run-history" style="font-size: 0.78rem; color: var(--text-muted);"><i class="fa-solid fa-list-ol"></i> Ver prueba:</label>
+                <select id="sel-diag-run-history" class="toolbar-select" style="font-size: 0.78rem; padding: 0.25rem 0.6rem; height: auto; min-width: 240px;">
+                  <option value="0">Última prueba automática</option>
+                </select>
+              </div>
+            </div>
           </div>
-          <button id="btn-run-diag" class="btn-primary">
-            <i class="fa-solid fa-microscope"></i> Ejecutar Diagnóstico Completo
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button id="btn-refresh-net-diag" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.8rem;" title="Refrescar vista e histórico de diagnósticos">
+              <i class="fa-solid fa-arrows-rotate"></i> Actualizar
+            </button>
+            <button id="btn-run-diag" class="btn-primary" style="font-size: 0.82rem; padding: 0.45rem 0.9rem;">
+              <i class="fa-solid fa-microscope"></i> Ejecutar Diagnóstico Completo
+            </button>
+          </div>
         </div>
 
         <div id="diag-results-container">
@@ -822,6 +835,6 @@
 
   </div>
 
-  <script src="app.js?v=2.2.0"></script>
+  <script src="app.js?v=2.3.0"></script>
 </body>
 </html>
