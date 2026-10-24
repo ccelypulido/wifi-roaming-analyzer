@@ -92,6 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const apScannerTableBody = document.getElementById('ap-scanner-table-body');
 
   // Tab 5: Sedes & Zonas
+  const inputFileSedesZonas = document.getElementById('input-file-sedes-zonas');
+  const btnImportSedesFile = document.getElementById('btn-import-sedes-file');
+  const btnExportSedesJson = document.getElementById('btn-export-sedes-json');
+  const btnExportSedesCsv = document.getElementById('btn-export-sedes-csv');
   const btnSyncSedesJson = document.getElementById('btn-sync-sedes-json');
   const btnAddSedeModal = document.getElementById('btn-add-sede-modal');
   const sedesCardsContainer = document.getElementById('sedes-cards-container');
@@ -1071,6 +1075,59 @@ document.addEventListener('DOMContentLoaded', () => {
     loadLocationsAndZones();
     alert("Sedes y Zonas sincronizadas desde sedes_zonas.json");
   });
+
+  if (btnImportSedesFile && inputFileSedesZonas) {
+    btnImportSedesFile.addEventListener('click', () => {
+      inputFileSedesZonas.click();
+    });
+
+    inputFileSedesZonas.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        const fileContent = evt.target.result;
+        try {
+          btnImportSedesFile.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Procesando...';
+          btnImportSedesFile.disabled = true;
+
+          const res = await fetch('/api/locations/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: fileContent, overwrite: false })
+          });
+          const data = await res.json();
+          if (res.ok && data.status === 'success') {
+            await loadLocationsAndZones();
+            await loadSedesAndZones();
+            alert(`✅ Archivo cargado correctamente:\n• Total sedes: ${data.sedes_count}\n• Total zonas: ${data.zones_count}\n• Nuevas sedes añadidas: ${data.imported_sedes}\n• Nuevas zonas añadidas: ${data.imported_zones}`);
+          } else {
+            alert("❌ Error al procesar archivo: " + (data.message || "Formato de archivo no reconocido"));
+          }
+        } catch (err) {
+          alert("❌ Error al cargar archivo: " + err);
+        } finally {
+          btnImportSedesFile.innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> Cargar Archivo (JSON / CSV)';
+          btnImportSedesFile.disabled = false;
+          inputFileSedesZonas.value = '';
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+
+  if (btnExportSedesJson) {
+    btnExportSedesJson.addEventListener('click', () => {
+      window.location.href = '/api/export?type=sedes-zonas-json';
+    });
+  }
+
+  if (btnExportSedesCsv) {
+    btnExportSedesCsv.addEventListener('click', () => {
+      window.location.href = '/api/export?type=sedes-zonas-csv';
+    });
+  }
 
   // --- Tab 6: Statistics ---
   async function loadStatistics() {

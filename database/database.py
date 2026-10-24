@@ -688,6 +688,157 @@ def auto_preload_sedes_zonas():
     except Exception:
         pass
 
+def import_sedes_zonas_data(content: str, overwrite: bool = False) -> Dict[str, Any]:
+    """
+    Parses and imports Sedes & Zonas from JSON or CSV text.
+    Supports:
+    - JSON mapping: {"Sede": ["Zona 1", "Zona 2"]}
+    - JSON list: [{"sede": "...", "zona": "..."}, ...] or [{"location": "...", "zones": [...]}]
+    - CSV / Delimited: Sede,Zona (with autodetection of delimiter and header)
+    """
+    if not content or not content.strip():
+        raise ValueError("El archivo está vacío")
+
+    new_map: Dict[str, List[str]] = {}
+    content_clean = content.strip()
+
+    # 1. Try parsing as JSON first
+    parsed_json = None
+    if content_clean.startswith('{') or content_clean.startswith('['):
+        try:
+            parsed_json = json.loads(content_clean)
+        except Exception:
+            parsed_json = None
+
+    if parsed_json is not None:
+        if isinstance(parsed_json, dict):
+            for loc, zones in parsed_json.items():
+                loc_clean = str(loc).strip()
+                if not loc_clean:
+                    continue
+                if loc_clean not in new_map:
+                    new_map[loc_clean] = []
+                if isinstance(zones, list):
+                    for z in zones:
+                        z_str = str(z).strip()
+                        if z_str and z_str not in new_map[loc_clean]:
+                            new_map[loc_clean].append(z_str)
+                elif isinstance(zones, str) and zones.strip():
+                    new_map[loc_clean].append(zones.strip())
+        elif isinstance(parsed_json, list):
+            for item in parsed_json:
+                if isinstance(item, dict):
+                    loc = item.get('sede') or item.get('location') or item.get('nombre') or item.get('name')
+                    zones = item.get('zonas') or item.get('zones') or item.get('zona') or item.get('zone')
+                    if loc:
+                        loc_clean = str(loc).strip()
+                        if loc_clean not in new_map:
+                            new_map[loc_clean] = []
+                        if isinstance(zones, list):
+                            for z in zones:
+                                z_str = str(z).strip()
+                                if z_str and z_str not in new_map[loc_clean]:
+                                    new_map[loc_clean].append(z_str)
+                        elif zones:
+                            z_str = str(zones).strip()
+                            if z_str and z_str not in new_map[loc_clean]:
+                                new_map[loc_clean].append(z_str)
+
+    # 2. If not JSON, parse as CSV/Delimited
+    if not new_map:
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        if not lines:
+            raise ValueError("No se encontraron líneas con datos en el archivo")
+
+        first_line = lines[0]
+        # Auto-detect delimiter
+        delimiter = ','
+        for d in [',', ';', '\t', '|']:
+            if d in first_line:
+                delimiter = d
+                break
+
+        reader = csv.reader(lines, delimiter=delimiter)
+        for i, row in enumerate(reader):
+            if not row:
+                continue
+            cleaned_row = [c.strip() for c in row if c.strip()]
+            if not cleaned_row:
+                continue
+
+            # Check if first row is header
+            if i == 0:
+                first_cell = cleaned_row[0].lower()
+                if any(h in first_cell for h in ['sede', 'location', 'tienda', 'almacen', 'site']):
+                    continue
+
+            loc = cleaned_row[0]
+            if not loc:
+                continue
+            if loc not in new_map:
+                new_map[loc] = []
+
+            # Remaining columns are zones
+            if len(cleaned_row) > 1:
+                for z in cleaned_row[1:]:
+                    if z and z not in new_map[loc]:
+                        new_map[loc].append(z)
+            else:
+                if 'Zona General' not in new_map[loc]:
+                    new_map[loc].append('Zona General')
+
+    if not new_map:
+        raise ValueError("No se pudieron identificar Sedes y Zonas válidas en el archivo")
+
+    current_map = {} if overwrite else get_location_zones_map()
+
+    total_added_sedes = 0
+    total_added_zones = 0
+
+    for loc, zones in new_map.items():
+        if loc not in current_map:
+            current_map[loc] = []
+            total_added_sedes += 1
+        for z in zones:
+            if z not in current_map[loc]:
+                current_map[loc].append(z)
+                total_added_zones += 1
+
+    # Save to config
+    set_config("zones_by_location", json.dumps(current_map, ensure_ascii=False))
+
+    # Also sync to SEDES_ZONAS_FILE if possible
+    try:
+        os.makedirs(os.path.dirname(SEDES_ZONAS_FILE), exist_ok=True)
+        with open(SEDES_ZONAS_FILE, "w", encoding="utf-8") as f:
+            json.dump(current_map, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "sedes_count": len(current_map),
+        "zones_count": sum(len(v) for v in current_map.values()),
+        "imported_sedes": total_added_sedes,
+        "imported_zones": total_added_zones,
+        "locations": list(current_map.keys()),
+        "mapping": current_map
+    }
+
+def export_sedes_zonas_csv() -> str:
+    """Exports current Sedes & Zonas to CSV."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Sede", "Zona"])
+    mapping = get_location_zones_map()
+    for loc, zones in sorted(mapping.items()):
+        if not zones:
+            writer.writerow([loc, "Zona General"])
+        else:
+            for z in zones:
+                writer.writerow([loc, z])
+    return output.getvalue()
+
 def export_telemetry_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
     """Exports all telemetry samples into CSV string."""
     output = io.StringIO()

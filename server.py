@@ -904,6 +904,19 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             elif exp_type in ('http-phases', 'probes'):
                 csv_str = database.export_http_probes_csv(location_filter=loc, zone_filter=zone)
                 filename = f"http_phases_history_{loc}.csv"
+            elif exp_type == 'sedes-zonas-csv':
+                csv_str = database.export_sedes_zonas_csv()
+                filename = "sedes_zonas.csv"
+            elif exp_type == 'sedes-zonas-json':
+                json_str = json.dumps(database.get_location_zones_map(), ensure_ascii=False, indent=2)
+                content = json_str.encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Disposition', 'attachment; filename="sedes_zonas.json"')
+                self.send_header('Content-Length', str(len(content)))
+                self.end_headers()
+                self.wfile.write(content)
+                return
             elif exp_type == 'ap-names':
                 aps = ap_manager.search('', limit=10000)
                 out = io.StringIO()
@@ -1006,6 +1019,15 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif parsed.path == '/api/locations/sync':
             database.auto_preload_sedes_zonas()
             self.send_json_response({"status": "success", "locations": database.get_locations()})
+
+        elif parsed.path == '/api/locations/import':
+            content = data.get('content', '') if isinstance(data, dict) else body
+            overwrite = bool(data.get('overwrite', False)) if isinstance(data, dict) else False
+            try:
+                result = database.import_sedes_zonas_data(content, overwrite=overwrite)
+                self.send_json_response(result)
+            except Exception as e:
+                self.send_json_response({"status": "error", "message": str(e)}, status=400)
 
         elif parsed.path == '/api/locations/delete':
             loc = data.get('location')
