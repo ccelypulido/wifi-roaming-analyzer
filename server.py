@@ -1116,7 +1116,11 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "app_status_code": state.app_status_code,
                 "app_is_error": state.app_is_error,
                 "app_error_message": state.app_error_message,
-                "auto_probe_enabled": state.auto_probe_enabled
+                "auto_probe_enabled": state.auto_probe_enabled,
+                "auth_enabled": (database.get_config().get("auth_enabled", "0") in ('1', True, 'true', 1)),
+                "auth_type": database.get_config().get("auth_type", "ntlm"),
+                "auth_user": database.get_config().get("auth_user", ""),
+                "auth_domain": database.get_config().get("auth_domain", "")
             }
 
 def main():

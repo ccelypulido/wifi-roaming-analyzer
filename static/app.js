@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const headerPing = document.getElementById('header-ping');
   const headerAppLatency = document.getElementById('header-app-latency');
   const headerAppBadge = document.getElementById('header-app-badge');
+  const headerAuthBadge = document.getElementById('header-auth-badge');
+  const headerAuthStatus = document.getElementById('header-auth-status');
 
   // Toolbar
   const selLocation = document.getElementById('sel-location');
@@ -101,8 +103,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSaveConfigGeneral = document.getElementById('btn-save-config-general');
   const inputNewBssid = document.getElementById('input-new-bssid');
   const inputNewApname = document.getElementById('input-new-apname');
-  const btnAddApname = document.getElementById('btn-add-apname');
+  const btnAddApname = document.getElementById('btnAddApname') || document.getElementById('btn-add-apname');
   const apNamesTableBody = document.getElementById('ap-names-table-body');
+
+  // Tab 7: Enterprise Authentication
+  const cfgAuthEnabled = document.getElementById('cfg-auth-enabled');
+  const authConfigFields = document.getElementById('auth-config-fields');
+  const cfgAuthType = document.getElementById('cfg-auth-type');
+  const grpAuthDomain = document.getElementById('grp-auth-domain');
+  const grpAuthUser = document.getElementById('grp-auth-user');
+  const grpAuthPassword = document.getElementById('grp-auth-password');
+  const grpAuthToken = document.getElementById('grp-auth-token');
+  const cfgAuthDomain = document.getElementById('cfg-auth-domain');
+  const cfgAuthUser = document.getElementById('cfg-auth-user');
+  const cfgAuthPassword = document.getElementById('cfg-auth-password');
+  const cfgAuthToken = document.getElementById('cfg-auth-token');
+  const btnTogglePwd = document.getElementById('btn-toggle-pwd');
+  const btnTestAuth = document.getElementById('btn-test-auth');
+  const btnSaveAuth = document.getElementById('btn-save-auth');
 
   // --- Local State ---
   let presetsData = {};
@@ -476,6 +494,22 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else {
       headerAppLatency.textContent = 'HTTP: Sonda inactiva';
+    }
+
+    if (headerAuthStatus && headerAuthBadge) {
+      if (data.auth_enabled) {
+        const typeUpper = (data.auth_type || 'ntlm').toUpperCase();
+        const userOrToken = data.auth_user ? ` (${data.auth_user})` : '';
+        headerAuthStatus.textContent = `${typeUpper}${userOrToken}`;
+        headerAuthBadge.style.display = 'inline-flex';
+        headerAuthBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+        headerAuthBadge.style.color = '#10b981';
+      } else {
+        headerAuthStatus.textContent = 'Inactiva';
+        headerAuthBadge.style.display = 'inline-flex';
+        headerAuthBadge.style.background = 'rgba(148, 163, 184, 0.12)';
+        headerAuthBadge.style.color = '#94a3b8';
+      }
     }
 
     // 2. Card 1: Gauge & Signal
@@ -928,6 +962,15 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgVerifySsl.value = cfg.verify_ssl || '1';
       cfgExtraPing.value = cfg.extra_ping_targets || '';
 
+      // Auth inputs
+      if (cfgAuthEnabled) cfgAuthEnabled.value = (cfg.auth_enabled === '1' || cfg.auth_enabled === 1 || cfg.auth_enabled === true) ? '1' : '0';
+      if (cfgAuthType) cfgAuthType.value = cfg.auth_type || 'ntlm';
+      if (cfgAuthDomain) cfgAuthDomain.value = cfg.auth_domain || '';
+      if (cfgAuthUser) cfgAuthUser.value = cfg.auth_user || '';
+      if (cfgAuthPassword) cfgAuthPassword.value = cfg.auth_password || '';
+      if (cfgAuthToken) cfgAuthToken.value = cfg.auth_token || '';
+      updateAuthFieldsVisibility();
+
       // AP Names Table
       renderApNamesTable(aps.aps || []);
     } catch (e) {
@@ -1006,6 +1049,103 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     alert("Configuración de telemetría guardada.");
   });
+
+  // --- Enterprise Authentication Controls ---
+  function updateAuthFieldsVisibility() {
+    if (!cfgAuthEnabled || !authConfigFields) return;
+    const isEnabled = cfgAuthEnabled.value === '1';
+    authConfigFields.style.display = isEnabled ? 'flex' : 'none';
+    if (!isEnabled) return;
+
+    const authType = cfgAuthType.value;
+    if (authType === 'bearer') {
+      if (grpAuthDomain) grpAuthDomain.style.display = 'none';
+      if (grpAuthUser) grpAuthUser.style.display = 'none';
+      if (grpAuthPassword) grpAuthPassword.style.display = 'none';
+      if (grpAuthToken) grpAuthToken.style.display = 'block';
+    } else if (authType === 'basic') {
+      if (grpAuthDomain) grpAuthDomain.style.display = 'none';
+      if (grpAuthUser) grpAuthUser.style.display = 'block';
+      if (grpAuthPassword) grpAuthPassword.style.display = 'block';
+      if (grpAuthToken) grpAuthToken.style.display = 'none';
+    } else { // 'ntlm'
+      if (grpAuthDomain) grpAuthDomain.style.display = 'block';
+      if (grpAuthUser) grpAuthUser.style.display = 'block';
+      if (grpAuthPassword) grpAuthPassword.style.display = 'block';
+      if (grpAuthToken) grpAuthToken.style.display = 'none';
+    }
+  }
+
+  if (cfgAuthEnabled) {
+    cfgAuthEnabled.addEventListener('change', updateAuthFieldsVisibility);
+  }
+  if (cfgAuthType) {
+    cfgAuthType.addEventListener('change', updateAuthFieldsVisibility);
+  }
+  if (btnTogglePwd && cfgAuthPassword) {
+    btnTogglePwd.addEventListener('click', () => {
+      const isPwd = cfgAuthPassword.type === 'password';
+      cfgAuthPassword.type = isPwd ? 'text' : 'password';
+      btnTogglePwd.innerHTML = isPwd ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+    });
+  }
+
+  async function collectAndSaveAuth() {
+    const payload = {
+      auth_enabled: cfgAuthEnabled ? cfgAuthEnabled.value : '0',
+      auth_type: cfgAuthType ? cfgAuthType.value : 'ntlm',
+      auth_domain: cfgAuthDomain ? cfgAuthDomain.value.trim() : '',
+      auth_user: cfgAuthUser ? cfgAuthUser.value.trim() : '',
+      auth_password: cfgAuthPassword ? cfgAuthPassword.value : '',
+      auth_token: cfgAuthToken ? cfgAuthToken.value.trim() : ''
+    };
+    await saveConfig(payload);
+    return payload;
+  }
+
+  if (btnSaveAuth) {
+    btnSaveAuth.addEventListener('click', async () => {
+      btnSaveAuth.disabled = true;
+      btnSaveAuth.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+      try {
+        await collectAndSaveAuth();
+        alert("Configuración de autenticación guardada exitosamente.");
+        fetchStatus();
+      } catch (e) {
+        alert("Error guardando autenticación: " + e);
+      } finally {
+        btnSaveAuth.disabled = false;
+        btnSaveAuth.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Autenticación';
+      }
+    });
+  }
+
+  if (btnTestAuth) {
+    btnTestAuth.addEventListener('click', async () => {
+      btnTestAuth.disabled = true;
+      btnTestAuth.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Probando credenciales...';
+      try {
+        await collectAndSaveAuth();
+        const res = await fetch('/api/probe/now', { method: 'POST' });
+        const data = await res.json();
+        const code = data.status_code || 0;
+        const latency = (data.total_ms !== null && data.total_ms !== undefined) ? `${data.total_ms} ms` : 'N/A';
+        if (code >= 200 && code < 400) {
+          alert(`¡Autenticación Exitosa!\nCódigo HTTP: ${code}\nLatencia Total: ${latency}\nDestino: ${data.target || 'URL configurada'}`);
+        } else if (code === 401 || code === 403) {
+          alert(`Fallo de Autenticación (Código HTTP ${code}):\nCredenciales rechazadas por el servidor de destino.\nRevisa el dominio, usuario, contraseña o token.`);
+        } else {
+          alert(`Resultado de Prueba:\nCódigo HTTP: ${code}\nLatencia: ${latency}\n${data.error_message ? 'Detalle: ' + data.error_message : ''}`);
+        }
+        fetchStatus();
+      } catch (e) {
+        alert("Error al probar autenticación: " + e);
+      } finally {
+        btnTestAuth.disabled = false;
+        btnTestAuth.innerHTML = '<i class="fa-solid fa-key"></i> Probar Credenciales Ahora';
+      }
+    });
+  }
 
   btnTestRoaming.addEventListener('click', async () => {
     btnTestRoaming.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Probando...';
