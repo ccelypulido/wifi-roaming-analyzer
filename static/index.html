@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wi-Fi & AP Roaming Telemetry Analyzer</title>
+  <title>Wi-Fi & Enterprise Telemetry Analyzer</title>
   
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,8 +13,8 @@
   <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Chart.js (Local Vendor Offline) -->
+  <script src="chart.umd.min.js"></script>
   
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -28,8 +28,8 @@
           <i class="fa-solid fa-wifi"></i>
         </div>
         <div class="brand-text">
-          <h1>Wi-Fi & AP Roaming Telemetry</h1>
-          <p>Analizador de Intensidad de Señal y Roaming de Puntos de Acceso</p>
+          <h1>Wi-Fi & Enterprise Telemetry Analyzer</h1>
+          <p>Analizador de Cobertura, Roaming RF y Observabilidad de Aplicaciones</p>
         </div>
       </div>
       
@@ -38,22 +38,71 @@
           <div class="badge-dot"></div>
           <span>EN VIVO</span>
         </div>
-        <div class="badge">
+        <div class="badge" title="SSID de la red conectada">
           <i class="fa-solid fa-network-wired"></i>
-          <span id="header-ssid">Familia_CelyRod</span>
+          <span id="header-ssid">Conectando...</span>
         </div>
-        <div class="badge">
+        <div class="badge" title="BSSID (MAC del AP actual)">
           <i class="fa-solid fa-microchip"></i>
           <span id="header-bssid">--:--:--:--:--:--</span>
         </div>
-        <div class="badge">
+        <div class="badge" title="Ping ICMP a la Puerta de Enlace Local">
           <i class="fa-solid fa-bolt"></i>
           <span id="header-ping">-- ms</span>
+        </div>
+        <div id="header-app-badge" class="badge" title="Latencia HTTP hacia la URL de prueba activa">
+          <i class="fa-solid fa-globe"></i>
+          <span id="header-app-latency">HTTP: -- ms</span>
         </div>
       </div>
     </header>
 
-    <!-- Main Metrics Grid -->
+    <!-- Multipurpose Control Toolbar -->
+    <div class="toolbar-card">
+      <div class="toolbar-row">
+        <!-- Preset Selector -->
+        <div class="toolbar-item">
+          <label class="toolbar-label"><i class="fa-solid fa-sliders"></i> Perfil de Entorno:</label>
+          <div class="preset-buttons">
+            <button class="preset-btn active" data-preset="store" title="Tiendas / Cajas POS">
+              <i class="fa-solid fa-shop"></i> Tienda / POS
+            </button>
+            <button class="preset-btn" data-preset="office" title="Sedes Administrativas / Oficinas">
+              <i class="fa-solid fa-building"></i> Oficina
+            </button>
+            <button class="preset-btn" data-preset="warehouse" title="Centros de Distribución / Bodegas">
+              <i class="fa-solid fa-warehouse"></i> Bodega / CD
+            </button>
+            <button class="preset-btn" data-preset="custom" title="Diagnóstico Libre / Personalizado">
+              <i class="fa-solid fa-gear"></i> Personalizado
+            </button>
+          </div>
+        </div>
+
+        <!-- Sede & Zona Selectors -->
+        <div class="toolbar-item" style="flex: 1.2;">
+          <label class="toolbar-label"><i class="fa-solid fa-map-location-dot"></i> Ubicación Activa:</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <select id="sel-location" class="toolbar-select" title="Selecciona la Sede actual"></select>
+            <select id="sel-zone" class="toolbar-select" title="Selecciona la Zona física dentro de la Sede"></select>
+            <button id="btn-quick-add-zone" class="btn-icon" title="Añadir nueva zona rápida"><i class="fa-solid fa-plus"></i></button>
+          </div>
+        </div>
+
+        <!-- Target URL Input -->
+        <div class="toolbar-item" style="flex: 1.6;">
+          <label class="toolbar-label"><i class="fa-solid fa-bullseye"></i> URL Objetivo de Prueba (HTTP/HTTPS):</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="input-target-url" class="toolbar-input" placeholder="https://ejemplo.com/ping" value="https://1.1.1.1">
+            <button id="btn-apply-url" class="btn-primary" style="white-space: nowrap; padding: 0.5rem 0.9rem;">
+              <i class="fa-solid fa-play"></i> Probar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Metrics Grid (4 Cards) -->
     <div class="dashboard-grid">
       
       <!-- Card 1: Signal Rating & Score Gauge -->
@@ -61,7 +110,7 @@
         <div class="card-header">
           <div class="card-title">
             <i class="fa-solid fa-gauge-high"></i>
-            <span>Calificación de Señal</span>
+            <span>Calidad de Señal Wi-Fi</span>
           </div>
           <span id="signal-dbm-pill" class="badge" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan);">-- dBm</span>
         </div>
@@ -82,7 +131,7 @@
         </div>
 
         <p id="rating-recommendation" class="rating-recommendation">
-          Monitoreando la estabilidad de la conexión Wi-Fi...
+          Monitoreando estabilidad y calidad del enlace RF...
         </p>
       </div>
 
@@ -91,7 +140,7 @@
         <div class="card-header">
           <div class="card-title">
             <i class="fa-solid fa-tower-cell"></i>
-            <span>AP Conectado</span>
+            <span>Punto de Acceso (AP)</span>
           </div>
           <span id="band-badge" class="badge">-- GHz</span>
         </div>
@@ -106,29 +155,75 @@
             <span id="info-ap-name" class="info-value highlight">--</span>
           </div>
           <div class="info-item">
-            <span class="info-label"><i class="fa-solid fa-barcode"></i> BSSID (MAC AP):</span>
+            <span class="info-label"><i class="fa-solid fa-barcode"></i> BSSID (MAC):</span>
             <span id="info-bssid" class="info-value">--:--:--:--:--:--</span>
           </div>
           <div class="info-item">
-            <span class="info-label"><i class="fa-solid fa-industry"></i> Fabricante AP:</span>
+            <span class="info-label"><i class="fa-solid fa-industry"></i> Fabricante:</span>
             <span id="info-vendor" class="info-value">Desconocido</span>
           </div>
           <div class="info-item">
-            <span class="info-label"><i class="fa-solid fa-radio"></i> Canal / Freq:</span>
+            <span class="info-label"><i class="fa-solid fa-radio"></i> Canal / Frecuencia:</span>
             <span id="info-chan-freq" class="info-value">--</span>
           </div>
           <div class="info-item">
-            <span class="info-label"><i class="fa-solid fa-arrows-up-down"></i> Velocidad (TX/RX):</span>
+            <span class="info-label"><i class="fa-solid fa-arrows-up-down"></i> Tasa (TX/RX):</span>
             <span id="info-bitrate" class="info-value">--</span>
           </div>
           <div class="info-item">
-            <span class="info-label"><i class="fa-solid fa-laptop-code"></i> IP Local / Gateway:</span>
+            <span class="info-label"><i class="fa-solid fa-network-wired"></i> IP / Gateway:</span>
             <span id="info-ip-gw" class="info-value">--</span>
           </div>
         </div>
       </div>
 
-      <!-- Card 3: Roaming Diagnostics & Mesh Auditor -->
+      <!-- Card 3: Application Health & HTTP Latency -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-cloud"></i>
+            <span>Salud de Aplicación</span>
+          </div>
+          <span id="app-status-badge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">HTTP --</span>
+        </div>
+
+        <div class="app-latency-hero">
+          <div id="app-latency-val" class="app-latency-val">-- <small>ms</small></div>
+          <div class="app-latency-label">Latencia Operativa Activa (TTFB + Transfer)</div>
+        </div>
+
+        <div class="phases-mini-grid">
+          <div class="phase-mini-item">
+            <span class="phase-mini-name">DNS</span>
+            <span id="phase-dns-val" class="phase-mini-val">-- ms</span>
+          </div>
+          <div class="phase-mini-item">
+            <span class="phase-mini-name">TCP</span>
+            <span id="phase-tcp-val" class="phase-mini-val">-- ms</span>
+          </div>
+          <div class="phase-mini-item">
+            <span class="phase-mini-name">TLS</span>
+            <span id="phase-tls-val" class="phase-mini-val">-- ms</span>
+          </div>
+          <div class="phase-mini-item">
+            <span class="phase-mini-name">TTFB</span>
+            <span id="phase-ttfb-val" class="phase-mini-val">-- ms</span>
+          </div>
+        </div>
+
+        <div class="info-list" style="margin-top: 0.75rem;">
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-snowflake"></i> Conexión en Frío:</span>
+            <span id="info-cold-total" class="info-value">-- ms</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label"><i class="fa-solid fa-link"></i> Endpoint Target:</span>
+            <span id="info-target-url" class="info-value text-truncate" style="max-width: 170px;">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card 4: Roaming Diagnostics & Mesh Auditor -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">
@@ -147,7 +242,7 @@
           </div>
         </div>
 
-        <div class="info-list" style="margin-bottom: 1rem;">
+        <div class="info-list" style="margin-bottom: 0.85rem;">
           <div class="info-item">
             <span class="info-label"><i class="fa-solid fa-clone"></i> APs con el mismo SSID:</span>
             <span id="info-same-ssid-count" class="info-value highlight">0 APs</span>
@@ -159,25 +254,29 @@
         </div>
 
         <div style="display: flex; gap: 0.5rem;">
-          <button id="btn-test-roaming" class="btn-primary" style="flex: 1;">
-            <i class="fa-solid fa-vial-circle-check"></i> Probar Estabilidad Ping
+          <button id="btn-test-roaming" class="btn-primary" style="flex: 1;" title="Realiza ráfaga de 5 pings al gateway">
+            <i class="fa-solid fa-vial-circle-check"></i> Probar Ping
           </button>
-          <button id="btn-export-report" class="btn-secondary">
-            <i class="fa-solid fa-download"></i> Exportar
+          <button id="btn-export-quick" class="btn-secondary" title="Exportar reporte CSV consolidado">
+            <i class="fa-solid fa-download"></i> CSV
           </button>
         </div>
       </div>
 
     </div>
 
-    <!-- Live Telemetry Graph -->
+    <!-- Live Telemetry Graph (Synchronized RF & Application Latency) -->
     <div class="card chart-card">
       <div class="card-header">
         <div class="card-title">
           <i class="fa-solid fa-chart-line"></i>
-          <span>Telemetría en Tiempo Real (Intensidad dBm & Latencia Ping ms)</span>
+          <span>Telemetría Sincronizada en Tiempo Real (Wi-Fi RF dBm, Ping Gateway y Latencia HTTP de Aplicación)</span>
         </div>
-        <span class="badge" style="color: var(--text-muted);">Actualizado cada 1.5s</span>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <span class="badge" style="color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1);">● Señal Wi-Fi (dBm)</span>
+          <span class="badge" style="color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1);">● App HTTP (ms)</span>
+          <span class="badge" style="color: var(--accent-purple); background: rgba(139, 92, 246, 0.1);">┅ Ping GW (ms)</span>
+        </div>
       </div>
 
       <div class="chart-container">
@@ -185,20 +284,29 @@
       </div>
     </div>
 
-    <!-- Tabs Container for Roaming Log & AP Scanner -->
+    <!-- Tabs Container -->
     <div class="card">
       <div class="tabs-header">
         <button class="tab-btn active" data-tab="tab-roaming-log">
-          <i class="fa-solid fa-history"></i> Historial de Roaming (Handoffs)
+          <i class="fa-solid fa-history"></i> Historial de Roaming
+        </button>
+        <button class="tab-btn" data-tab="tab-http-phases">
+          <i class="fa-solid fa-stopwatch"></i> Fases de Latencia HTTP
+        </button>
+        <button class="tab-btn" data-tab="tab-net-diag">
+          <i class="fa-solid fa-network-wired"></i> Diagnóstico de Red (Traceroute)
         </button>
         <button class="tab-btn" data-tab="tab-ap-scanner">
-          <i class="fa-solid fa-list-check"></i> Escáner de APs Candidatos (Mesh)
+          <i class="fa-solid fa-list-check"></i> Escáner de APs Vecinos
         </button>
-        <button class="tab-btn" data-tab="tab-ap-names">
-          <i class="fa-solid fa-tags"></i> Nombres APs (Controladora)
+        <button class="tab-btn" data-tab="tab-sedes-zonas">
+          <i class="fa-solid fa-map-location-dot"></i> Sedes y Zonas
         </button>
-        <button class="tab-btn" data-tab="tab-oui-manager">
-          <i class="fa-solid fa-industry"></i> Base de Fabricantes (OUI)
+        <button class="tab-btn" data-tab="tab-stats">
+          <i class="fa-solid fa-chart-pie"></i> Estadísticas & Auditoría
+        </button>
+        <button class="tab-btn" data-tab="tab-config">
+          <i class="fa-solid fa-gears"></i> Configuración
         </button>
       </div>
 
@@ -206,11 +314,16 @@
       <div id="tab-roaming-log" class="tab-content active">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
           <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Monitoreo continuo de transiciones entre Puntos de Acceso. Camina por tu casa o la oficina para probar la conmutación entre APs.
+            Registro cronológico de transiciones (handoffs) entre Access Points. Cada salto correlaciona la variación de dBm y el impacto en la latencia de la aplicación.
           </p>
-          <button id="btn-clear-log" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
-            <i class="fa-solid fa-trash-can"></i> Limpiar Registro
-          </button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btn-export-roaming-csv" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+              <i class="fa-solid fa-file-csv"></i> Descargar CSV Roaming
+            </button>
+            <button id="btn-clear-roaming-log" class="btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+              <i class="fa-solid fa-trash-can"></i> Limpiar
+            </button>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -218,21 +331,22 @@
             <thead>
               <tr>
                 <th>Hora</th>
+                <th>Sede / Zona</th>
                 <th>SSID</th>
                 <th>AP Anterior (BSSID)</th>
                 <th>Nuevo AP (BSSID)</th>
                 <th>Variación Señal</th>
-                <th>Ping Latencia</th>
-                <th>Dictamen Roaming</th>
+                <th>Latencia App</th>
+                <th>Veredicto</th>
               </tr>
             </thead>
             <tbody id="roaming-table-body">
               <tr>
-                <td colspan="7">
+                <td colspan="8">
                   <div class="empty-state">
                     <i class="fa-solid fa-route"></i>
-                    <p>No se han registrado eventos de cambio de AP (Roaming) aún.</p>
-                    <small>Cuando la tarjeta Wi-Fi conmute a otro BSSID con el mismo SSID, aparecerá aquí.</small>
+                    <p>No se han registrado eventos de cambio de AP aún.</p>
+                    <small>Cuando la tarjeta Wi-Fi conmute entre APs, aparecerá aquí con su correlación de latencia.</small>
                   </div>
                 </td>
               </tr>
@@ -241,11 +355,83 @@
         </div>
       </div>
 
-      <!-- Tab 2: AP Candidate Scanner -->
+      <!-- Tab 2: HTTP Latency Phases -->
+      <div id="tab-http-phases" class="tab-content">
+        <div style="margin-bottom: 1.25rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Desglose quirúrgico de las 5 fases de conexión hacia <strong id="phases-target-label" style="color: var(--accent-cyan);">--</strong>. Permite aislar si la lentitud reside en el DNS local, el Handshake de red, la negociación criptográfica TLS o el backend del servidor.
+          </p>
+        </div>
+
+        <div class="phases-cards-row">
+          <div class="phase-card">
+            <div class="phase-card-title"><i class="fa-solid fa-magnifying-glass"></i> 1. DNS</div>
+            <div id="card-dns-val" class="phase-card-val">-- ms</div>
+            <div class="phase-card-desc">Resolución de nombre a dirección IP</div>
+          </div>
+          <div class="phase-card">
+            <div class="phase-card-title"><i class="fa-solid fa-handshake"></i> 2. TCP</div>
+            <div id="card-tcp-val" class="phase-card-val">-- ms</div>
+            <div class="phase-card-desc">3-Way Handshake (Socket SYN/ACK)</div>
+          </div>
+          <div class="phase-card">
+            <div class="phase-card-title"><i class="fa-solid fa-lock"></i> 3. TLS / SSL</div>
+            <div id="card-tls-val" class="phase-card-val">-- ms</div>
+            <div class="phase-card-desc">Negociación de cifrado HTTPS</div>
+          </div>
+          <div class="phase-card">
+            <div class="phase-card-title"><i class="fa-solid fa-server"></i> 4. TTFB</div>
+            <div id="card-ttfb-val" class="phase-card-val">-- ms</div>
+            <div class="phase-card-desc">Tiempo de espera hasta el 1er byte</div>
+          </div>
+          <div class="phase-card">
+            <div class="phase-card-title"><i class="fa-solid fa-download"></i> 5. Transfer</div>
+            <div id="card-trans-val" class="phase-card-val">-- ms</div>
+            <div class="phase-card-desc">Descarga completa del cuerpo</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 1.25rem; background: rgba(255, 255, 255, 0.02);">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fa-solid fa-chart-column"></i>
+              <span>Distribución Proporcional de la Latencia por Fases</span>
+            </div>
+            <button id="btn-manual-probe" class="btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+              <i class="fa-solid fa-rotate-right"></i> Medir Ahora
+            </button>
+          </div>
+          <div style="height: 180px; position: relative;">
+            <canvas id="phasesChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Network Diagnostics -->
+      <div id="tab-net-diag" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Diagnóstico integral de red con pings paralelos a la Puerta de Enlace, Servidores DNS locales y el Servidor Aplicativo, junto con Traceroute detallado salto por salto.
+          </p>
+          <button id="btn-run-diag" class="btn-primary">
+            <i class="fa-solid fa-microscope"></i> Ejecutar Diagnóstico Completo
+          </button>
+        </div>
+
+        <div id="diag-results-container">
+          <div class="empty-state">
+            <i class="fa-solid fa-network-wired"></i>
+            <p>No se ha ejecutado un diagnóstico de red en esta sesión.</p>
+            <small>Haz clic en "Ejecutar Diagnóstico Completo" para evaluar Gateway, DNS y saltos de red.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 4: AP Candidate Scanner -->
       <div id="tab-ap-scanner" class="tab-content">
         <div style="margin-bottom: 1rem;">
           <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Puntos de acceso Wi-Fi detectados en el área. Los marcados con <span style="color: var(--accent-cyan); font-weight: bold;">[Mismo SSID]</span> son los candidatos a los cuales tu tarjeta de red puede realizar Roaming.
+            Puntos de acceso Wi-Fi detectados en el entorno. Los marcados con <span style="color: var(--accent-cyan); font-weight: bold;">[Mismo SSID]</span> son los APs de la red a los cuales tu adaptador puede conmutar automáticamente.
           </p>
         </div>
 
@@ -277,237 +463,153 @@
         </div>
       </div>
 
-      <!-- Tab 3: AP Names (Controller Mapping) -->
-      <div id="tab-ap-names" class="tab-content">
-        <div class="oui-summary-panel">
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">
-              <i class="fa-solid fa-tags"></i>
-            </div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">APs Mapeados</span>
-              <span id="ap-stat-total" class="oui-stat-val">0</span>
-            </div>
-          </div>
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon" style="background: rgba(16, 185, 129, 0.12); color: var(--accent-emerald);">
-              <i class="fa-solid fa-tower-broadcast"></i>
-            </div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">AP Activo Conectado</span>
-              <span id="ap-stat-current" class="oui-stat-val" style="font-size: 0.95rem;">--</span>
-            </div>
-          </div>
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon" style="background: rgba(6, 182, 212, 0.12); color: var(--accent-cyan);">
-              <i class="fa-solid fa-clock-rotate-left"></i>
-            </div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">Última Modificación</span>
-              <span id="ap-stat-updated" class="oui-stat-val">--</span>
-            </div>
-          </div>
-          <div class="oui-actions-wrapper" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button id="btn-toggle-import-csv" class="btn-primary" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));">
-              <i class="fa-solid fa-file-csv"></i> Importar CSV Controladora
-            </button>
-            <button id="btn-toggle-add-ap" class="btn-secondary">
-              <i class="fa-solid fa-plus"></i> Registrar AP
-            </button>
-          </div>
-        </div>
-
-        <!-- Import CSV Accordion/Panel -->
-        <div id="ap-import-panel" class="oui-add-panel" style="display: none; border-color: rgba(139, 92, 246, 0.35);">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-purple); display: flex; align-items: center; gap: 0.5rem;">
-            <i class="fa-solid fa-file-import"></i> Importar Listado de APs desde Controladora Wi-Fi
-          </h4>
-          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
-            Pega el contenido exportado desde tu controladora (Cisco Catalyst/WLC, Aruba Central, UniFi, Huawei, FortiGate, Ruijie, Omada) o selecciona un archivo <code>.csv</code> desde tu equipo.
-            Soporta formatos estándar (<code>B0:14:DF:11:22:33</code>, Windows <code>B0-14-DF-11-22-33</code> o Cisco <code>b014.df11.2233</code>).
+      <!-- Tab 5: Sedes & Zonas Manager -->
+      <div id="tab-sedes-zonas" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Administra las Sedes físicas (tiendas, oficinas, centros de distribución) y sus Zonas operativas (cajas, pasillos, racks, muelles) para etiquetar todas las pruebas.
           </p>
-          <div style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
-            <input type="file" id="ap-csv-file-input" accept=".csv,.txt" style="display: none;">
-            <button id="btn-select-csv-file" class="btn-secondary" style="font-size: 0.82rem; padding: 0.4rem 0.8rem;">
-              <i class="fa-solid fa-folder-open"></i> Seleccionar archivo .CSV
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btn-sync-sedes-json" class="btn-secondary" style="font-size: 0.8rem;">
+              <i class="fa-solid fa-arrows-rotate"></i> Recargar sedes_zonas.json
             </button>
-            <span id="ap-csv-file-name" style="font-size: 0.82rem; color: var(--text-secondary);"></span>
-          </div>
-          <div style="margin-bottom: 1rem;">
-            <textarea id="ap-csv-textarea" rows="5" class="custom-textarea" placeholder="Pega el contenido CSV aquí (ej: MAC,Nombre,Ubicación,Modelo)&#10;B0:14:DF:11:22:30,AP-Piso2-SalaJuntas,Piso 2,Cisco 9120&#10;70-69-79-AA-BB-00,AP-Recepcion-P1,Piso 1,Ruckus R650&#10;0027.0d12.3456,AP-Bodega-Norte,Bodega,Aruba 515"></textarea>
-          </div>
-          <div class="form-group-actions">
-            <button id="btn-process-csv" class="btn-primary" style="background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));">
-              <i class="fa-solid fa-cloud-arrow-up"></i> Procesar e Importar APs
+            <button id="btn-add-sede-modal" class="btn-primary" style="font-size: 0.8rem;">
+              <i class="fa-solid fa-plus"></i> Nueva Sede
             </button>
-            <button id="btn-cancel-import-csv" class="btn-secondary">Cancelar</button>
           </div>
         </div>
 
-        <!-- Add Single AP Form -->
-        <div id="ap-add-form-container" class="oui-add-panel" style="display: none;">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
-            <i class="fa-solid fa-plus-circle"></i> Registrar o Modificar Nombre de AP
-          </h4>
-          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
-            Asocia la dirección MAC/BSSID del AP con su nombre identificativo en la red.
-          </p>
-          <div class="oui-form-fields">
-            <div class="form-group">
-              <label for="ap-input-mac">Dirección MAC / BSSID</label>
-              <input type="text" id="ap-input-mac" placeholder="Ej: B0:14:DF:11:22:33 o b014.df11.2233" maxlength="20">
-            </div>
-            <div class="form-group">
-              <label for="ap-input-name">Nombre en Controladora</label>
-              <input type="text" id="ap-input-name" placeholder="Ej: AP-Piso2-SalaJuntas">
-            </div>
-            <div class="form-group">
-              <label for="ap-input-location">Ubicación (Opcional)</label>
-              <input type="text" id="ap-input-location" placeholder="Ej: Piso 2 - Sala A">
-            </div>
-            <div class="form-group">
-              <label for="ap-input-model">Modelo (Opcional)</label>
-              <input type="text" id="ap-input-model" placeholder="Ej: Cisco 9120 / Aruba 515">
-            </div>
-            <div class="form-group-actions">
-              <button id="btn-save-ap" class="btn-primary">
-                <i class="fa-solid fa-floppy-disk"></i> Guardar AP
-              </button>
-              <button id="btn-cancel-add-ap" class="btn-secondary">Cancelar</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- AP Search Bar -->
-        <div class="oui-controls-row">
-          <div class="oui-search-box">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="ap-search-input" placeholder="Buscar por MAC, nombre de AP, ubicación o modelo...">
-          </div>
-        </div>
-
-        <!-- AP Table -->
-        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th style="width: 170px;">BSSID (MAC)</th>
-                <th>Nombre en Controladora</th>
-                <th>Ubicación</th>
-                <th>Modelo</th>
-                <th style="width: 100px; text-align: center;">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="ap-table-body">
-              <tr>
-                <td colspan="5">
-                  <div class="empty-state">
-                    <i class="fa-solid fa-tags"></i>
-                    <p>No hay nombres de APs registrados aún.</p>
-                    <small>Usa "Registrar AP" o "Importar CSV Controladora" para vincular los nombres a sus MACs.</small>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="sedes-cards-container" class="sedes-grid">
+          <!-- Loaded dynamically via JS -->
         </div>
       </div>
 
-      <!-- Tab 4: OUI / MAC Vendor Database -->
-      <div id="tab-oui-manager" class="tab-content">
-        <div class="oui-summary-panel">
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon"><i class="fa-solid fa-microchip"></i></div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">Total Fabricantes</span>
-              <span id="oui-stat-total" class="oui-stat-val">--</span>
-            </div>
-          </div>
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon"><i class="fa-solid fa-sliders"></i></div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">Personalizados</span>
-              <span id="oui-stat-custom" class="oui-stat-val">--</span>
-            </div>
-          </div>
-          <div class="oui-stat-card">
-            <div class="oui-stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
-            <div class="oui-stat-info">
-              <span class="oui-stat-label">Última Actualización</span>
-              <span id="oui-stat-updated" class="oui-stat-val">--</span>
-            </div>
-          </div>
-          <div class="oui-actions-wrapper">
-            <button id="btn-update-oui" class="btn-primary" title="Descargar y sincronizar con el registro oficial IEEE">
-              <i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE
+      <!-- Tab 6: Statistics & Percentiles -->
+      <div id="tab-stats" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Análisis estadístico acumulado en SQLite: Percentiles de latencia (<span style="color: var(--accent-cyan);">$P_{50}, P_{90}, P_{95}, P_{99}$</span>), Jitter y rendimiento de enlace.
+          </p>
+          <div style="display: flex; gap: 0.5rem;">
+            <button id="btn-export-telemetry-csv" class="btn-primary" style="font-size: 0.8rem;">
+              <i class="fa-solid fa-file-csv"></i> Exportar Telemetría Completa (CSV)
             </button>
           </div>
         </div>
 
-        <div id="oui-update-banner" class="oui-alert-banner" style="display: none;">
-          <i class="fa-solid fa-spinner fa-spin"></i>
-          <span id="oui-update-status-text">Actualizando base de datos desde IEEE...</span>
-        </div>
-
-        <!-- Add Custom OUI & Search bar -->
-        <div class="oui-controls-row">
-          <div class="oui-search-box">
-            <i class="fa-solid fa-magnifying-glass"></i>
-            <input type="text" id="oui-search-input" placeholder="Buscar por MAC (ej: 00:1A:2B) o nombre (ej: Cisco, Aruba, Ubiquiti)...">
+        <div class="stats-overview-grid">
+          <div class="stat-box">
+            <div class="stat-box-label">Muestras Totales</div>
+            <div id="stat-total-samples" class="stat-box-val">0</div>
           </div>
-          <button id="btn-toggle-add-oui" class="btn-secondary">
-            <i class="fa-solid fa-plus"></i> Registrar Fabricante
-          </button>
+          <div class="stat-box">
+            <div class="stat-box-label">Disponibilidad (Uptime)</div>
+            <div id="stat-uptime-pct" class="stat-box-val" style="color: var(--accent-emerald);">100%</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Latencia Mediana (P50)</div>
+            <div id="stat-p50" class="stat-box-val">0 ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Percentil 95 (P95)</div>
+            <div id="stat-p95" class="stat-box-val" style="color: var(--accent-amber);">0 ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Percentil 99 (P99)</div>
+            <div id="stat-p99" class="stat-box-val" style="color: var(--accent-rose);">0 ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Jitter Promedio</div>
+            <div id="stat-jitter" class="stat-box-val">0 ms</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Señal Media (dBm)</div>
+            <div id="stat-avg-dbm" class="stat-box-val">-- dBm</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-label">Eventos de Roaming</div>
+            <div id="stat-roaming-count" class="stat-box-val" style="color: var(--accent-purple);">0</div>
+          </div>
         </div>
+      </div>
 
-        <!-- Form for Adding / Overriding OUI -->
-        <div id="oui-add-form-container" class="oui-add-panel" style="display: none;">
-          <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 0.5rem;">
-            <i class="fa-solid fa-plus-circle"></i> Agregar o Modificar Fabricante Personalizado
-          </h4>
-          <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
-            Asigna un nombre descriptivo a un prefijo MAC de 3 octetos (OUI). Esta entrada tiene prioridad absoluta y se conservará intacta tras actualizaciones oficiales.
-          </p>
-          <div class="oui-form-fields">
+      <!-- Tab 7: Configuration & AP Names -->
+      <div id="tab-config" class="tab-content">
+        <div class="config-grid">
+          <!-- Column 1: Network & Probe Settings -->
+          <div class="card" style="background: rgba(255, 255, 255, 0.02);">
+            <div class="card-title" style="margin-bottom: 1rem;">
+              <i class="fa-solid fa-sliders"></i>
+              <span>Parámetros de Telemetría</span>
+            </div>
+            
             <div class="form-group">
-              <label for="oui-input-prefix">Prefijo MAC (3 octetos)</label>
-              <input type="text" id="oui-input-prefix" placeholder="Ej: 00:1A:1E o 00-1A-1E" maxlength="17">
+              <label class="form-label">Interfaz Wi-Fi Activa:</label>
+              <div style="display: flex; gap: 0.5rem;">
+                <select id="cfg-wifi-interface" class="toolbar-select" style="flex: 1;"></select>
+                <button id="btn-save-interface" class="btn-secondary">Cambiar</button>
+              </div>
             </div>
-            <div class="form-group" style="flex: 2;">
-              <label for="oui-input-vendor">Nombre del Fabricante / AP</label>
-              <input type="text" id="oui-input-vendor" placeholder="Ej: Cisco Catalyst Lab / Aruba AP-515">
+
+            <div class="form-group">
+              <label class="form-label">Intervalo de Sonda HTTP (segundos):</label>
+              <input type="number" id="cfg-probe-interval" class="toolbar-input" min="2" max="60" value="5">
             </div>
-            <div class="form-group-actions">
-              <button id="btn-save-custom-oui" class="btn-primary">
-                <i class="fa-solid fa-floppy-disk"></i> Guardar
-              </button>
-              <button id="btn-cancel-custom-oui" class="btn-secondary">Cancelar</button>
+
+            <div class="form-group">
+              <label class="form-label">Timeout de Sonda (segundos):</label>
+              <input type="number" id="cfg-probe-timeout" class="toolbar-input" min="1" max="30" value="5">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Verificar Certificados SSL/TLS:</label>
+              <select id="cfg-verify-ssl" class="toolbar-select">
+                <option value="1">Sí (Estricto - Recomendado)</option>
+                <option value="0">No (Permitir certificados autofirmados / proxies de tienda)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Targets Adicionales de Ping (separados por coma):</label>
+              <input type="text" id="cfg-extra-ping" class="toolbar-input" placeholder="8.8.8.8, 1.1.1.1, 192.168.1.50">
+            </div>
+
+            <button id="btn-save-config-general" class="btn-primary" style="width: 100%; margin-top: 0.5rem;">
+              <i class="fa-solid fa-floppy-disk"></i> Guardar Configuración
+            </button>
+          </div>
+
+          <!-- Column 2: AP Friendly Names -->
+          <div class="card" style="background: rgba(255, 255, 255, 0.02);">
+            <div class="card-title" style="margin-bottom: 1rem;">
+              <i class="fa-solid fa-tags"></i>
+              <span>Mapeo de Nombres de APs (BSSID ➔ Nombre)</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Asignar Nombre a BSSID:</label>
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <input type="text" id="input-new-bssid" class="toolbar-input" placeholder="AA:BB:CC:DD:EE:FF" style="flex: 1;">
+                <input type="text" id="input-new-apname" class="toolbar-input" placeholder="AP-Tienda-Cajas" style="flex: 1;">
+                <button id="btn-add-apname" class="btn-primary"><i class="fa-solid fa-plus"></i> Guardar</button>
+              </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>BSSID</th>
+                    <th>Nombre Asignado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="ap-names-table-body">
+                  <!-- Loaded via JS -->
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-
-        <!-- OUI Table -->
-        <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th style="width: 140px;">Prefijo OUI</th>
-                <th>Fabricante Asignado</th>
-                <th style="width: 140px;">Tipo Registro</th>
-                <th style="width: 100px; text-align: center;">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="oui-table-body">
-              <tr>
-                <td colspan="4">
-                  <div class="empty-state">
-                    <i class="fa-solid fa-spinner fa-spin"></i>
-                    <p>Cargando lista de fabricantes...</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 

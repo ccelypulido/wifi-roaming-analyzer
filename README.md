@@ -1,213 +1,50 @@
-# 📶 Wi-Fi & AP Roaming Telemetry Analyzer
+# 📶 Wi-Fi & Enterprise Application Telemetry Analyzer
 
-Un analizador interactivo de Wi-Fi que monitorea **en tiempo real** la intensidad de señal, la calidad de conexión y el roaming automático entre puntos de acceso.
+Un analizador multipropósito e interactivo de red y aplicaciones que monitorea **en tiempo real** la intensidad de señal Wi-Fi (RF), el roaming automático entre Access Points y la **latencia HTTP por fases** hacia endpoints corporativos en **Tiendas/POS**, **Sedes Administrativas** y **Centros de Distribución / Bodegas**.
 
 ## 🎯 ¿Qué es este proyecto?
 
-Este es un dashboard visual que te muestra todo lo que necesitas saber sobre tu conexión Wi-Fi:
+Este es un dashboard visual y plataforma de observabilidad de conectividad diseñada para responder de inmediato si un congelamiento o lentitud en terminales o equipos se debe a la **red inalámbrica (Capa 1/2)** o al **servidor/aplicación (Capa 3/4/7)**:
 
-- **Intensidad de Señal** 📊 - Ve gráficos en vivo de cómo varía la potencia de señal
-- **Latencia de Red** ⏱️ - Monitorea el ping hacia el gateway en tiempo real
-- **Puntos de Acceso** 🔍 - Descubre y analiza todos los AP disponibles en tu red
-- **Eventos de Roaming** 🔄 - Registra automáticamente cada cambio de AP
-- **Calidad de Conexión** 🎯 - Obtén una puntuación visual de qué tan buena es tu conexión
-
-## 🚀 Inicio Rápido
-
-### 1️⃣ Requisitos Previos
-
-- **Python 3.6+** 🐍 (instalado en el sistema)
-- Una conexión Wi-Fi activa
-
-> [!NOTE]
-> **En Windows:** ¡No necesitas instalar nada más! Windows ya incluye todas las utilidades de red necesarias (`netsh`, `route`, `ping`) de forma nativa.
-> 
-> **En Linux:** Se requieren herramientas del sistema (`iw`, `iproute2`, `ping`).
-
-#### ⚙️ Instalación de Dependencias del Sistema (Solo Linux)
-
-El proyecto incluye un script automático para Linux:
-
-```bash
-sudo chmod +x install-dependencies.sh
-sudo ./install-dependencies.sh
-```
-
-O instala manualmente según tu distribución ([ver requirements-system.txt](requirements-system.txt)):
-- **Ubuntu/Debian:** `sudo apt-get install -y iw iproute2 iputils-ping network-manager wireless-tools`
-- **Fedora/RHEL:** `sudo dnf install -y iw iproute iputils NetworkManager wireless-tools`
-- **Arch/Manjaro:** `sudo pacman -S iw iproute2 iputils networkmanager wireless_tools`
-
----
-
-### 2️⃣ Ejecutar el Proyecto
-
-#### 🪟 En Windows (PowerShell o CMD)
-
-Solo necesitas abrir tu terminal (PowerShell o Símbolo del sistema / CMD) en la carpeta del proyecto y ejecutar:
-
-```powershell
-# Opción 1: Directamente con Python (Recomendado)
-python server.py
-
-# Opción 2: Usando el script de PowerShell
-.\run.ps1
-
-# Opción 3: Usando el script Batch (o doble clic en run.bat)
-run.bat
-```
-
-#### 🐧 En Linux
-
-```bash
-# Con el script de inicio
-chmod +x run.sh
-./run.sh
-
-# O directamente con Python:
-python3 server.py
-```
-
-¡Eso es todo! El servidor se iniciará en `http://localhost:8050` y tu navegador se abrirá automáticamente.
-
----
-
-### 3️⃣ Detener el Proyecto
-
-- En la consola donde se está ejecutando, presiona **`Ctrl + C`**.
-- O usa los scripts de detención y liberación de puerto incluidos:
-  - **Windows (PowerShell):** `.\stop.ps1`
-  - **Windows (CMD / Doble clic):** `stop.bat`
-  - **Linux:** `./stop.sh`
-
----
-
-## 🎯 Seleccionar Interfaz Wi-Fi
-
-Si tienes múltiples adaptadores Wi-Fi o deseas especificar uno concreto:
-
-### Listar interfaces disponibles
-```bash
-# En Windows (PowerShell / CMD):
-python server.py --list
-
-# En Linux:
-./run.sh --list
-# O:
-python3 server.py --list
-```
-
-Ejemplo de salida en Windows:
-```
-Interfaces Wi-Fi disponibles:
-  - Wi-Fi
-  - Wi-Fi 2
-```
-
-Ejemplo de salida en Linux:
-```
-Interfaces Wi-Fi disponibles:
-  - wlp2s0
-  - wlan0
-```
-
-### Usar una interfaz específica
-```bash
-# En Windows:
-python server.py -i "Wi-Fi"
-
-# En Linux:
-./run.sh -i wlan0
-# O:
-python3 server.py -i wlan0
-```
-
-### Cambiar de puerto (opcional)
-```bash
-python server.py --port 9000
-```
-
-**Nota**: El dashboard web también permite cambiar la interfaz en tiempo real desde la API (`/api/set-interface`).
-
----
+- **Intensidad de Señal Wi-Fi** 📊 - Métricas de dBm, porcentaje de cobertura, canal, banda (2.4/5/6 GHz) y tasas TX/RX.
+- **Latencia de Aplicación Multipropósito** ⏱️ - Sonda HTTP de bajo nivel con desglose secuencial de 5 fases: **Resolución DNS**, **Handshake TCP**, **Negociación TLS/SSL**, **Time to First Byte (TTFB)** y **Transferencia**.
+- **Perfiles de Entorno Preconfigurados** 🏢 - Ajuste inmediato para:
+  - 🏬 **Tienda / Punto de Venta (POS):** Monitoreo de cajas, pasarelas de pago y piso de venta.
+  - 🏢 **Sede Administrativa / Oficinas:** Laptops corporativas, videollamadas VoIP, ERP (SAP/Oracle) y Microsoft 365.
+  - 🏭 **Centro de Distribución / Bodega:** Terminales PDA, pistolas RF y Manhattan WMS/SCE.
+  - ⚙️ **Personalizado / Libre:** Cualquier URL interna o externa en HTTP/HTTPS con o sin autenticación.
+- **Diagnóstico Integral de Red** 🛠️ - Pings simultáneos a Puerta de Enlace, Servidores DNS locales y Servidor Aplicativo, junto con **Traceroute paso a paso**.
+- **Gestión Jerárquica de Sedes y Zonas** 📍 - Categorización de auditoría por ubicación física (ej. *Tienda 102 -> Cajas 1-4* o *Bodega -> Rack 5*).
+- **Eventos de Roaming (Handoffs)** 🔄 - Detección automática de cambios de AP con medición del impacto de latencia antes y después del salto.
+- **Persistencia SQLite WAL y Exportación CSV** 💾 - Histórico completo, cálculo de percentiles ($P_{50}, P_{90}, P_{95}, P_{99}$) y auditoría exportable.
+- **Zero Pip Dependencies & 100% Offline** ⚡ - Funciona con la biblioteca estándar de Python sin requerir instalación de paquetes externos ni conexión a internet en sitios cerrados.
 
 ## 📁 Estructura del Proyecto
 
 ```
 wifi-roaming-analyzer/
 ├── README.md                    # Documentación y guía de uso
-├── .gitignore                   # Excluye archivos temporales
-├── requirements.txt             # Dependencias de Python (solo librerías estándar)
-├── requirements-system.txt      # Documentación de herramientas del sistema
-├── install-dependencies.sh      # Instalador de herramientas para Linux
-├── run.bat                      # Lanzador para Windows CMD y doble clic
-├── run.ps1                      # Lanzador para Windows PowerShell
-├── run.sh                       # Lanzador para Linux (Bash)
-├── stop.sh                      # Script para detener en Linux
-├── server.py                    # Cerebro multiplataforma (Windows y Linux)
-└── static/                      # Dashboard web (frontend)
-    ├── index.html               # Página principal
-    ├── app.js                   # Lógica interactiva y gráficos
-    └── styles.css               # Estilos y diseño
+├── .gitignore                   # Excluye temporales, WAL y base de datos
+├── requirements.txt             # Dependencias de Python (0 dependencias externas)
+├── requirements-system.txt      # Documentación de herramientas del sistema (Linux)
+├── install-dependencies.sh      # Instalador de utilidades para Linux
+├── run.bat / run.ps1 / run.sh   # Lanzadores para Windows y Linux
+├── stop.sh / stop.ps1 / stop.bat# Scripts para detener y liberar puerto
+├── server.py                    # Servidor web, API REST y coordinadores de hilos
+├── database.py                  # Persistencia en SQLite (WAL), estadísticas y CSV
+├── probe.py                     # Sonda secuencial de latencia HTTP de bajo nivel
+├── net_diag.py                  # Diagnóstico de red, Gateway, DNS y Traceroute
+├── ntlm_auth.py                 # Generador de tokens NTLM / Hash MD4 puro en Python
+├── oui_manager.py               # Identificador de fabricantes por prefijo MAC (IEEE OUI)
+├── ap_manager.py                # Mapeo de BSSID a nombres amigables de AP
+├── sedes_zonas.json             # Catálogo inicial de sedes y zonas
+└── static/                      # Dashboard web (100% offline-ready)
+    ├── index.html               # Interfaz visual con pestañas especializadas
+    ├── app.js                   # Lógica reactiva, gráficos y comunicación API
+    ├── styles.css               # Diseño moderno, glassmorphism y tema oscuro
+    ├── chart.umd.min.js         # Motor de gráficos Chart.js local
+    └── lucide.min.js            # Iconografía local
 ```
-
-### 📦 Archivos de Configuración
-
-| Archivo | Descripción |
-|---------|-------------|
-| **requirements.txt** | Dependencias de Python (actualmente vacío, solo usa librerías estándar) |
-| **requirements-system.txt** | Lista detallada de herramientas del sistema necesarias (iw, nmcli, etc.) |
-| **install-dependencies.sh** | Script automático que detecta tu distribución e instala todo |
-| **.gitignore** | Excluye carpetas ocultas, entornos virtuales y archivos temporales |
-
-## 🔧 Cómo Funciona
-
-### Backend (server.py)
-El servidor Python hace el trabajo pesado:
-
-1. **Recolecta datos** 📡 de tu adaptador Wi-Fi usando comandos Linux
-2. **Analiza la señal** 📊 y asigna una calificación (Excelente, Muy Buena, Buena, Débil, Crítica)
-3. **Monitorea cambios** 🔄 en los puntos de acceso conectados
-4. **Registra eventos** 📝 cada vez que cambias de AP
-5. **Expone una API REST** 🔌 que entrega los datos en JSON
-
-### Frontend (app.js + index.html)
-La interfaz visual actualiza en tiempo real:
-
-1. **Conecta con el servidor** 🔗 vía peticiones AJAX
-2. **Actualiza gráficos** 📈 cada segundo con nuevos datos
-3. **Muestra métricas** 🎯 en tarjetas visuales hermosas
-4. **Registra historial** 📋 de cambios y eventos
-
-## 📊 Métricas que Verás
-
-| Métrica | Qué Significa |
-|---------|---------------|
-| **dBm (Potencia)** | Intensidad de señal (-50 a -100). Más cercano a -50 = mejor |
-| **Ping (ms)** | Latencia hacia el gateway. Menor = más rápido |
-| **Velocidad TX/RX** | Ancho de banda de transmisión y recepción |
-| **Frecuencia/Canal** | En qué banda 2.4GHz o 5GHz estás, y qué canal |
-| **BSSID/SSID** | Identificador único y nombre de tu AP |
-| **Vendor** | Fabricante del punto de acceso (TP-Link, Huawei, etc.) |
-
-## 🎨 Calificaciones de Señal
-
-El proyecto te da una puntuación visual:
-
-- 🟢 **Excelente** (-50 a -60 dBm): Conexión perfecta
-- 🔵 **Muy Buena** (-60 a -70 dBm): Muy buena para trabajar
-- 🟣 **Buena** (-70 a -80 dBm): Acceptable pero no ideal
-- 🟡 **Débil** (-80 a -90 dBm): Conexión problemática
-- 🔴 **Crítica** (< -90 dBm): Conexión muy mala
-
-## 🔍 Funcionalidades Principales
-
-✅ **Dashboard en vivo** - Datos actualizando cada segundo  
-✅ **Gráficos históricos** - Ve tendencias de señal y latencia  
-✅ **Detector de APs** - Escanea redes disponibles  
-✅ **Registro de roaming** - Historial de cambios de AP  
-✅ **Identificación de vendor** - Sabe qué marca es cada AP  
-✅ **Interfaz amigable** - Bonita, intuitiva y responsive  
 
 ## 🛠️ Personalización
 

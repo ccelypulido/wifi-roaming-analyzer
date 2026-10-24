@@ -1,0 +1,31 @@
+{
+  "Bodega_CLEN": [
+    "Rack:1-5",
+    "Rack:6-10",
+    "Rack:11-15",
+    "Rack:16-20",
+    "Rack:21-30",
+    "Muelles:Entrada",
+    "Muelles:Despacho",
+    "Mezanine",
+    "Bunker"
+  ],
+  "Tienda_Principal": [
+    "Cajas:1-4",
+    "Cajas:5-8",
+    "Piso de Ventas:Pasillo Central",
+    "Piso de Ventas:Ropa y Calzado",
+    "Mostrador Atencion",
+    "Bodega Tienda",
+    "Probadores"
+  ],
+  "Sede_Administrativa": [
+    "Recepcion Piso 1",
+    "Presidencia y Gerencia",
+    "Sala de Juntas A",
+    "Sala de Juntas B",
+    "Operaciones Piso 2",
+    "Tecnologia e Infraestructura",
+    "Cafeteria / Casino"
+  ]
+}

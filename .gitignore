@@ -59,6 +59,8 @@ settings.local.py
 
 # Archivos de Base de Datos
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 

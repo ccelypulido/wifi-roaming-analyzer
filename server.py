@@ -19,6 +19,52 @@ STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
 from oui_manager import oui_manager
 from ap_manager import ap_manager
+import probe
+import net_diag
+import database
+
+# Initialize SQLite database
+database.init_db()
+
+# Predefined multipurpose profiles
+PRESETS = {
+    "store": {
+        "id": "store",
+        "name": "🏬 Tienda / Punto de Venta (POS)",
+        "default_target_url": "https://1.1.1.1",
+        "description": "Optimizado para cajas POS, pasarelas de pago y piso de venta",
+        "default_location": "Tienda_Principal",
+        "default_zone": "Cajas:1-4",
+        "default_zones": ["Cajas:1-4", "Cajas:5-8", "Piso de Ventas:Pasillo Central", "Mostrador Atencion", "Bodega Tienda", "Probadores"]
+    },
+    "office": {
+        "id": "office",
+        "name": "🏢 Sede Administrativa / Oficinas",
+        "default_target_url": "https://outlook.office.com",
+        "description": "Optimizado para laptops, ERPs, VoIP y videollamadas corporativas",
+        "default_location": "Sede_Administrativa",
+        "default_zone": "Recepcion Piso 1",
+        "default_zones": ["Recepcion Piso 1", "Presidencia y Gerencia", "Sala de Juntas A", "Operaciones Piso 2", "Tecnologia e Infraestructura"]
+    },
+    "warehouse": {
+        "id": "warehouse",
+        "name": "🏭 Centro de Distribución / Bodega",
+        "default_target_url": "https://alkop.sce.manh.com/ping",
+        "description": "Optimizado para terminales PDA, pistolas RF y Manhattan WMS/SCE",
+        "default_location": "Bodega_CLEN",
+        "default_zone": "Rack:1-5",
+        "default_zones": ["Rack:1-5", "Rack:6-10", "Rack:11-15", "Rack:16-20", "Muelles:Entrada", "Muelles:Despacho", "Mezanine", "Bunker"]
+    },
+    "custom": {
+        "id": "custom",
+        "name": "⚙️ Personalizado / Libre",
+        "default_target_url": "https://1.1.1.1",
+        "description": "Diagnóstico flexible con cualquier URL o puerto HTTP/HTTPS",
+        "default_location": "Sede_Personalizada",
+        "default_zone": "Zona General",
+        "default_zones": ["Zona General", "Prueba 1"]
+    }
+}
 
 def lookup_vendor(bssid):
     return oui_manager.lookup(bssid)
@@ -31,7 +77,6 @@ def run_windows_cmd(cmd_args, timeout=3):
     try:
         proc = subprocess.run(cmd_args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=timeout)
         raw = proc.stdout
-        # Probar UTF-8 primero porque valida secuencias multibyte estrictas (evita corromper ñ y ó)
         encodings = ['utf-8']
         try:
             import ctypes
@@ -109,7 +154,10 @@ def get_available_wifi_interfaces():
 HISTORY_FILE = os.path.join(PROJECT_DIR, 'roaming_history.json')
 
 def load_saved_roaming_events():
-    """Carga los eventos de roaming guardados del archivo json"""
+    """Carga los eventos de roaming guardados del archivo json o base de datos"""
+    events = database.get_roaming_events(limit=50)
+    if events:
+        return events
     if os.path.exists(HISTORY_FILE):
         try:
             with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
@@ -121,7 +169,7 @@ def load_saved_roaming_events():
     return []
 
 def save_roaming_events(events):
-    """Guarda los eventos de roaming en el archivo json"""
+    """Guarda los eventos de roaming en el archivo json para compatibilidad"""
     try:
         with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
             json.dump(events[:50], f, indent=2, ensure_ascii=False)
@@ -158,195 +206,157 @@ def parse_windows_interface(output, target_iface=None):
             if m and m.group(1).strip().lower() == target_iface.strip().lower():
                 target_block = b
                 break
-        if target_block not in connected_blocks and connected_blocks:
-            target_block = connected_blocks[0]
     elif connected_blocks:
         target_block = connected_blocks[0]
     elif blocks:
         target_block = blocks[0]
 
-    state_m = re.search(r'(?i)^\s*(?:State|Estado)\s*:\s*(.+)$', target_block, re.MULTILINE)
-    if state_m:
-        st = state_m.group(1).strip().lower()
-        res["state"] = st
-        is_conn = any(w in st for w in ("connect", "conectad", "asociad"))
-        if not is_conn:
-            return res
+    bssid_m = re.search(r'(?i)BSSID\s*:\s*([0-9a-fA-F:]{17})', target_block)
+    if bssid_m:
+        res["bssid"] = bssid_m.group(1).upper()
 
     ssid_m = re.search(r'(?i)^\s*SSID\s*:\s*(.+)$', target_block, re.MULTILINE)
     if ssid_m:
-        res["ssid"] = ssid_m.group(1).strip(' "\'')
+        res["ssid"] = ssid_m.group(1).strip()
 
-    # BSSID (admite dos puntos o guiones, e ignora caracteres adicionales)
-    bssid_m = re.search(r'(?i)\bBSSID[^:\n]*:\s*([0-9a-fA-F:-]{11,20})', target_block)
-    if bssid_m:
-        raw_b = bssid_m.group(1).strip().replace('-', ':').upper()
-        if len(raw_b) == 17:
-            res["bssid"] = raw_b
-
-    # Señal en % (soporta Signal, Señal, Senal, Se¤al, Seal, Se├▒al o cualquier texto con %)
-    sig_m = re.search(r'(?i)(?:Signal|Se.*al)[^:\n]*:\s*(\d+)%', target_block)
-    if not sig_m:
-        sig_m = re.search(r':\s*(\d+)%', target_block)
+    sig_m = re.search(r'(?i)(?:Señal|Signal)\s*:\s*(\d+)%', target_block)
     if sig_m:
-        pct = int(sig_m.group(1))
-        res["signal_pct"] = max(0, min(100, pct))
-        res["signal_dbm"] = int((res["signal_pct"] / 2) - 100)
+        res["signal_pct"] = int(sig_m.group(1))
+        res["signal_dbm"] = int((res["signal_pct"] / 2.0) - 100)
 
-    # Canal
-    chan_m = re.search(r'(?i)(?:Channel|Canal)[^:\n]*:\s*(\d+)', target_block)
+    chan_m = re.search(r'(?i)(?:Canal|Channel)\s*:\s*(\d+)', target_block)
     if chan_m:
-        ch = int(chan_m.group(1))
-        res["channel"] = ch
-        if 1 <= ch <= 14:
-            res["freq_mhz"] = 2412 + (ch - 1) * 5 if ch != 14 else 2484
+        res["channel"] = int(chan_m.group(1))
+        if res["channel"] <= 14:
             res["band"] = "2.4 GHz"
-        elif 32 <= ch <= 177:
-            res["freq_mhz"] = 5000 + ch * 5
+            res["freq_mhz"] = 2407 + (res["channel"] * 5)
+        elif res["channel"] <= 177:
             res["band"] = "5.0 GHz"
-        elif ch > 177:
-            res["freq_mhz"] = 5950 + ch * 5
+            res["freq_mhz"] = 5000 + (res["channel"] * 5)
+        else:
             res["band"] = "6 GHz (Wi-Fi 6E/7)"
+            res["freq_mhz"] = 5950 + (res["channel"] * 5)
 
-    # TX rate (soporta: "Velocidad de transmisión (Mbps): 866", "Transmit rate (Mbps): 866", etc.)
-    tx_m = re.search(r'(?i)(?:transmit|transmis)[^:\n]*:\s*([0-9.]+)', target_block)
-    if tx_m:
-        res["tx_bitrate"] = f"{tx_m.group(1).strip()} Mbps"
-
-    # RX rate (soporta: "Velocidad de recepción (Mbps): 866", "Receive rate (Mbps): 866", etc.)
-    rx_m = re.search(r'(?i)(?:receive|recep)[^:\n]*:\s*([0-9.]+)', target_block)
+    rx_m = re.search(r'(?i)(?:Velocidad de recepción|Receive rate)\s*\([^\)]*\)\s*:\s*([0-9.]+)', target_block)
+    tx_m = re.search(r'(?i)(?:Velocidad de transmisión|Transmit rate)\s*\([^\)]*\)\s*:\s*([0-9.]+)', target_block)
     if rx_m:
-        res["rx_bitrate"] = f"{rx_m.group(1).strip()} Mbps"
+        res["rx_bitrate"] = f"{rx_m.group(1)} Mbps"
+    if tx_m:
+        res["tx_bitrate"] = f"{tx_m.group(1)} Mbps"
+
+    if res["tx_bitrate"] == "N/A" and res["rx_bitrate"] == "N/A":
+        link_spd = get_windows_link_speed()
+        if link_spd:
+            res["tx_bitrate"] = link_spd
+            res["rx_bitrate"] = link_spd
+
+    st_m = re.search(r'(?i)(?:State|Estado)\s*:\s*(.+)$', target_block, re.MULTILINE)
+    if st_m:
+        res["state"] = st_m.group(1).strip().lower()
 
     return res
 
-def parse_windows_networks(output, connected_bssid=None, connected_ssid=None):
-    """Parsea la salida de 'netsh wlan show networks mode=bssid' para APs vecinos"""
-    candidate_aps = []
-    current_ssid = ""
+def parse_windows_networks(output, current_ssid=None):
+    """Parsea 'netsh wlan show networks mode=bssid' para listar APs candidatos"""
+    aps = []
     current_ap = None
 
-    norm_out = output.replace('\r\n', '\n').replace('\r', '\n')
-
-    for line in norm_out.splitlines():
-        line_clean = line.strip()
-        if not line_clean:
+    for line in output.split('\n'):
+        line = line.strip()
+        m_ssid = re.match(r'(?i)^SSID\s+\d+\s*:\s*(.*)$', line)
+        if m_ssid:
+            ssid_name = m_ssid.group(1).strip()
+            current_ssid_block = ssid_name
             continue
 
-        ssid_match = re.match(r'(?i)^SSID\s+\d+\s*:\s*(.*)$', line_clean)
-        if ssid_match:
-            current_ssid = ssid_match.group(1).strip(' "\'')
-            continue
-
-        bssid_match = re.search(r'(?i)\bBSSID(?:\s+\d+)?\s*:\s*([0-9a-fA-F:-]{11,20})', line_clean)
-        if bssid_match:
+        m_bssid = re.match(r'(?i)^BSSID\s+\d+\s*:\s*([0-9a-fA-F:]{17})', line)
+        if m_bssid:
             if current_ap:
-                candidate_aps.append(current_ap)
-            bssid_str = bssid_match.group(1).strip().replace('-', ':').upper()
-            is_same = (current_ssid.lower() == connected_ssid.lower()) if connected_ssid and current_ssid else False
+                aps.append(current_ap)
+            bssid_val = m_bssid.group(1).upper()
             current_ap = {
-                "active": (bssid_str == connected_bssid) if connected_bssid else False,
-                "ssid": current_ssid,
-                "bssid": bssid_str,
+                "bssid": bssid_val,
+                "ssid": current_ssid_block if 'current_ssid_block' in locals() else "Oculto",
                 "signal": 0,
-                "freq": "Desconocida",
-                "channel": "0",
-                "rate": "N/A",
-                "vendor": lookup_vendor(bssid_str),
-                "is_same_ssid": is_same
+                "channel": 0,
+                "band": "Desconocida",
+                "vendor": lookup_vendor(bssid_val),
+                "ap_name": lookup_ap_name(bssid_val),
+                "active": False,
+                "is_same_ssid": False
             }
+            if current_ssid and current_ap["ssid"].lower() == current_ssid.lower():
+                current_ap["is_same_ssid"] = True
             continue
 
         if current_ap:
-            sig_m = re.search(r'(?i)(?:Signal|Se.*al)[^:\n]*:\s*(\d+)%', line_clean)
-            if not sig_m:
-                sig_m = re.search(r':\s*(\d+)%', line_clean)
-            if sig_m:
-                current_ap["signal"] = int(sig_m.group(1))
-                continue
+            m_sig = re.match(r'(?i)^Señal\s*:\s*(\d+)%', line) or re.match(r'(?i)^Signal\s*:\s*(\d+)%', line)
+            if m_sig:
+                current_ap["signal"] = int(m_sig.group(1))
 
-            chan_m = re.search(r'(?i)(?:Channel|Canal)[^:\n]*:\s*(\d+)', line_clean)
-            if chan_m:
-                ch = int(chan_m.group(1))
-                current_ap["channel"] = str(ch)
-                if 1 <= ch <= 14:
-                    current_ap["freq"] = f"{2412 + (ch-1)*5} MHz" if ch != 14 else "2484 MHz"
-                elif 32 <= ch <= 177:
-                    current_ap["freq"] = f"{5000 + ch*5} MHz"
-                elif ch > 177:
-                    current_ap["freq"] = f"{5950 + ch*5} MHz"
-                continue
-
-            radio_m = re.search(r'(?i)(?:Radio\s*type|Tipo\s*de\s*radio)[^:\n]*:\s*(.+)$', line_clean)
-            if radio_m:
-                current_ap["rate"] = radio_m.group(1).strip()
-                continue
+            m_chan = re.match(r'(?i)^Canal\s*:\s*(\d+)', line) or re.match(r'(?i)^Channel\s*:\s*(\d+)', line)
+            if m_chan:
+                ch = int(m_chan.group(1))
+                current_ap["channel"] = ch
+                current_ap["band"] = "2.4 GHz" if ch <= 14 else ("5.0 GHz" if ch <= 177 else "6 GHz")
 
     if current_ap:
-        candidate_aps.append(current_ap)
+        aps.append(current_ap)
 
-    return candidate_aps
+    return aps
 
-
-def calculate_rating(dbm, ping_ms):
-    if dbm >= -50:
-        score = 100
-        rating = "Excelente"
-        color = "#10b981" # Emerald green
-    elif dbm >= -60:
-        score = 85
-        rating = "Muy Buena"
-        color = "#06b6d4" # Cyan
-    elif dbm >= -70:
-        score = 70
-        rating = "Buena"
-        color = "#8b5cf6" # Purple/violet
-    elif dbm >= -80:
-        score = 45
-        rating = "Débil"
-        color = "#f59e0b" # Amber
+def calculate_rating(signal_dbm, ping_ms):
+    """Calcula calificación y color del enlace Wi-Fi"""
+    if signal_dbm >= -60:
+        sig_score = 100
+    elif signal_dbm >= -67:
+        sig_score = 80
+    elif signal_dbm >= -75:
+        sig_score = 60
+    elif signal_dbm >= -82:
+        sig_score = 40
     else:
-        score = 20
-        rating = "Crítica"
-        color = "#ef4444" # Red
+        sig_score = 20
 
-    # Penalty for high latency
-    if ping_ms is not None:
-        if ping_ms > 150:
-            score = max(10, score - 20)
-        elif ping_ms > 80:
-            score = max(10, score - 10)
+    if ping_ms is None or ping_ms > 200:
+        ping_score = 20
+    elif ping_ms > 100:
+        ping_score = 40
+    elif ping_ms > 50:
+        ping_score = 60
+    elif ping_ms > 20:
+        ping_score = 80
+    else:
+        ping_score = 100
 
-    return rating, score, color
+    total_score = int(0.7 * sig_score + 0.3 * ping_score)
+    if total_score >= 85:
+        return "Excelente", total_score, "#10b981"
+    elif total_score >= 70:
+        return "Muy Buena", total_score, "#06b6d4"
+    elif total_score >= 50:
+        return "Buena", total_score, "#8b5cf6"
+    elif total_score >= 35:
+        return "Débil", total_score, "#f59e0b"
+    else:
+        return "Crítica", total_score, "#ef4444"
 
-def get_local_ip_and_gateway(iface):
-    ip_addr = "N/A"
-    gw_ip = "8.8.8.8"
+def get_local_ip_and_gateway(interface):
     if IS_WINDOWS:
+        gw = net_diag.detect_default_gateway() or "8.8.8.8"
         try:
-            out = subprocess.check_output(['route', 'print', '0.0.0.0'], text=True, errors='replace', stderr=subprocess.DEVNULL)
-            for line in out.splitlines():
-                m = re.search(r'0\.0\.0\.0\s+0\.0\.0\.0\s+([0-9.]+)\s+([0-9.]+)', line)
-                if m:
-                    gw_ip = m.group(1)
-                    ip_addr = m.group(2)
-                    break
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip, gw
         except Exception:
-            pass
+            return "127.0.0.1", gw
 
-        if ip_addr == "N/A":
-            try:
-                import socket
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect((gw_ip if gw_ip != "8.8.8.8" else "8.8.8.8", 80))
-                ip_addr = s.getsockname()[0]
-                s.close()
-            except Exception:
-                pass
-        return ip_addr, gw_ip
-
+    ip_addr = "Desconocida"
+    gw_ip = "8.8.8.8"
     try:
-        out = subprocess.check_output(['ip', 'addr', 'show', iface], text=True, errors='replace', stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(['ip', '-4', 'addr', 'show', interface], text=True, errors='replace', stderr=subprocess.DEVNULL)
         m = re.search(r'inet\s+([0-9.]+)', out)
         if m:
             ip_addr = m.group(1)
@@ -392,7 +402,6 @@ class WiFiState:
         self.frequency_mhz = 0
         self.channel = 0
         self.band = "Desconocida"
-        # Use provided interface or auto-detect
         self.interface = interface or self.detect_wifi_interface() or ("Wi-Fi" if IS_WINDOWS else "wlan0")
         self.ip_address = "Desconocida"
         self.gateway_ip = "8.8.8.8"
@@ -407,9 +416,33 @@ class WiFiState:
         self.telemetry_history = []
         self.last_update_time = time.time()
         self.is_monitoring = True
-    
+        self.sample_counter = 0
+
+        # Dynamic Multipurpose Configuration & Location
+        cfg = database.get_config()
+        self.location = cfg.get("location_name", "Tienda_Principal")
+        self.zone = cfg.get("current_zone", "Cajas:1-4")
+        self.target_url = cfg.get("target_url", "https://1.1.1.1")
+        self.active_preset = cfg.get("active_preset", "store")
+        self.probe_interval_seconds = float(cfg.get("probe_interval_seconds", "5"))
+        self.probe_timeout_seconds = float(cfg.get("probe_timeout_seconds", "5"))
+        self.auto_probe_enabled = (cfg.get("auto_probe_enabled", "1") == "1")
+        self.verify_ssl = (cfg.get("verify_ssl", "1") == "1")
+
+        # HTTP Application Probe Latency Metrics
+        self.app_latency_ms = None
+        self.app_cold_total_ms = None
+        self.app_dns_ms = 0.0
+        self.app_tcp_ms = 0.0
+        self.app_tls_ms = 0.0
+        self.app_ttfb_ms = 0.0
+        self.app_transfer_ms = 0.0
+        self.app_status_code = 0
+        self.app_is_error = False
+        self.app_error_message = None
+        self.last_probe_time = 0.0
+
     def detect_wifi_interface(self):
-        """Detecta la primera interfaz Wi-Fi disponible (Linux o Windows)"""
         try:
             available = get_available_wifi_interfaces()
             if available:
@@ -417,9 +450,8 @@ class WiFiState:
         except Exception:
             pass
         return "Wi-Fi" if IS_WINDOWS else "wlan0"
-    
+
     def set_interface(self, interface_name):
-        """Cambia la interfaz Wi-Fi activa"""
         with self.lock:
             self.interface = interface_name
             self.current_bssid = None
@@ -432,7 +464,10 @@ state = WiFiState()
 def update_wifi_telemetry():
     with state.lock:
         iface = state.interface
-    
+        loc = state.location
+        zone = state.zone
+        current_app_latency = state.app_latency_ms
+
     ip_addr, gw_ip = get_local_ip_and_gateway(iface)
     ping_ms = measure_ping(gw_ip)
 
@@ -449,93 +484,43 @@ def update_wifi_telemetry():
 
     if IS_WINDOWS:
         try:
-            cmd = ['netsh', 'wlan', 'show', 'interfaces']
-            iw_out = run_windows_cmd(cmd, timeout=3)
-            parsed_iface = parse_windows_interface(iw_out, target_iface=iface)
-            connected_bssid = parsed_iface["bssid"]
-            connected_ssid = parsed_iface["ssid"]
-            signal_dbm = parsed_iface["signal_dbm"]
-            signal_pct = parsed_iface["signal_pct"]
-            freq_mhz = parsed_iface["freq_mhz"]
-            channel = parsed_iface["channel"]
-            band = parsed_iface["band"]
-            tx_bitrate = parsed_iface["tx_bitrate"]
-            rx_bitrate = parsed_iface["rx_bitrate"]
+            out = run_windows_cmd(['netsh', 'wlan', 'show', 'interfaces'], timeout=3)
+            info = parse_windows_interface(out, target_iface=iface)
+            connected_bssid = info["bssid"]
+            connected_ssid = info["ssid"]
+            signal_pct = info["signal_pct"]
+            signal_dbm = info["signal_dbm"]
+            channel = info["channel"]
+            freq_mhz = info["freq_mhz"]
+            band = info["band"]
+            tx_bitrate = info["tx_bitrate"]
+            rx_bitrate = info["rx_bitrate"]
         except Exception:
             pass
 
         try:
-            net_cmd = ['netsh', 'wlan', 'show', 'networks', 'mode=bssid']
-            net_out = run_windows_cmd(net_cmd, timeout=4)
-            candidate_aps = parse_windows_networks(net_out, connected_bssid=connected_bssid, connected_ssid=connected_ssid)
-            for ap in candidate_aps:
-                ap["vendor"] = lookup_vendor(ap.get("bssid"))
-                ap["ap_name"] = lookup_ap_name(ap.get("bssid"))
+            net_out = run_windows_cmd(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'], timeout=3)
+            candidate_aps = parse_windows_networks(net_out, current_ssid=connected_ssid)
+            if connected_bssid:
+                for ap in candidate_aps:
+                    if ap.get("bssid") == connected_bssid:
+                        ap["active"] = True
+                        break
         except Exception:
             pass
-
-        # Fallback BSSID resolver si netsh show interfaces no devolvió el BSSID directamente
-        if (not connected_bssid or connected_bssid == "No conectado") and connected_ssid:
-            clean_conn_ssid = connected_ssid.strip(' "\'').lower()
-            matching_aps = [ap for ap in candidate_aps if ap.get('ssid', '').strip(' "\'').lower() == clean_conn_ssid]
-            if matching_aps:
-                chan_matching = [ap for ap in matching_aps if str(ap.get('channel', '')) == str(channel)]
-                if chan_matching:
-                    best = min(chan_matching, key=lambda ap: abs(ap.get('signal', 0) - signal_pct))
-                    connected_bssid = best['bssid']
-                else:
-                    best = min(matching_aps, key=lambda ap: abs(ap.get('signal', 0) - signal_pct))
-                    connected_bssid = best['bssid']
-            elif candidate_aps and channel > 0:
-                # Si el SSID no coincidió (ej. red oculta), buscar por canal y señal más cercana
-                chan_aps = [ap for ap in candidate_aps if str(ap.get('channel', '')) == str(channel)]
-                if chan_aps:
-                    best = min(chan_aps, key=lambda ap: abs(ap.get('signal', 0) - signal_pct))
-                    connected_bssid = best['bssid']
-
-        # Fallback para velocidades de enlace si netsh no las reportó
-        if tx_bitrate == "N/A" or rx_bitrate == "N/A":
-            link_speed = get_windows_link_speed()
-            if link_speed:
-                if tx_bitrate == "N/A":
-                    tx_bitrate = link_speed
-                if rx_bitrate == "N/A":
-                    rx_bitrate = link_speed
-
-        # Actualizar banderas de activo y mismo SSID una vez resuelto el BSSID
-        if connected_bssid:
-            for ap in candidate_aps:
-                ap["active"] = (ap.get("bssid") == connected_bssid)
-                if connected_ssid and ap.get("ssid"):
-                    ap["is_same_ssid"] = (ap["ssid"].strip(' "\'').lower() == connected_ssid.strip(' "\'').lower())
-
-        # Rescate de nivel de señal si quedó en 0 pero candidate_aps tiene la información del AP activo
-        if signal_pct == 0:
-            if connected_bssid:
-                active_ap = next((ap for ap in candidate_aps if ap.get('bssid') == connected_bssid), None)
-                if active_ap and active_ap.get('signal', 0) > 0:
-                    signal_pct = active_ap['signal']
-                    signal_dbm = int((signal_pct / 2) - 100)
-            if signal_pct == 0 and connected_ssid:
-                clean_conn_ssid = connected_ssid.strip(' "\'').lower()
-                matching_aps = [ap for ap in candidate_aps if ap.get('ssid', '').strip(' "\'').lower() == clean_conn_ssid and ap.get('signal', 0) > 0]
-                if matching_aps:
-                    signal_pct = max(ap.get('signal', 0) for ap in matching_aps)
-                    signal_dbm = int((signal_pct / 2) - 100)
-
     else:
-        # Query iw link (Linux)
+        # Linux
         try:
             iw_out = subprocess.check_output(['iw', 'dev', iface, 'link'], text=True, errors='replace', stderr=subprocess.DEVNULL)
-            bssid_m = re.search(r'Connected to ([0-9a-fA-F:]+)', iw_out)
+            bssid_m = re.search(r'Connected to\s+([0-9a-fA-F:]{17})', iw_out)
             if bssid_m:
                 connected_bssid = bssid_m.group(1).upper()
-            
+
             ssid_m = re.search(r'SSID:\s*(.+)', iw_out)
             if ssid_m:
                 connected_ssid = ssid_m.group(1).strip()
-                
-            signal_m = re.search(r'signal:\s*(-?\d+)\s*dBm', iw_out)
+
+            signal_m = re.search(r'signal:\s*(-?[0-9]+)\s*dBm', iw_out)
             if signal_m:
                 signal_dbm = int(signal_m.group(1))
                 signal_pct = max(0, min(100, int((signal_dbm + 100) * 2)))
@@ -558,7 +543,6 @@ def update_wifi_telemetry():
         except Exception:
             pass
 
-        # Determine band
         if freq_mhz >= 5900:
             band = "6 GHz (Wi-Fi 6E/7)"
         elif freq_mhz >= 5000:
@@ -568,7 +552,6 @@ def update_wifi_telemetry():
         else:
             band = "Desconocida"
 
-        # Query neighbor APs via nmcli
         try:
             nm_out = subprocess.check_output(
                 ['nmcli', '-t', '-f', 'active,ssid,bssid,signal,freq,chan,rate', 'device', 'wifi'],
@@ -579,7 +562,7 @@ def update_wifi_telemetry():
                     continue
                 parts = line.split(':')
                 if len(parts) >= 7:
-                    is_active = (parts[0] == 'sí' or parts[0] == 'yes')
+                    is_active = (parts[0] in ('sí', 'yes', 'si'))
                     ap_ssid = parts[1]
                     raw_bssid = ':'.join(parts[2:-4]) if len(parts) > 7 else parts[2]
                     ap_bssid = raw_bssid.replace('\\:', ':').upper()
@@ -606,7 +589,6 @@ def update_wifi_telemetry():
         except Exception:
             pass
 
-    # Ordenar APs candidatos: Activo primero, luego por porcentaje de señal descendente
     candidate_aps.sort(key=lambda ap: (1 if ap.get('active') else 0, ap.get('signal', 0)), reverse=True)
 
     rating_text, rating_score, badge_color = calculate_rating(signal_dbm, ping_ms)
@@ -614,21 +596,24 @@ def update_wifi_telemetry():
     current_ap_name = lookup_ap_name(connected_bssid)
 
     with state.lock:
-        # Registrar historial de telemetría para persistencia del gráfico al refrescar
         time_str = time.strftime("%H:%M:%S")
         state.telemetry_history.append({
             "time": time_str,
             "signal_dbm": signal_dbm,
-            "ping_ms": ping_ms
+            "ping_ms": ping_ms,
+            "app_latency_ms": state.app_latency_ms
         })
-        if len(state.telemetry_history) > 40:
+        if len(state.telemetry_history) > 60:
             state.telemetry_history.pop(0)
 
         # Detect Roaming Handoff event
         if state.current_bssid and connected_bssid and state.current_bssid != connected_bssid:
             event = {
-                "timestamp": time.strftime("%H:%M:%S"),
+                "timestamp_raw": time.time(),
+                "timestamp": time_str,
                 "date": time.strftime("%Y-%m-%d"),
+                "location": state.location,
+                "zone": state.zone,
                 "prev_bssid": state.current_bssid,
                 "prev_ap_name": lookup_ap_name(state.current_bssid),
                 "new_bssid": connected_bssid,
@@ -637,14 +622,19 @@ def update_wifi_telemetry():
                 "prev_signal_dbm": state.signal_dbm,
                 "new_signal_dbm": signal_dbm,
                 "ping_ms": ping_ms,
+                "gw_ping_ms": ping_ms,
+                "app_latency_ms": state.app_latency_ms,
                 "delta_dbm": signal_dbm - state.signal_dbm,
                 "verdict": "Transición suave" if (signal_dbm > state.signal_dbm) else "Handoff detectado"
             }
             state.roaming_events.insert(0, event)
-            # Keep max 50 roaming events
             if len(state.roaming_events) > 50:
                 state.roaming_events.pop()
             save_roaming_events(state.roaming_events)
+            try:
+                database.save_roaming_event(event)
+            except Exception as e:
+                pass
 
         state.current_bssid = connected_bssid
         state.current_ssid = connected_ssid
@@ -666,14 +656,91 @@ def update_wifi_telemetry():
         state.ap_name = current_ap_name
         state.candidate_aps = candidate_aps
         state.last_update_time = time.time()
+        state.sample_counter += 1
 
-def background_loop():
+        # Persist to SQLite every ~3 samples (~4.5s) to avoid excessive disk I/O while maintaining high-fidelity history
+        if state.sample_counter % 2 == 0 and connected_bssid:
+            sample_data = {
+                "timestamp": time.time(),
+                "location": state.location,
+                "zone": state.zone,
+                "interface": iface,
+                "ssid": connected_ssid,
+                "bssid": connected_bssid,
+                "ap_name": current_ap_name,
+                "vendor": vendor_name,
+                "signal_dbm": signal_dbm,
+                "signal_pct": signal_pct,
+                "channel": channel,
+                "band": band,
+                "tx_bitrate": tx_bitrate,
+                "rx_bitrate": rx_bitrate,
+                "gw_ping_ms": ping_ms,
+                "target_url": state.target_url,
+                "dns_ms": state.app_dns_ms,
+                "tcp_ms": state.app_tcp_ms,
+                "tls_ms": state.app_tls_ms,
+                "ttfb_ms": state.app_ttfb_ms,
+                "transfer_ms": state.app_transfer_ms,
+                "total_ms": state.app_latency_ms or 0.0,
+                "cold_total_ms": state.app_cold_total_ms or 0.0,
+                "status_code": state.app_status_code,
+                "is_error": state.app_is_error,
+                "error_message": state.app_error_message
+            }
+            try:
+                database.save_telemetry_sample(sample_data)
+            except Exception:
+                pass
+
+def wifi_telemetry_loop():
+    """Background loop for Wi-Fi telemetry (~1.5s interval)"""
     while state.is_monitoring:
         try:
             update_wifi_telemetry()
         except Exception as e:
-            print("Error in telemetry update:", e)
+            pass
         time.sleep(1.5)
+
+def http_probe_loop():
+    """Background loop for multipurpose HTTP application probe (configurable interval)"""
+    while state.is_monitoring:
+        try:
+            with state.lock:
+                enabled = state.auto_probe_enabled
+                url = state.target_url
+                timeout = state.probe_timeout_seconds
+                verify = state.verify_ssl
+
+            if enabled and url:
+                cfg = database.get_config()
+                auth_cfg = {
+                    "auth_enabled": cfg.get("auth_enabled", "0"),
+                    "auth_type": cfg.get("auth_type", "none"),
+                    "auth_domain": cfg.get("auth_domain", ""),
+                    "auth_user": cfg.get("auth_user", ""),
+                    "auth_password": cfg.get("auth_password", ""),
+                    "auth_token": cfg.get("auth_token", "")
+                }
+                res = probe.measure_latency(url, timeout=timeout, auth_config=auth_cfg, verify_ssl=verify)
+                with state.lock:
+                    state.app_latency_ms = res.get('total_ms')
+                    state.app_cold_total_ms = res.get('cold_total_ms')
+                    state.app_dns_ms = res.get('dns_ms', 0.0)
+                    state.app_tcp_ms = res.get('tcp_ms', 0.0)
+                    state.app_tls_ms = res.get('tls_ms', 0.0)
+                    state.app_ttfb_ms = res.get('ttfb_ms', 0.0)
+                    state.app_transfer_ms = res.get('transfer_ms', 0.0)
+                    state.app_status_code = res.get('status_code', 0)
+                    state.app_is_error = res.get('is_error', False)
+                    state.app_error_message = res.get('error_message')
+                    state.last_probe_time = time.time()
+        except Exception as e:
+            pass
+
+        with state.lock:
+            sleep_sec = max(2.0, state.probe_interval_seconds)
+        time.sleep(sleep_sec)
 
 class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -681,6 +748,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+
         if parsed.path == '/api/status':
             self.send_json_response(self.get_status_data())
         elif parsed.path == '/api/interfaces':
@@ -692,8 +761,12 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "count": len(available)
             })
         elif parsed.path == '/api/roaming-history':
-            with state.lock:
-                events = list(state.roaming_events)
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            events = database.get_roaming_events(limit=50, location_filter=loc, zone_filter=zone)
+            if not events:
+                with state.lock:
+                    events = list(state.roaming_events)
             self.send_json_response({"events": events})
         elif parsed.path == '/api/scan':
             with state.lock:
@@ -702,7 +775,6 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif parsed.path == '/api/oui':
             self.send_json_response(oui_manager.get_info())
         elif parsed.path == '/api/oui/search':
-            qs = parse_qs(parsed.query)
             q = qs.get('q', [''])[0]
             try:
                 limit = int(qs.get('limit', [50])[0])
@@ -713,7 +785,6 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif parsed.path == '/api/oui/status':
             self.send_json_response(oui_manager.get_update_status())
         elif parsed.path == '/api/ap-names':
-            qs = parse_qs(parsed.query)
             q = qs.get('q', [''])[0]
             try:
                 limit = int(qs.get('limit', [100])[0])
@@ -723,122 +794,238 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "info": ap_manager.get_info(),
                 "aps": ap_manager.search(q, limit=limit)
             })
+        elif parsed.path == '/api/config':
+            cfg = database.get_config()
+            self.send_json_response(cfg)
+        elif parsed.path == '/api/presets':
+            self.send_json_response(PRESETS)
+        elif parsed.path == '/api/locations':
+            only_data = (qs.get('only_data', ['0'])[0] in ('1', 'true'))
+            locs = database.get_locations(only_with_data=only_data)
+            self.send_json_response({"locations": locs})
+        elif parsed.path == '/api/zones':
+            mapping = database.get_location_zones_map()
+            self.send_json_response(mapping)
+        elif parsed.path == '/api/stats':
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            stats = database.get_statistics(location_filter=loc, zone_filter=zone)
+            self.send_json_response(stats)
+        elif parsed.path == '/api/history':
+            try:
+                limit = int(qs.get('limit', [60])[0])
+            except:
+                limit = 60
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            samples = database.get_recent_samples(limit=limit, location_filter=loc, zone_filter=zone)
+            self.send_json_response({"samples": samples})
+        elif parsed.path == '/api/net-diag':
+            history = database.get_net_diag_history(limit=10)
+            gw = net_diag.get_cached_gateway()
+            dns = net_diag.get_cached_dns_servers()
+            self.send_json_response({
+                "gateway": gw,
+                "dns_servers": dns,
+                "history": history
+            })
+        elif parsed.path == '/api/export':
+            exp_type = qs.get('type', ['telemetry'])[0]
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            if exp_type == 'roaming':
+                csv_str = database.export_roaming_csv(location_filter=loc, zone_filter=zone)
+                filename = f"roaming_history_{loc}.csv"
+            else:
+                csv_str = database.export_telemetry_csv(location_filter=loc, zone_filter=zone)
+                filename = f"telemetry_{loc}.csv"
+
+            content = csv_str.encode('utf-8-sig')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/csv; charset=utf-8')
+            self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
         else:
-            # Fallback to static files
             if parsed.path == '/':
                 self.path = '/index.html'
             return super().do_GET()
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path == '/api/clear-roaming-log':
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else ""
+        data = {}
+        if body:
+            try:
+                data = json.loads(body)
+            except Exception:
+                data = {}
+
+        if parsed.path == '/api/probe/now':
+            target = data.get('url') or state.target_url
+            cfg = database.get_config()
+            auth_cfg = {
+                "auth_enabled": cfg.get("auth_enabled", "0"),
+                "auth_type": cfg.get("auth_type", "none"),
+                "auth_domain": cfg.get("auth_domain", ""),
+                "auth_user": cfg.get("auth_user", ""),
+                "auth_password": cfg.get("auth_password", ""),
+                "auth_token": cfg.get("auth_token", "")
+            }
+            res = probe.measure_latency(target, timeout=float(cfg.get('probe_timeout_seconds', '5')), auth_config=auth_cfg, verify_ssl=(cfg.get('verify_ssl', '1') == '1'))
+            with state.lock:
+                state.app_latency_ms = res.get('total_ms')
+                state.app_cold_total_ms = res.get('cold_total_ms')
+                state.app_dns_ms = res.get('dns_ms', 0.0)
+                state.app_tcp_ms = res.get('tcp_ms', 0.0)
+                state.app_tls_ms = res.get('tls_ms', 0.0)
+                state.app_ttfb_ms = res.get('ttfb_ms', 0.0)
+                state.app_transfer_ms = res.get('transfer_ms', 0.0)
+                state.app_status_code = res.get('status_code', 0)
+                state.app_is_error = res.get('is_error', False)
+                state.app_error_message = res.get('error_message')
+                state.last_probe_time = time.time()
+            self.send_json_response(res)
+
+        elif parsed.path == '/api/config':
+            database.update_config(data)
+            with state.lock:
+                if 'target_url' in data:
+                    state.target_url = data['target_url']
+                if 'location_name' in data:
+                    state.location = data['location_name']
+                if 'current_zone' in data:
+                    state.zone = data['current_zone']
+                if 'active_preset' in data:
+                    state.active_preset = data['active_preset']
+                if 'probe_interval_seconds' in data:
+                    try:
+                        state.probe_interval_seconds = float(data['probe_interval_seconds'])
+                    except:
+                        pass
+                if 'probe_timeout_seconds' in data:
+                    try:
+                        state.probe_timeout_seconds = float(data['probe_timeout_seconds'])
+                    except:
+                        pass
+                if 'auto_probe_enabled' in data:
+                    state.auto_probe_enabled = (str(data['auto_probe_enabled']) in ('1', 'true', 'True'))
+                if 'verify_ssl' in data:
+                    state.verify_ssl = (str(data['verify_ssl']) in ('1', 'true', 'True'))
+
+            self.send_json_response({"status": "success", "config": database.get_config()})
+
+        elif parsed.path == '/api/locations/sync':
+            database.auto_preload_sedes_zonas()
+            self.send_json_response({"status": "success", "locations": database.get_locations()})
+
+        elif parsed.path == '/api/locations/delete':
+            loc = data.get('location')
+            if loc:
+                database.delete_location(loc)
+                self.send_json_response({"status": "success", "locations": database.get_locations()})
+            else:
+                self.send_json_response({"status": "error", "message": "Falta parámetro location"})
+
+        elif parsed.path == '/api/zones':
+            loc = data.get('location')
+            zone = data.get('zone')
+            if loc and zone:
+                database.add_zone_to_location(loc, zone)
+                self.send_json_response({"status": "success", "zones": database.get_location_zones_map()})
+            else:
+                self.send_json_response({"status": "error", "message": "Faltan parámetros"})
+
+        elif parsed.path == '/api/net-diag/run':
+            cfg = database.get_config()
+            extra = cfg.get("extra_ping_targets", "")
+            exclude = cfg.get("excluded_ping_targets", "")
+            target_h = urlparse(state.target_url).hostname
+            res = net_diag.run_full_network_diagnostic(extra_hosts_str=extra, exclude_hosts_str=exclude, target_host=target_h)
+            database.save_net_diag(res, location=state.location, zone=state.zone, target_url=state.target_url)
+            self.send_json_response({"status": "success", "results": res})
+
+        elif parsed.path == '/api/clear':
+            scope = data.get('scope', 'all')
+            database.clear_history(scope)
+            with state.lock:
+                if scope in ('roaming', 'all'):
+                    state.roaming_events.clear()
+                    save_roaming_events([])
+                if scope in ('telemetry', 'all'):
+                    state.telemetry_history.clear()
+            self.send_json_response({"status": "success", "message": f"Historial '{scope}' limpiado correctamente"})
+
+        elif parsed.path == '/api/clear-roaming-log':
             with state.lock:
                 state.roaming_events.clear()
             save_roaming_events([])
+            database.clear_history('roaming')
             self.send_json_response({"status": "success", "message": "Historial de roaming limpiado"})
+
         elif parsed.path == '/api/oui/update':
             res = oui_manager.trigger_ieee_update(background=True)
             self.send_json_response(res)
+
         elif parsed.path == '/api/oui/add':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
             try:
-                data = json.loads(body)
                 prefix = data.get('prefix', '').strip()
                 vendor = data.get('vendor', '').strip()
                 res = oui_manager.add_custom(prefix, vendor)
                 self.send_json_response({"status": "success", "entry": res})
             except ValueError as e:
                 self.send_json_response({"status": "error", "message": str(e)})
-            except json.JSONDecodeError:
-                self.send_json_response({"status": "error", "message": "JSON inválido"})
+
         elif parsed.path == '/api/oui/remove':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
             try:
-                data = json.loads(body)
                 prefix = data.get('prefix', '').strip()
-                removed = oui_manager.remove_custom(prefix)
-                self.send_json_response({"status": "success", "removed": removed})
+                res = oui_manager.remove_custom(prefix)
+                self.send_json_response({"status": "success", "removed": res})
             except Exception as e:
                 self.send_json_response({"status": "error", "message": str(e)})
+
         elif parsed.path == '/api/ap-names/add':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
             try:
-                data = json.loads(body)
-                mac = data.get('mac', '').strip()
+                bssid = data.get('bssid', '').strip()
                 name = data.get('name', '').strip()
-                loc = data.get('location', '').strip()
-                model = data.get('model', '').strip()
-                res = ap_manager.add_or_update(mac, name, location=loc, model=model)
-                self.send_json_response({"status": "success", "ap": res})
+                notes = data.get('notes', '').strip()
+                res = ap_manager.add_or_update(bssid, name, notes=notes)
+                self.send_json_response({"status": "success", "entry": res})
             except ValueError as e:
                 self.send_json_response({"status": "error", "message": str(e)})
-            except json.JSONDecodeError:
-                self.send_json_response({"status": "error", "message": "JSON inválido"})
+
         elif parsed.path == '/api/ap-names/remove':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            try:
-                data = json.loads(body)
-                mac = data.get('mac', '').strip()
-                removed = ap_manager.remove(mac)
-                self.send_json_response({"status": "success", "removed": removed})
-            except Exception as e:
-                self.send_json_response({"status": "error", "message": str(e)})
-        elif parsed.path == '/api/ap-names/import-csv':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            try:
-                data = json.loads(body)
-                csv_data = data.get('csv', '')
-                res = ap_manager.import_csv(csv_data)
-                self.send_json_response(res)
-            except ValueError as e:
-                self.send_json_response({"status": "error", "message": str(e)})
-            except Exception as e:
-                self.send_json_response({"status": "error", "message": f"Error importando CSV: {str(e)}"})
+            bssid = data.get('bssid', '').strip()
+            res = ap_manager.remove(bssid)
+            self.send_json_response({"status": "success", "removed": res})
+
         elif parsed.path == '/api/ap-names/clear':
             ap_manager.clear()
             self.send_json_response({"status": "success", "message": "Base de datos de APs limpiada"})
+
         elif parsed.path == '/api/set-interface':
-            content_length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(content_length).decode('utf-8')
-            try:
-                data = json.loads(body)
-                new_interface = data.get('interface', '').strip()
-                
-                if not new_interface:
-                    self.send_json_response({
-                        "status": "error",
-                        "message": "Interfaz no especificada"
-                    })
-                    return
-                
-                # Validar que la interfaz existe
-                available = get_available_wifi_interfaces()
-                if new_interface not in available:
-                    self.send_json_response({
-                        "status": "error",
-                        "message": f"Interfaz '{new_interface}' no disponible. Disponibles: {', '.join(available)}"
-                    })
-                    return
-                
-                # Cambiar la interfaz
-                state.set_interface(new_interface)
-                self.send_json_response({
-                    "status": "success",
-                    "message": f"Interfaz cambiada a '{new_interface}'",
-                    "interface": new_interface
-                })
-            except json.JSONDecodeError:
+            new_interface = data.get('interface', '').strip()
+            if not new_interface:
+                self.send_json_response({"status": "error", "message": "Interfaz no especificada"})
+                return
+            available = get_available_wifi_interfaces()
+            if new_interface not in available:
                 self.send_json_response({
                     "status": "error",
-                    "message": "JSON inválido"
+                    "message": f"Interfaz '{new_interface}' no disponible. Disponibles: {', '.join(available)}"
                 })
+                return
+            state.set_interface(new_interface)
+            database.set_config("selected_wifi_interface", new_interface)
+            self.send_json_response({
+                "status": "success",
+                "message": f"Interfaz cambiada a '{new_interface}'",
+                "interface": new_interface
+            })
+
         elif parsed.path == '/api/trigger-test-ping':
-            # Run 5 pings and measure handoff stability
             gw = state.gateway_ip
             pings = []
             for _ in range(5):
@@ -858,9 +1045,9 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404, "Endpoint no encontrado")
 
     def send_json_response(self, data):
-        content = json.dumps(data).encode('utf-8')
+        content = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(content)))
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
@@ -868,7 +1055,6 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def get_status_data(self):
         with state.lock:
-            # Find candidate APs with same SSID
             same_ssid_aps = [ap for ap in state.candidate_aps if ap.get('is_same_ssid')]
             better_candidate = None
             better_candidates = [
@@ -915,19 +1101,33 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "roaming_verdict": roaming_verdict,
                 "recent_roaming_count": len(state.roaming_events),
                 "telemetry_history": list(state.telemetry_history),
-                "last_update": time.strftime("%H:%M:%S", time.localtime(state.last_update_time))
+                "last_update": time.strftime("%H:%M:%S", time.localtime(state.last_update_time)),
+                # Multipurpose & Application Latency telemetry
+                "location": state.location,
+                "zone": state.zone,
+                "target_url": state.target_url,
+                "active_preset": state.active_preset,
+                "app_latency_ms": state.app_latency_ms,
+                "app_cold_total_ms": state.app_cold_total_ms,
+                "app_dns_ms": state.app_dns_ms,
+                "app_tcp_ms": state.app_tcp_ms,
+                "app_tls_ms": state.app_tls_ms,
+                "app_ttfb_ms": state.app_ttfb_ms,
+                "app_transfer_ms": state.app_transfer_ms,
+                "app_status_code": state.app_status_code,
+                "app_is_error": state.app_is_error,
+                "app_error_message": state.app_error_message,
+                "auto_probe_enabled": state.auto_probe_enabled
             }
 
-
 def main():
-    # Parsear argumentos de línea de comandos
     parser = argparse.ArgumentParser(
-        description='Wi-Fi & AP Roaming Telemetry Analyzer',
+        description='Wi-Fi & Enterprise Multipurpose Telemetry Analyzer',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Ejemplos de uso:
   python server.py                    # Detecta interfaz automáticamente
-  python server.py -i Wi-Fi           # Usa interfaz específica (ej: Wi-Fi en Windows, wlan0 en Linux)
+  python server.py -i Wi-Fi           # Usa interfaz específica
   python server.py --list             # Lista todas las interfaces disponibles
   python server.py --port 9000        # Usa puerto 9000
   python server.py --no-browser       # No abre el navegador automáticamente
@@ -944,7 +1144,6 @@ Ejemplos de uso:
     
     args = parser.parse_args()
     
-    # Si --list, mostrar interfaces y salir
     if args.list:
         interfaces = get_available_wifi_interfaces()
         print("Interfaces Wi-Fi disponibles:")
@@ -955,12 +1154,10 @@ Ejemplos de uso:
             print("  No se encontraron interfaces Wi-Fi")
         sys.exit(0)
     
-    # Inicializar estado con la interfaz especificada
     global state
     state = WiFiState(interface=args.interface)
     port = args.port
     
-    # Permitir reutilización inmediata de dirección/puerto (evita TIME_WAIT / Address already in use)
     socketserver.TCPServer.allow_reuse_address = True
 
     try:
@@ -976,11 +1173,14 @@ Ejemplos de uso:
         else:
             raise
 
-    # Start background telemetry thread
-    thread = threading.Thread(target=background_loop, daemon=True)
-    thread.start()
+    # 1. Start background Wi-Fi telemetry thread
+    thread_wifi = threading.Thread(target=wifi_telemetry_loop, daemon=True)
+    thread_wifi.start()
 
-    # Abrir el navegador automáticamente si no se desactivó
+    # 2. Start background HTTP application probe thread
+    thread_probe = threading.Thread(target=http_probe_loop, daemon=True)
+    thread_probe.start()
+
     if not args.no_browser:
         def open_browser():
             time.sleep(1.2)
@@ -991,9 +1191,11 @@ Ejemplos de uso:
         threading.Thread(target=open_browser, daemon=True).start()
 
     print(f"=====================================================")
-    print(f" 🚀 WiFi & Roaming Analyzer iniciado en:")
+    print(f" 🚀 Wi-Fi & Enterprise Telemetry Analyzer iniciado en:")
     print(f" 👉 http://localhost:{port}")
-    print(f" 📡 Interfaz: {state.interface} ({'Windows' if IS_WINDOWS else 'Linux'})")
+    print(f" 📡 Interfaz Wi-Fi: {state.interface} ({'Windows' if IS_WINDOWS else 'Linux'})")
+    print(f" 🏢 Sede Activa: {state.location} | Zona: {state.zone}")
+    print(f" 🎯 Target Probe: {state.target_url}")
     print(f"=====================================================")
     
     try:
