@@ -963,7 +963,9 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgExtraPing.value = cfg.extra_ping_targets || '';
 
       // Auth inputs
-      if (cfgAuthEnabled) cfgAuthEnabled.value = (cfg.auth_enabled === '1' || cfg.auth_enabled === 1 || cfg.auth_enabled === true) ? '1' : '0';
+      if (cfgAuthEnabled) {
+        cfgAuthEnabled.checked = (cfg.auth_enabled === '1' || cfg.auth_enabled === 1 || cfg.auth_enabled === true);
+      }
       if (cfgAuthType) cfgAuthType.value = cfg.auth_type || 'ntlm';
       if (cfgAuthDomain) cfgAuthDomain.value = cfg.auth_domain || '';
       if (cfgAuthUser) cfgAuthUser.value = cfg.auth_user || '';
@@ -983,15 +985,18 @@ document.addEventListener('DOMContentLoaded', () => {
       apNamesTableBody.innerHTML = `<tr><td colspan="3"><div class="empty-state" style="padding: 1rem;"><p>No hay nombres de APs asignados.</p></div></td></tr>`;
       return;
     }
-    apNamesTableBody.innerHTML = apList.map(a => `
+    apNamesTableBody.innerHTML = apList.map(a => {
+      const bssid = a.bssid || a.mac || '';
+      return `
       <tr>
-        <td style="font-family: monospace;">${a.bssid}</td>
+        <td style="font-family: monospace;">${bssid}</td>
         <td><strong style="color: var(--accent-cyan);">${a.name}</strong></td>
         <td>
-          <button class="btn-icon-danger" onclick="removeApName('${a.bssid}')"><i class="fa-solid fa-trash"></i></button>
+          <button class="btn-icon-danger" onclick="removeApName('${bssid}')"><i class="fa-solid fa-trash"></i></button>
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
   }
 
   window.removeApName = async function(bssid) {
@@ -1052,11 +1057,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Enterprise Authentication Controls ---
   function updateAuthFieldsVisibility() {
-    if (!cfgAuthEnabled || !authConfigFields) return;
-    const isEnabled = cfgAuthEnabled.value === '1';
-    authConfigFields.style.display = isEnabled ? 'flex' : 'none';
-    if (!isEnabled) return;
-
+    if (!cfgAuthType) return;
     const authType = cfgAuthType.value;
     if (authType === 'bearer') {
       if (grpAuthDomain) grpAuthDomain.style.display = 'none';
@@ -1073,6 +1074,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (grpAuthUser) grpAuthUser.style.display = 'block';
       if (grpAuthPassword) grpAuthPassword.style.display = 'block';
       if (grpAuthToken) grpAuthToken.style.display = 'none';
+    }
+
+    const enabledLabel = document.getElementById('cfg-auth-enabled-label');
+    if (cfgAuthEnabled && enabledLabel) {
+      enabledLabel.textContent = cfgAuthEnabled.checked ? 'Autenticación Habilitada' : 'Habilitar Autenticación';
+      enabledLabel.style.color = cfgAuthEnabled.checked ? 'var(--accent-emerald, #10b981)' : 'var(--text-muted, #94a3b8)';
     }
   }
 
@@ -1092,7 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function collectAndSaveAuth() {
     const payload = {
-      auth_enabled: cfgAuthEnabled ? cfgAuthEnabled.value : '0',
+      auth_enabled: (cfgAuthEnabled && cfgAuthEnabled.checked) ? '1' : '0',
       auth_type: cfgAuthType ? cfgAuthType.value : 'ntlm',
       auth_domain: cfgAuthDomain ? cfgAuthDomain.value.trim() : '',
       auth_user: cfgAuthUser ? cfgAuthUser.value.trim() : '',

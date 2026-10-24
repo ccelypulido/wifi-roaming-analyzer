@@ -617,40 +617,40 @@
 
           <!-- Card 3: Domain & Application Authentication (Full Width) -->
           <div class="card" style="background: rgba(255, 255, 255, 0.02); grid-column: 1 / -1;">
-            <div class="card-header">
-              <div class="card-title">
-                <i class="fa-solid fa-shield-halved"></i>
-                <span>Autenticación de Dominio y Aplicación (NTLM v1/v2 / Bearer Token / Basic Auth)</span>
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+              <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-shield-halved" style="color: var(--accent-cyan);"></i>
+                <span style="font-weight: 600;">Autenticación de Dominio y Aplicación (NTLM v1/v2 / Bearer Token / Basic Auth)</span>
               </div>
-              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                <input type="checkbox" id="cfg-auth-enabled">
-                <span style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">Habilitar Autenticación</span>
+              <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; background: rgba(0, 210, 255, 0.08); padding: 0.4rem 0.85rem; border-radius: 6px; border: 1px solid rgba(0, 210, 255, 0.2); user-select: none;">
+                <input type="checkbox" id="cfg-auth-enabled" style="width: 1.15rem; height: 1.15rem; accent-color: var(--accent-cyan); cursor: pointer;">
+                <span id="cfg-auth-enabled-label" style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">Habilitar Autenticación</span>
               </label>
             </div>
 
-            <div id="auth-config-fields" style="display: none; margin-top: 1rem;">
+            <div id="auth-config-fields" style="margin-top: 0.5rem;">
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem;">
                 <div class="form-group">
-                  <label class="form-label">Tipo de Autenticación:</label>
-                  <select id="cfg-auth-type" class="toolbar-select" style="width: 100%;">
-                    <option value="ntlm">NTLM v2 (Active Directory / Dominio Windows / Manhattan)</option>
-                    <option value="bearer">Bearer Token / Cookie de Sesión (MFA Microsoft / JWT)</option>
-                    <option value="basic">HTTP Basic Auth (Usuario y Contraseña estándar)</option>
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Método de Autenticación:</label>
+                  <select id="cfg-auth-type" class="toolbar-select" style="width: 100%; cursor: pointer;">
+                    <option value="ntlm">NTLM v2 (Active Directory / Windows / Manhattan SCE)</option>
+                    <option value="bearer">Bearer Token / Cookie de Sesión (Azure AD / MFA / JWT)</option>
+                    <option value="basic">HTTP Basic Auth (Usuario y Contraseña RFC 7617)</option>
                   </select>
                 </div>
 
                 <div id="grp-auth-domain" class="form-group">
-                  <label class="form-label">Dominio Active Directory:</label>
-                  <input type="text" id="cfg-auth-domain" class="toolbar-input" placeholder="Ej: MANH o DOMINIO" style="width: 100%;">
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Dominio Active Directory:</label>
+                  <input type="text" id="cfg-auth-domain" class="toolbar-input" placeholder="Ej: CORP o MANH" style="width: 100%;">
                 </div>
 
                 <div id="grp-auth-user" class="form-group">
-                  <label class="form-label">Usuario de Dominio:</label>
-                  <input type="text" id="cfg-auth-user" class="toolbar-input" placeholder="Ej: usuario_dominio" style="width: 100%;">
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Usuario de Dominio:</label>
+                  <input type="text" id="cfg-auth-user" class="toolbar-input" placeholder="Ej: operador_wifi" style="width: 100%;">
                 </div>
 
                 <div id="grp-auth-password" class="form-group">
-                  <label class="form-label">Contraseña de Dominio:</label>
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Contraseña de Dominio:</label>
                   <div style="display: flex; gap: 0.5rem;">
                     <input type="password" id="cfg-auth-password" class="toolbar-input" placeholder="••••••••" style="flex: 1;">
                     <button type="button" id="btn-toggle-pwd" class="btn-secondary" style="padding: 0.4rem 0.75rem;" title="Mostrar / Ocultar Contraseña">
@@ -660,17 +660,17 @@
                 </div>
 
                 <div id="grp-auth-token" class="form-group" style="display: none; grid-column: 1 / -1;">
-                  <label class="form-label">Token de Autorización / Cookie de Sesión:</label>
-                  <input type="text" id="cfg-auth-token" class="toolbar-input" placeholder="Ej: Bearer eyJhbGci... o FedAuth=...; o JSESSIONID=..." style="width: 100%;">
+                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Token Bearer / Cookie de Sesión:</label>
+                  <textarea id="cfg-auth-token" class="toolbar-input" rows="2" placeholder="Ej: Bearer eyJhbGciOi... o Cookie: FedAuth=...; PHPSESSID=..." style="width: 100%; font-family: monospace; font-size: 0.85rem; resize: vertical;"></textarea>
                   <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
-                    Compatible con tokens JWT Bearer o cookies de sesión del navegador para endpoints protegidos por Azure AD / Microsoft MFA.
+                    Se enviará en el encabezado HTTP 'Authorization: Bearer &lt;token&gt;' o 'Cookie: &lt;cookie&gt;' según corresponda.
                   </small>
                 </div>
               </div>
 
-              <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem;">
+              <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
                 <button type="button" id="btn-test-auth" class="btn-secondary">
-                  <i class="fa-solid fa-vial"></i> Probar Credenciales con la URL Actual
+                  <i class="fa-solid fa-key"></i> Probar Credenciales Ahora
                 </button>
                 <button type="button" id="btn-save-auth" class="btn-primary">
                   <i class="fa-solid fa-floppy-disk"></i> Guardar Credenciales
