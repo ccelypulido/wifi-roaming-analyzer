@@ -443,6 +443,7 @@ class WiFiState:
         self.app_is_error = False
         self.app_error_message = None
         self.last_probe_time = 0.0
+        self.http_probe_counter = 0
 
     def detect_wifi_interface(self):
         try:
@@ -738,6 +739,7 @@ def http_probe_loop():
                     state.app_is_error = res.get('is_error', False)
                     state.app_error_message = res.get('error_message')
                     state.last_probe_time = time.time()
+                    state.http_probe_counter += 1
                     curr_loc = state.location
                     curr_zone = state.zone
                     curr_bssid = state.current_bssid
@@ -983,6 +985,7 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 state.app_is_error = res.get('is_error', False)
                 state.app_error_message = res.get('error_message')
                 state.last_probe_time = time.time()
+                state.http_probe_counter += 1
                 curr_loc = state.location
                 curr_zone = state.zone
                 curr_bssid = state.current_bssid
@@ -1270,6 +1273,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "app_status_code": state.app_status_code,
                 "app_is_error": state.app_is_error,
                 "app_error_message": state.app_error_message,
+                "last_probe_time": state.last_probe_time,
+                "http_probe_counter": getattr(state, "http_probe_counter", 0),
                 "auto_probe_enabled": state.auto_probe_enabled,
                 "capture_enabled": state.capture_enabled,
                 "auth_enabled": (database.get_config().get("auth_enabled", "0") in ('1', True, 'true', 1)),

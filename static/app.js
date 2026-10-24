@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentCaptureState = true;
   let lastKnownRoamingCount = null;
+  let lastKnownProbeCount = null;
+  let lastKnownProbeTime = null;
+  let isLoadingHttpHistory = false;
 
   function updateCaptureUI(isCapturing) {
     currentCaptureState = isCapturing;
@@ -666,6 +669,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Card 3: Application Health
     updateAppCard(data);
 
+    // Auto-refresh HTTP Phases History when a new probe is recorded
+    const newProbeCount = data.http_probe_counter !== undefined ? data.http_probe_counter : 0;
+    const newProbeTime = data.last_probe_time || 0;
+    if (lastKnownProbeCount !== null && (newProbeCount !== lastKnownProbeCount || (newProbeTime > 0 && newProbeTime !== lastKnownProbeTime))) {
+      loadHttpPhasesHistory();
+    }
+    lastKnownProbeCount = newProbeCount;
+    lastKnownProbeTime = newProbeTime;
+
     // 5. Card 4: Roaming & Mesh (Always active, regardless of telemetry pause)
     const newRoamingCount = data.recent_roaming_count || 0;
     if (lastKnownRoamingCount !== null && newRoamingCount !== lastKnownRoamingCount) {
@@ -833,8 +845,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function loadHttpPhasesHistory() {
-    if (!httpHistoryTableBody) return;
+    if (!httpHistoryTableBody || isLoadingHttpHistory) return;
+    isLoadingHttpHistory = true;
     try {
+      const container = httpHistoryTableBody.closest('.table-responsive');
+      const prevScrollTop = container ? container.scrollTop : 0;
       const loc = selLocation.value;
       const zone = selZone.value;
       const res = await fetch(`/api/http-phases/history?limit=50&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`);
@@ -914,6 +929,10 @@ document.addEventListener('DOMContentLoaded', () => {
           </tr>
         `;
       }).join('');
+
+      if (container && prevScrollTop > 0) {
+        container.scrollTop = prevScrollTop;
+      }
     } catch (e) {
       console.warn("Error cargando historial de fases HTTP:", e);
       if (httpHistoryTableBody) {
@@ -925,6 +944,8 @@ document.addEventListener('DOMContentLoaded', () => {
           </tr>
         `;
       }
+    } finally {
+      isLoadingHttpHistory = false;
     }
   }
 
@@ -1645,6 +1666,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Medium polling for nearby APs scan (every 4s)
     setInterval(loadApScanner, 4000);
+
+    // Auto-refresh HTTP phases history when the tab is active (every 3.5s)
+    setInterval(() => {
+      const httpTab = document.getElementById('tab-http-phases');
+      if (httpTab && httpTab.classList.contains('active')) {
+        loadHttpPhasesHistory();
+      }
+    }, 3500);
   }
 
   init();
