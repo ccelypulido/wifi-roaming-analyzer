@@ -23,27 +23,38 @@ Este es un dashboard visual y plataforma de observabilidad de conectividad dise�
 
 ```
 wifi-roaming-analyzer/
+├── core/                        # Motores de telemetría, sonda y diagnóstico de red
+│   ├── probe.py                 # Sonda secuencial de latencia HTTP (sockets puros)
+│   ├── net_diag.py              # Diagnóstico de red, Gateway, DNS y Traceroute
+│   ├── ntlm_auth.py             # Motor criptográfico NTLM / MD4 (Zero pip deps)
+│   ├── ap_manager.py            # Gestor de nombres amigables de Access Points
+│   └── oui_manager.py           # Identificador de fabricantes por MAC (IEEE OUI)
+├── database/                    # Capa de persistencia relacional
+│   ├── database.py              # Controlador SQLite WAL, percentiles y exportación CSV
+│   └── (telemetry.db)           # Base de datos SQLite (ignorado por git)
+├── data/                        # Catálogos, plantillas y archivos JSON de datos
+│   ├── sedes_zonas.json         # Catálogo de sedes y zonas por defecto
+│   ├── ap_names.json            # Mapeo BSSID -> Nombre amigable de AP
+│   ├── ap_names.example.json    # Plantilla de ejemplo de mapeo de APs
+│   ├── oui_vendors.json         # Base de datos offline de fabricantes IEEE OUI
+│   └── roaming_history.json     # Historial JSON (compatibilidad)
+├── scripts/                     # Utilidades de mantenimiento, CLI e instaladores
+│   ├── manage_aps.py            # Herramienta CLI para gestionar nombres de APs
+│   ├── update_oui.py            # Script para actualizar la base IEEE OUI
+│   └── install-dependencies.sh  # Instalador de utilidades de red del sistema (Linux)
+├── static/                      # Frontend web (100% offline-ready)
+│   ├── index.html               # Dashboard visual y pestañas
+│   ├── app.js                   # Lógica reactiva y comunicación API
+│   ├── styles.css               # Diseño moderno, glassmorphism y tema oscuro
+│   ├── chart.umd.min.js         # Motor local de gráficos Chart.js
+│   └── lucide.min.js            # Iconografía local
+├── server.py                    # Punto de entrada principal (Entrypoint del servidor)
+├── run.sh / run.bat / run.ps1   # Lanzadores rápidos en la raíz
+├── stop.sh / stop.bat / stop.ps1# Scripts de detención y liberación de puerto
 ├── README.md                    # Documentación y guía de uso
-├── .gitignore                   # Excluye temporales, WAL y base de datos
+├── .gitignore                   # Exclusiones de control de versiones
 ├── requirements.txt             # Dependencias de Python (0 dependencias externas)
-├── requirements-system.txt      # Documentación de herramientas del sistema (Linux)
-├── install-dependencies.sh      # Instalador de utilidades para Linux
-├── run.bat / run.ps1 / run.sh   # Lanzadores para Windows y Linux
-├── stop.sh / stop.ps1 / stop.bat# Scripts para detener y liberar puerto
-├── server.py                    # Servidor web, API REST y coordinadores de hilos
-├── database.py                  # Persistencia en SQLite (WAL), estadísticas y CSV
-├── probe.py                     # Sonda secuencial de latencia HTTP de bajo nivel
-├── net_diag.py                  # Diagnóstico de red, Gateway, DNS y Traceroute
-├── ntlm_auth.py                 # Generador de tokens NTLM / Hash MD4 puro en Python
-├── oui_manager.py               # Identificador de fabricantes por prefijo MAC (IEEE OUI)
-├── ap_manager.py                # Mapeo de BSSID a nombres amigables de AP
-├── sedes_zonas.json             # Catálogo inicial de sedes y zonas
-└── static/                      # Dashboard web (100% offline-ready)
-    ├── index.html               # Interfaz visual con pestañas especializadas
-    ├── app.js                   # Lógica reactiva, gráficos y comunicación API
-    ├── styles.css               # Diseño moderno, glassmorphism y tema oscuro
-    ├── chart.umd.min.js         # Motor de gráficos Chart.js local
-    └── lucide.min.js            # Iconografía local
+└── requirements-system.txt      # Dependencias del sistema operativo
 ```
 
 ## 🛠️ Personalización

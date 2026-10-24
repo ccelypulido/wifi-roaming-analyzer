@@ -12,8 +12,15 @@ Uso:
 """
 
 import sys
+import os
 import argparse
-from oui_manager import oui_manager
+
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from core.oui_manager import oui_manager
 
 def main():
     parser = argparse.ArgumentParser(description="Gestor de Base de Datos OUI de Fabricantes Wi-Fi / AP")

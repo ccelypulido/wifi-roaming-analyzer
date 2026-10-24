@@ -37,6 +37,8 @@ desktop.ini
 # Logs y Archivos Temporales / Datos Locales
 roaming_history.json
 ap_names.json
+data/roaming_history.json
+data/ap_names.json
 *.log
 *.pot
 logs/

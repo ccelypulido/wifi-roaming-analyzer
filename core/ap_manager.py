@@ -18,8 +18,13 @@ import io
 import threading
 from datetime import datetime
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-AP_NAMES_FILE = os.path.join(PROJECT_DIR, 'ap_names.json')
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+AP_NAMES_FILE = os.path.join(PROJECT_ROOT, 'data', 'ap_names.json')
+if not os.path.exists(AP_NAMES_FILE):
+    alt_file = os.path.join(CURRENT_DIR, 'ap_names.json')
+    if os.path.exists(alt_file):
+        AP_NAMES_FILE = alt_file
 
 class APManager:
     def __init__(self, filepath=AP_NAMES_FILE):

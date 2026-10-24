@@ -8,8 +8,14 @@ import csv
 import io
 from typing import Dict, Any, List, Optional, Tuple
 
-DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "telemetry.db")
-SEDES_ZONAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sedes_zonas.json")
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+DB_FILE = os.path.join(CURRENT_DIR, "telemetry.db")
+SEDES_ZONAS_FILE = os.path.join(PROJECT_ROOT, "data", "sedes_zonas.json")
+if not os.path.exists(SEDES_ZONAS_FILE):
+    alt_file = os.path.join(CURRENT_DIR, "sedes_zonas.json")
+    if os.path.exists(alt_file):
+        SEDES_ZONAS_FILE = alt_file
 
 @contextlib.contextmanager
 def get_connection():

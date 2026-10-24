@@ -5,7 +5,13 @@ import base64
 import urllib.parse
 from typing import Dict, Any, Optional
 
-import ntlm_auth
+try:
+    from core import ntlm_auth
+except ImportError:
+    try:
+        from . import ntlm_auth
+    except ImportError:
+        import ntlm_auth
 
 def read_http_response(sock: socket.socket) -> tuple[bytes, dict, int]:
     """Reads HTTP headers and response body from a connected socket."""

@@ -17,11 +17,10 @@ PORT = 8050
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
 
-from oui_manager import oui_manager
-from ap_manager import ap_manager
-import probe
-import net_diag
-import database
+from core.oui_manager import oui_manager
+from core.ap_manager import ap_manager
+from core import probe, net_diag
+from database import database
 
 # Initialize SQLite database
 database.init_db()
@@ -151,7 +150,7 @@ def get_available_wifi_interfaces():
     
     return interfaces
 
-HISTORY_FILE = os.path.join(PROJECT_DIR, 'roaming_history.json')
+HISTORY_FILE = os.path.join(PROJECT_DIR, 'data', 'roaming_history.json')
 
 def load_saved_roaming_events():
     """Carga los eventos de roaming guardados del archivo json o base de datos"""

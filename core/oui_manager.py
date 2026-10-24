@@ -20,8 +20,13 @@ import ssl
 import urllib.request
 from datetime import datetime
 
-PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-OUI_FILE = os.path.join(PROJECT_DIR, 'oui_vendors.json')
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+OUI_FILE = os.path.join(PROJECT_ROOT, 'data', 'oui_vendors.json')
+if not os.path.exists(OUI_FILE):
+    alt_file = os.path.join(CURRENT_DIR, 'oui_vendors.json')
+    if os.path.exists(alt_file):
+        OUI_FILE = alt_file
 
 # Fabricantes y APs conocidos por defecto (fallback garantizado)
 DEFAULT_OUI_VENDORS = {
