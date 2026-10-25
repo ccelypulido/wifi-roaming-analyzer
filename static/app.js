@@ -1374,20 +1374,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = wifiSpectrumCanvas.getContext('2d');
     if (!ctx) return;
 
-    const rect = wifiSpectrumCanvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    // Measure parent container to prevent canvas infinite shrink feedback loop
+    const container = wifiSpectrumCanvas.parentElement;
+    const clientWidth = container ? container.clientWidth : wifiSpectrumCanvas.clientWidth;
+    const clientHeight = container ? container.clientHeight : wifiSpectrumCanvas.clientHeight;
+    if (!clientWidth || !clientHeight || clientWidth < 50 || clientHeight < 50) return;
 
     const dpr = window.devicePixelRatio || 1;
-    wifiSpectrumCanvas.width = rect.width * dpr;
-    wifiSpectrumCanvas.height = rect.height * dpr;
+    const targetW = Math.floor(clientWidth * dpr);
+    const targetH = Math.floor(clientHeight * dpr);
+
+    if (wifiSpectrumCanvas.width !== targetW || wifiSpectrumCanvas.height !== targetH) {
+      wifiSpectrumCanvas.width = targetW;
+      wifiSpectrumCanvas.height = targetH;
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
 
     const padLeft = 52;
     const padRight = 24;
     const padTop = 26;
     const padBottom = 28;
-    const chartW = Math.max(10, rect.width - padLeft - padRight);
-    const chartH = Math.max(10, rect.height - padTop - padBottom);
+    const chartW = Math.max(10, clientWidth - padLeft - padRight);
+    const chartH = Math.max(10, clientHeight - padTop - padBottom);
 
     function yToPix(dbm) {
       const clamped = Math.max(-100, Math.min(-10, dbm));
@@ -1414,7 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 1. Draw horizontal gridlines & Y labels
-    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.clearRect(0, 0, clientWidth, clientHeight);
     const dbmSteps = [-20, -40, -60, -80, -100];
 
     dbmSteps.forEach(dbm => {
@@ -1618,7 +1628,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (wifiSpectrumCanvas) {
     wifiSpectrumCanvas.addEventListener('mousemove', (e) => {
-      const rect = wifiSpectrumCanvas.getBoundingClientRect();
+      const container = wifiSpectrumCanvas.parentElement;
+      const rect = container ? container.getBoundingClientRect() : wifiSpectrumCanvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
