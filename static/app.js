@@ -577,6 +577,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const loc = selLocation.value;
     populateZones(loc);
     const z = selZone.value;
+    selLocation.style.borderColor = 'var(--accent-emerald)';
+    selLocation.style.boxShadow = '0 0 0 3px rgba(5, 150, 105, 0.2)';
+    setTimeout(() => {
+      selLocation.style.borderColor = '';
+      selLocation.style.boxShadow = '';
+    }, 1000);
     await saveConfig({ location_name: loc, current_zone: z });
     loadStatistics();
     loadRoamingHistory();
@@ -586,6 +592,12 @@ document.addEventListener('DOMContentLoaded', () => {
   selZone.addEventListener('change', async () => {
     const loc = selLocation.value;
     const z = selZone.value;
+    selZone.style.borderColor = 'var(--accent-emerald)';
+    selZone.style.boxShadow = '0 0 0 3px rgba(5, 150, 105, 0.2)';
+    setTimeout(() => {
+      selZone.style.borderColor = '';
+      selZone.style.boxShadow = '';
+    }, 1000);
     await saveConfig({ location_name: loc, current_zone: z });
     loadStatistics();
     loadRoamingHistory();
