@@ -9,6 +9,43 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#039;');
   }
 
+  // --- Local Time & Date Formatters (Display adjusted to user's local timezone while preserving DB raw data) ---
+  function parseToDate(val) {
+    if (!val) return null;
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === 'number') {
+      return new Date(val > 1e11 ? val : val * 1000);
+    }
+    const str = String(val).trim();
+    if (!isNaN(Number(str)) && !str.includes('-') && !str.includes(':')) {
+      const num = Number(str);
+      return new Date(num > 1e11 ? num : num * 1000);
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatLocalTime(val, fallback = '--:--:--') {
+    const d = parseToDate(val);
+    if (!d) return fallback;
+    return d.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function formatLocalDate(val, fallback = '') {
+    const d = parseToDate(val);
+    if (!d) return fallback;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function formatLocalDateTime(val, fallback = 'Reciente') {
+    const d = parseToDate(val);
+    if (!d) return fallback;
+    return `${formatLocalDate(d)} ${formatLocalTime(d)}`;
+  }
+
   // --- DOM Elements ---
   // Header badges
   const headerSsid = document.getElementById('header-ssid');
@@ -707,7 +744,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCaptureUI(isCapturing);
 
     if (isCapturing) {
-      const nowStr = data.last_update || new Date().toLocaleTimeString();
+      const nowStr = formatLocalTime(new Date());
       timeLabels.push(nowStr);
       signalData.push(data.signal_dbm);
       pingData.push(data.ping_ms !== null ? data.ping_ms : null);
@@ -787,10 +824,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      roamingTableBody.innerHTML = events.map(e => `
+      roamingTableBody.innerHTML = events.map(e => {
+        const timeFormatted = formatLocalTime(e.timestamp_raw || e.timestamp || e.created_at);
+        const dateFormatted = formatLocalDate(e.timestamp_raw || e.created_at || e.date);
+        return `
         <tr>
-          <td><strong style="color: var(--accent-cyan);">${e.time || e.timestamp}</strong></td>
-          <td><span class="badge" style="font-size: 0.75rem;">${e.location || 'Sede'} - ${e.zone || 'Zona'}</span></td>
+          <td>
+            <strong style="color: var(--accent-cyan); font-size: 0.85rem;">${timeFormatted}</strong>
+            ${dateFormatted ? `<div style="font-size: 0.72rem; color: var(--text-muted);">${dateFormatted}</div>` : ''}
+          </td>
+          <td><span class="badge" style="font-size: 0.75rem;">${escapeHtml(e.location || 'Sede')} - ${escapeHtml(e.zone || 'Zona')}</span></td>
           <td>${e.ssid || '--'}</td>
           <td>
             <div class="ap-cell">
@@ -820,7 +863,8 @@ document.addEventListener('DOMContentLoaded', () => {
             </span>
           </td>
         </tr>
-      `).join('');
+      `;
+      }).join('');
     } catch (e) {
       console.error("Error cargando historial de roaming:", e);
     }
@@ -907,12 +951,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const apLabel = r.ap_name ? `<span class="ap-name-tag" style="margin-right: 0.35rem;"><i class="fa-solid fa-tag"></i> ${escapeHtml(r.ap_name)}</span>` : '';
         const bssidLabel = r.bssid ? `<span class="mac-subtext" style="font-family: monospace;">${escapeHtml(r.bssid)}</span>` : '<span style="color: var(--text-muted); font-size: 0.78rem;">--</span>';
 
+        const timeFormatted = formatLocalTime(r.timestamp || r.created_at || r.time);
+        const dateFormatted = formatLocalDate(r.timestamp || r.created_at || r.date);
+
         return `
           <tr>
             <td style="text-align: center; color: var(--text-muted); font-size: 0.8rem; font-family: monospace;">${idx + 1}</td>
             <td>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${escapeHtml(r.time || '--:--:--')}</div>
-              <div style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(r.date || '')}</div>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem;">${timeFormatted}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">${dateFormatted}</div>
             </td>
             <td>
               <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(r.location || 'Sede Principal')}</div>
@@ -996,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
           netDiagRunsHistory.forEach((run, idx) => {
             const opt = document.createElement('option');
             opt.value = idx.toString();
-            const dateStr = run.created_at ? run.created_at.replace('T', ' ').substring(0, 19) : (run.time || `Ejecución #${idx + 1}`);
+            const dateStr = formatLocalDateTime(run.timestamp || run.created_at);
             const locStr = run.location ? ` - ${run.location}` : '';
             const zoneStr = run.zone ? ` (${run.zone})` : '';
             opt.textContent = `${idx === 0 ? '● Más reciente: ' : ''}${dateStr}${locStr}${zoneStr}`;
@@ -1015,7 +1062,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (targetRun) {
         if (diagLastRunBadge) {
-          const runDate = targetRun.created_at ? targetRun.created_at.replace('T', ' ').substring(0, 19) : (targetRun.time || 'Reciente');
+          const runDate = formatLocalDateTime(targetRun.timestamp || targetRun.created_at);
           const targetCount = targetRun.results ? targetRun.results.length : 0;
           diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Histórico (${netDiagRunsHistory.length} ejecuciones): <strong>${runDate}</strong> (${targetCount} objetivos evaluados)`;
         }
@@ -1038,7 +1085,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const run = netDiagRunsHistory[idx];
       if (run) {
         if (diagLastRunBadge) {
-          const runDate = run.created_at ? run.created_at.replace('T', ' ').substring(0, 19) : (run.time || 'Reciente');
+          const runDate = formatLocalDateTime(run.timestamp || run.created_at);
           const targetCount = run.results ? run.results.length : 0;
           diagLastRunBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Visualizando ejecución #${idx + 1}: <strong>${runDate}</strong> (${targetCount} objetivos)`;
         }
@@ -1070,7 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       await loadNetDiagView();
       if (diagLastRunBadge) {
-        diagLastRunBadge.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--accent-emerald);"></i> Diagnóstico completado: <strong>${new Date().toLocaleTimeString()}</strong>`;
+        diagLastRunBadge.innerHTML = `<i class="fa-solid fa-check-circle" style="color: var(--accent-emerald);"></i> Diagnóstico completado: <strong>${formatLocalTime(new Date())}</strong>`;
       }
     } catch (e) {
       diagResultsContainer.innerHTML = `<div class="empty-state"><i class="fa-solid fa-circle-exclamation" style="color: var(--accent-rose);"></i><p>Error ejecutando diagnóstico: ${e}</p></div>`;
