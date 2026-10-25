@@ -436,7 +436,7 @@
           </div>
         </div>
 
-        <div class="card" style="margin-top: 1.25rem; background: rgba(255, 255, 255, 0.02);">
+        <div class="card" style="margin-top: 1.25rem;">
           <div class="card-header">
             <div class="card-title">
               <i class="fa-solid fa-chart-column"></i>
@@ -451,9 +451,8 @@
           </div>
         </div>
 
-        <!-- Historial de las Últimas 50 Pruebas de Latencia HTTP -->
-        <div id="card-http-history" class="card" style="margin-top: 1.25rem; background: rgba(255, 255, 255, 0.02);">
-          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+        <div id="card-http-history" class="card" style="margin-top: 1.25rem;">
+          <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
             <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
               <i class="fa-solid fa-clock-rotate-left" style="color: var(--accent-cyan);"></i>
               <span>Historial de Pruebas de Latencia HTTP (Últimas 50)</span>
@@ -622,7 +621,7 @@
       <div id="tab-config" class="tab-content">
         <div class="config-grid">
           <!-- Column 1: Network & Probe Settings -->
-          <div class="card" style="background: rgba(255, 255, 255, 0.02);">
+          <div class="card">
             <div class="card-title" style="margin-bottom: 1rem;">
               <i class="fa-solid fa-sliders"></i>
               <span>Parámetros de Telemetría</span>
@@ -687,13 +686,13 @@
           </div>
 
           <!-- Column 2: Domain & Application Authentication -->
-          <div class="card" style="background: rgba(255, 255, 255, 0.02);">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem;">
+          <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem;">
               <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fa-solid fa-shield-halved" style="color: var(--accent-cyan);"></i>
                 <span style="font-weight: 600;">Autenticación (NTLM / Bearer / Basic)</span>
               </div>
-              <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; background: rgba(0, 210, 255, 0.08); padding: 0.4rem 0.85rem; border-radius: 6px; border: 1px solid rgba(0, 210, 255, 0.2); user-select: none;">
+              <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; background: rgba(79, 70, 229, 0.08); padding: 0.4rem 0.85rem; border-radius: 6px; border: 1px solid rgba(79, 70, 229, 0.25); user-select: none;">
                 <input type="checkbox" id="cfg-auth-enabled" style="width: 1.15rem; height: 1.15rem; accent-color: var(--accent-cyan); cursor: pointer;">
                 <span id="cfg-auth-enabled-label" style="font-weight: 700; font-size: 0.85rem; color: var(--accent-cyan);">Habilitar</span>
               </label>
@@ -702,7 +701,7 @@
             <div id="auth-config-fields" style="margin-top: 0.5rem;">
               <div style="display: flex; flex-direction: column; gap: 0.85rem;">
                 <div class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Método de Autenticación:</label>
+                  <label class="form-label" style="font-weight: 600; color: #334155;">Método de Autenticación:</label>
                   <select id="cfg-auth-type" class="toolbar-select" style="width: 100%; cursor: pointer;">
                     <option value="ntlm">NTLM v2 (Active Directory / Windows / Manhattan SCE)</option>
                     <option value="bearer">Bearer Token / Cookie de Sesión (Azure AD / MFA / JWT)</option>
@@ -711,17 +710,17 @@
                 </div>
 
                 <div id="grp-auth-domain" class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Dominio Active Directory:</label>
+                  <label class="form-label" style="font-weight: 600; color: #334155;">Dominio Active Directory:</label>
                   <input type="text" id="cfg-auth-domain" class="toolbar-input" placeholder="Ej: CORP o MANH" style="width: 100%;">
                 </div>
 
                 <div id="grp-auth-user" class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Usuario de Red / Dominio:</label>
+                  <label class="form-label" style="font-weight: 600; color: #334155;">Usuario de Red / Dominio:</label>
                   <input type="text" id="cfg-auth-user" class="toolbar-input" placeholder="Ej: operador_wifi" style="width: 100%;">
                 </div>
 
                 <div id="grp-auth-password" class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Contraseña de Dominio:</label>
+                  <label class="form-label" style="font-weight: 600; color: #334155;">Contraseña de Dominio:</label>
                   <div style="display: flex; gap: 0.5rem;">
                     <input type="password" id="cfg-auth-password" class="toolbar-input" placeholder="••••••••" style="flex: 1;">
                     <button type="button" id="btn-toggle-pwd" class="btn-secondary" style="padding: 0.4rem 0.75rem;" title="Mostrar / Ocultar Contraseña">
@@ -731,15 +730,15 @@
                 </div>
 
                 <div id="grp-auth-token" class="form-group" style="display: none; margin-bottom: 0;">
-                  <label class="form-label" style="font-weight: 600; color: #e2e8f0;">Token Bearer / Cookie de Sesión:</label>
-                  <textarea id="cfg-auth-token" class="toolbar-input" rows="2" placeholder="Ej: Bearer eyJhbGciOi... o Cookie: FedAuth=...; PHPSESSID=..." style="width: 100%; font-family: monospace; font-size: 0.85rem; resize: vertical;"></textarea>
-                  <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+                  <label class="form-label" style="font-weight: 600; color: #334155;">Token Bearer / Cookie de Sesión:</label>
+                  <textarea id="cfg-auth-token" class="toolbar-input" rows="7" placeholder="Ej: Bearer eyJhbGciOi... o Cookie: FedAuth=...; PHPSESSID=..." style="width: 100%; min-height: 160px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85rem; line-height: 1.45; resize: vertical;"></textarea>
+                  <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 0.35rem;">
                     Compatible con tokens JWT Bearer o cookies de sesión para Azure AD / Microsoft MFA.
                   </small>
                 </div>
               </div>
 
-              <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+              <div style="display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
                 <button type="button" id="btn-test-auth" class="btn-secondary" style="font-size: 0.82rem;">
                   <i class="fa-solid fa-key"></i> Probar Credenciales
                 </button>
@@ -751,8 +750,8 @@
           </div>
 
           <!-- Card 3: AP Friendly Names (Full Width & CSV Auto-Detector) -->
-          <div class="card" style="background: rgba(255, 255, 255, 0.02); grid-column: 1 / -1;">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+          <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
               <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fa-solid fa-tags" style="color: var(--accent-cyan);"></i>
                 <span style="font-weight: 600;">Mapeo de Nombres de APs (BSSID ➔ Nombre)</span>
@@ -778,8 +777,8 @@
             </p>
 
             <!-- Form to add single AP -->
-            <div style="background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 0.9rem; margin-bottom: 1.25rem;">
-              <div style="font-size: 0.82rem; font-weight: 700; color: #e2e8f0; margin-bottom: 0.65rem;">
+            <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.9rem; margin-bottom: 1.25rem;">
+              <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.65rem;">
                 <i class="fa-solid fa-plus-circle" style="color: var(--accent-cyan); margin-right: 0.35rem;"></i> Registrar / Modificar Access Point Manualmente:
               </div>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto; gap: 0.75rem; align-items: end;">
@@ -835,6 +834,6 @@
 
   </div>
 
-  <script src="app.js?v=3.1.0"></script>
+  <script src="app.js?v=3.2.0"></script>
 </body>
 </html>
