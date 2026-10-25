@@ -317,8 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
         {
           label: 'Señal Wi-Fi (dBm)',
           data: signalData,
-          borderColor: '#06b6d4',
-          backgroundColor: 'rgba(6, 182, 212, 0.1)',
+          borderColor: '#4f46e5',
+          backgroundColor: 'rgba(79, 70, 229, 0.08)',
           borderWidth: 2.2,
           tension: 0.3,
           fill: true,
@@ -327,8 +327,8 @@ document.addEventListener('DOMContentLoaded', () => {
         {
           label: 'App HTTP (ms)',
           data: appLatencyData,
-          borderColor: '#10b981',
-          backgroundColor: 'rgba(16, 185, 129, 0.08)',
+          borderColor: '#059669',
+          backgroundColor: 'rgba(5, 150, 105, 0.08)',
           borderWidth: 2.2,
           tension: 0.25,
           fill: false,
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
         {
           label: 'Ping Gateway (ms)',
           data: pingData,
-          borderColor: '#8b5cf6',
+          borderColor: '#0284c7',
           backgroundColor: 'transparent',
           borderWidth: 1.8,
           borderDash: [4, 4],
@@ -357,17 +357,17 @@ document.addEventListener('DOMContentLoaded', () => {
           display: false // Using custom badges in header
         },
         tooltip: {
-          backgroundColor: 'rgba(11, 15, 25, 0.95)',
-          titleFont: { family: 'Outfit', size: 13 },
+          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
           bodyFont: { family: 'Outfit', size: 12 },
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: '#334155',
           borderWidth: 1,
           padding: 10
         }
       },
       scales: {
         x: {
-          grid: { color: 'rgba(255, 255, 255, 0.04)' },
+          grid: { color: '#e2e8f0' },
           ticks: { color: '#64748b', maxTicksLimit: 10, font: { family: 'Outfit' } }
         },
         ySignal: {
@@ -375,9 +375,9 @@ document.addEventListener('DOMContentLoaded', () => {
           position: 'left',
           min: -100,
           max: -20,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#06b6d4', callback: (val) => `${val} dBm`, font: { family: 'Outfit' } },
-          title: { display: true, text: 'Intensidad RF (dBm)', color: '#06b6d4', font: { family: 'Outfit', weight: 'bold' } }
+          grid: { color: '#f1f5f9' },
+          ticks: { color: '#4f46e5', callback: (val) => `${val} dBm`, font: { family: 'Outfit' } },
+          title: { display: true, text: 'Intensidad RF (dBm)', color: '#4f46e5', font: { family: 'Outfit', weight: 'bold' } }
         },
         yLatency: {
           type: 'linear',
@@ -385,8 +385,8 @@ document.addEventListener('DOMContentLoaded', () => {
           min: 0,
           suggestedMax: 300,
           grid: { drawOnChartArea: false },
-          ticks: { color: '#10b981', callback: (val) => `${val} ms`, font: { family: 'Outfit' } },
-          title: { display: true, text: 'Latencia (ms)', color: '#10b981', font: { family: 'Outfit', weight: 'bold' } }
+          ticks: { color: '#059669', callback: (val) => `${val} ms`, font: { family: 'Outfit' } },
+          title: { display: true, text: 'Latencia (ms)', color: '#059669', font: { family: 'Outfit', weight: 'bold' } }
         }
       }
     }
@@ -399,11 +399,11 @@ document.addEventListener('DOMContentLoaded', () => {
     data: {
       labels: ['Fases de Conexión HTTP'],
       datasets: [
-        { label: 'DNS', data: [0], backgroundColor: '#38bdf8' },
-        { label: 'TCP Handshake', data: [0], backgroundColor: '#818cf8' },
-        { label: 'TLS Handshake', data: [0], backgroundColor: '#c084fc' },
-        { label: 'TTFB (Espera)', data: [0], backgroundColor: '#34d399' },
-        { label: 'Transferencia', data: [0], backgroundColor: '#fbbf24' }
+        { label: 'DNS', data: [0], backgroundColor: '#0284c7' },
+        { label: 'TCP Handshake', data: [0], backgroundColor: '#4f46e5' },
+        { label: 'TLS Handshake', data: [0], backgroundColor: '#7c3aed' },
+        { label: 'TTFB (Espera)', data: [0], backgroundColor: '#059669' },
+        { label: 'Transferencia', data: [0], backgroundColor: '#d97706' }
       ]
     },
     options: {
@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, boxWidth: 14 }
+          labels: { color: '#334155', font: { family: 'Outfit', size: 11 }, boxWidth: 14 }
         },
         tooltip: {
           callbacks: {
@@ -424,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
       scales: {
         x: {
           stacked: true,
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
+          grid: { color: '#e2e8f0' },
           ticks: { color: '#64748b', callback: (val) => `${val} ms` }
         },
         y: {

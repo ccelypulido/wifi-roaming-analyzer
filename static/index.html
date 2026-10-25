@@ -16,7 +16,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
   
-  <link rel="stylesheet" href="styles.css?v=2.2.0">
+  <link rel="stylesheet" href="styles.css?v=3.0.0">
 </head>
 <body>
   <div class="dashboard-container">
@@ -117,7 +117,7 @@
             <i class="fa-solid fa-gauge-high"></i>
             <span>Calidad de Señal Wi-Fi</span>
           </div>
-          <span id="signal-dbm-pill" class="badge" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan);">-- dBm</span>
+          <span id="signal-dbm-pill" class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">-- dBm</span>
         </div>
 
         <div class="gauge-wrapper">
@@ -189,7 +189,7 @@
             <i class="fa-solid fa-cloud"></i>
             <span>Salud de Aplicación</span>
           </div>
-          <span id="app-status-badge" class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald);">HTTP --</span>
+          <span id="app-status-badge" class="badge" style="background: rgba(5, 150, 105, 0.08); color: var(--accent-emerald);">HTTP --</span>
         </div>
 
         <div class="app-latency-hero">
@@ -282,9 +282,9 @@
             <i id="btn-chart-capture-icon" class="fa-solid fa-pause"></i>
             <span id="btn-chart-capture-label">Pausar Captura</span>
           </button>
-          <span class="badge" style="color: var(--accent-cyan); background: rgba(6, 182, 212, 0.1);">● Señal Wi-Fi (dBm)</span>
-          <span class="badge" style="color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1);">● App HTTP (ms)</span>
-          <span class="badge" style="color: var(--accent-purple); background: rgba(139, 92, 246, 0.1);">┅ Ping GW (ms)</span>
+          <span class="badge" style="color: var(--accent-cyan); background: rgba(79, 70, 229, 0.08);">● Señal Wi-Fi (dBm)</span>
+          <span class="badge" style="color: var(--accent-emerald); background: rgba(5, 150, 105, 0.08);">● App HTTP (ms)</span>
+          <span class="badge" style="color: var(--accent-sky); background: rgba(2, 132, 199, 0.08);">┅ Ping GW (ms)</span>
         </div>
       </div>
 
@@ -457,7 +457,7 @@
             <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
               <i class="fa-solid fa-clock-rotate-left" style="color: var(--accent-cyan);"></i>
               <span>Historial de Pruebas de Latencia HTTP (Últimas 50)</span>
-              <span id="http-history-counter" class="badge" style="background: rgba(0, 210, 255, 0.12); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">0 pruebas</span>
+              <span id="http-history-counter" class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">0 pruebas</span>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
               <button id="btn-refresh-http-history" class="btn-secondary" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
@@ -756,7 +756,7 @@
               <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fa-solid fa-tags" style="color: var(--accent-cyan);"></i>
                 <span style="font-weight: 600;">Mapeo de Nombres de APs (BSSID ➔ Nombre)</span>
-                <span id="ap-count-badge" class="badge" style="background: rgba(0, 210, 255, 0.12); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">0 APs</span>
+                <span id="ap-count-badge" class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">0 APs</span>
               </div>
               
               <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -835,6 +835,6 @@
 
   </div>
 
-  <script src="app.js?v=2.4.0"></script>
+  <script src="app.js?v=3.0.0"></script>
 </body>
 </html>
