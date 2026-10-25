@@ -1425,25 +1425,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. Draw horizontal gridlines & Y labels
     ctx.clearRect(0, 0, clientWidth, clientHeight);
-    const dbmSteps = [-20, -40, -60, -80, -100];
+    const dbmSteps = [-20, -30, -40, -50, -60, -70, -80, -90, -100];
 
     dbmSteps.forEach(dbm => {
       const y = yToPix(dbm);
+      const isMajor = (dbm % 20 === 0) || dbm === -100;
       ctx.beginPath();
-      ctx.strokeStyle = dbm === -100 ? '#cbd5e1' : '#e2e8f0';
-      ctx.lineWidth = dbm === -100 ? 1.5 : 1;
+      ctx.strokeStyle = dbm === -100 ? '#cbd5e1' : (isMajor ? '#e2e8f0' : '#f1f5f9');
+      ctx.lineWidth = dbm === -100 ? 1.5 : (isMajor ? 1 : 0.8);
       if (dbm === -100) {
         ctx.setLineDash([]);
+      } else if (isMajor) {
+        ctx.setLineDash([4, 4]);
       } else {
-        ctx.setLineDash([3, 4]);
+        ctx.setLineDash([2, 4]);
       }
       ctx.moveTo(padLeft, y);
       ctx.lineTo(padLeft + chartW, y);
       ctx.stroke();
 
       // Label
-      ctx.fillStyle = '#64748b';
-      ctx.font = "10px 'Outfit', -apple-system, sans-serif";
+      ctx.fillStyle = isMajor ? '#64748b' : '#94a3b8';
+      ctx.font = isMajor ? "10px 'Outfit', -apple-system, sans-serif" : "9px 'Outfit', -apple-system, sans-serif";
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${dbm} dBm`, padLeft - 8, y);
@@ -1541,12 +1544,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Draw label above the peak
       const rawLabel = ap.ssid || 'Oculto';
-      const shortLabel = rawLabel.length > 15 ? rawLabel.substring(0, 14) + '…' : rawLabel;
+      const shortLabel = rawLabel.length > 22 ? rawLabel.substring(0, 21) + '…' : rawLabel;
       ctx.font = (isConnected || isHovered) ? "bold 11px Outfit, sans-serif" : "600 10px Outfit, sans-serif";
       ctx.fillStyle = color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
       ctx.fillText(shortLabel, peakX, Math.max(padTop - 4, peakY - 6));
+
+      if (isConnected || isHovered) {
+        ctx.font = "bold 9px Outfit, sans-serif";
+        ctx.fillStyle = color;
+        ctx.fillText(`${ap.dbm} dBm`, peakX, Math.max(padTop - 16, peakY - 18));
+      }
 
       // Connected AP indicator dot
       if (isConnected) {

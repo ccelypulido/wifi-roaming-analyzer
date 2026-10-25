@@ -16,7 +16,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
   
-  <link rel="stylesheet" href="styles.css?v=3.1.0">
+  <link rel="stylesheet" href="styles.css?v=3.2.0">
 </head>
 <body>
   <div class="dashboard-container">
@@ -268,73 +268,73 @@
         </div>
       </div>
 
-      <!-- Card 5: Wi-Fi Spectrum & Channel Analysis (2.4 GHz, 5 GHz, 6 GHz, 7 GHz) -->
-      <div class="card card-span-2" id="card-wifi-spectrum">
+      <!-- Card 5: Live Telemetry Graph (Synchronized RF & Application Latency) -->
+      <div class="card card-span-2 chart-card" id="card-telemetry-chart">
         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
           <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
-            <i class="fa-solid fa-wave-square" style="color: var(--accent-cyan);"></i>
-            <span>Análisis de Canales y Espectro Wi-Fi</span>
+            <i class="fa-solid fa-chart-line" style="color: var(--accent-cyan);"></i>
+            <span>Telemetría Sincronizada en Tiempo Real</span>
           </div>
-          
-          <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
-            <div class="preset-buttons" id="spectrum-band-selector">
-              <button type="button" class="preset-btn active" data-band="2.4" id="btn-band-24" title="Ver espectro de canales en banda 2.4 GHz">
-                2.4 GHz <span id="spectrum-count-24" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
-              </button>
-              <button type="button" class="preset-btn" data-band="5" id="btn-band-5" title="Ver espectro de canales en banda 5 GHz">
-                5 GHz <span id="spectrum-count-5" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
-              </button>
-              <button type="button" class="preset-btn" data-band="6" id="btn-band-6" title="Ver espectro de canales en bandas 6 GHz / 7 GHz (Wi-Fi 6E/7)">
-                6 GHz / 7 GHz <span id="spectrum-count-6" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
-              </button>
-            </div>
-            
-            <button type="button" id="btn-spectrum-filter-ssid" class="btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.65rem;" title="Filtrar: Mostrar Todos los SSIDs o Solo mi red">
-              <i class="fa-solid fa-filter"></i> <span id="spectrum-filter-label">Todos</span>
+          <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" id="btn-chart-toggle-capture" class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" title="Pausar o reanudar captura de datos de telemetría (El roaming continúa registrándose)">
+              <i id="btn-chart-capture-icon" class="fa-solid fa-pause"></i>
+              <span id="btn-chart-capture-label">Pausar</span>
             </button>
-            <button type="button" id="btn-refresh-spectrum" class="btn-icon" title="Escanear y actualizar espectro">
-              <i class="fa-solid fa-arrows-rotate"></i>
-            </button>
+            <span class="badge" style="color: var(--accent-cyan); background: rgba(79, 70, 229, 0.08); font-size: 0.75rem;">● Señal (dBm)</span>
+            <span class="badge" style="color: var(--accent-emerald); background: rgba(5, 150, 105, 0.08); font-size: 0.75rem;">● App HTTP (ms)</span>
+            <span class="badge" style="color: var(--accent-sky); background: rgba(2, 132, 199, 0.08); font-size: 0.75rem;">┅ Ping GW (ms)</span>
           </div>
         </div>
 
-        <div class="spectrum-container" style="position: relative; width: 100%; height: 230px; min-height: 230px; max-height: 230px; overflow: hidden;">
-          <canvas id="wifiSpectrumCanvas" style="position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; display: block;"></canvas>
-          <div id="spectrum-tooltip" class="spectrum-tooltip"></div>
-        </div>
-
-        <div id="spectrum-footer-info" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color); font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
-          <div id="spectrum-summary-text">
-            <i class="fa-solid fa-satellite-dish" style="color: var(--accent-cyan); margin-right: 0.3rem;"></i> Analizando ocupación de espectro...
-          </div>
-          <div id="spectrum-recommendation" style="font-weight: 600; color: var(--accent-emerald);">
-            <!-- Recommendation info -->
-          </div>
+        <div class="chart-container">
+          <canvas id="telemetryChart"></canvas>
         </div>
       </div>
 
     </div>
 
-    <!-- Live Telemetry Graph (Synchronized RF & Application Latency) -->
-    <div class="card chart-card">
-      <div class="card-header">
-        <div class="card-title">
-          <i class="fa-solid fa-chart-line"></i>
-          <span>Telemetría Sincronizada en Tiempo Real (Wi-Fi RF dBm, Ping Gateway y Latencia HTTP de Aplicación)</span>
+    <!-- Full-Width Card: Wi-Fi Spectrum & Channel Analysis (2.4 GHz, 5 GHz, 6 GHz, 7 GHz) -->
+    <div class="card spectrum-card" id="card-wifi-spectrum">
+      <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+          <i class="fa-solid fa-wave-square" style="color: var(--accent-cyan);"></i>
+          <span>Análisis de Canales y Espectro Wi-Fi (RF Spectrum Analyzer)</span>
         </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-          <button type="button" id="btn-chart-toggle-capture" class="btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" title="Pausar o reanudar captura de datos de telemetría (El roaming continúa registrándose)">
-            <i id="btn-chart-capture-icon" class="fa-solid fa-pause"></i>
-            <span id="btn-chart-capture-label">Pausar Captura</span>
+        
+        <div style="display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap;">
+          <div class="preset-buttons" id="spectrum-band-selector">
+            <button type="button" class="preset-btn active" data-band="2.4" id="btn-band-24" title="Ver espectro de canales en banda 2.4 GHz">
+              2.4 GHz <span id="spectrum-count-24" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
+            </button>
+            <button type="button" class="preset-btn" data-band="5" id="btn-band-5" title="Ver espectro de canales en banda 5 GHz">
+              5 GHz <span id="spectrum-count-5" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
+            </button>
+            <button type="button" class="preset-btn" data-band="6" id="btn-band-6" title="Ver espectro de canales en bandas 6 GHz / 7 GHz (Wi-Fi 6E/7)">
+              6 GHz / 7 GHz <span id="spectrum-count-6" class="badge" style="font-size: 0.7rem; padding: 0.1rem 0.45rem; margin-left: 0.2rem; background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan);">0</span>
+            </button>
+          </div>
+          
+          <button type="button" id="btn-spectrum-filter-ssid" class="btn-secondary" style="font-size: 0.78rem; padding: 0.35rem 0.65rem;" title="Filtrar: Mostrar Todos los SSIDs o Solo mi red">
+            <i class="fa-solid fa-filter"></i> <span id="spectrum-filter-label">Todos</span>
           </button>
-          <span class="badge" style="color: var(--accent-cyan); background: rgba(79, 70, 229, 0.08);">● Señal Wi-Fi (dBm)</span>
-          <span class="badge" style="color: var(--accent-emerald); background: rgba(5, 150, 105, 0.08);">● App HTTP (ms)</span>
-          <span class="badge" style="color: var(--accent-sky); background: rgba(2, 132, 199, 0.08);">┅ Ping GW (ms)</span>
+          <button type="button" id="btn-refresh-spectrum" class="btn-icon" title="Escanear y actualizar espectro">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
         </div>
       </div>
 
-      <div class="chart-container">
-        <canvas id="telemetryChart"></canvas>
+      <div class="spectrum-container" style="position: relative; width: 100%; height: 320px; min-height: 320px; max-height: 320px; overflow: hidden;">
+        <canvas id="wifiSpectrumCanvas" style="position: absolute; top: 0; left: 0; width: 100% !important; height: 100% !important; display: block;"></canvas>
+        <div id="spectrum-tooltip" class="spectrum-tooltip"></div>
+      </div>
+
+      <div id="spectrum-footer-info" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color); font-size: 0.78rem; color: var(--text-muted); flex-wrap: wrap; gap: 0.5rem;">
+        <div id="spectrum-summary-text">
+          <i class="fa-solid fa-satellite-dish" style="color: var(--accent-cyan); margin-right: 0.3rem;"></i> Analizando ocupación de espectro...
+        </div>
+        <div id="spectrum-recommendation" style="font-weight: 600; color: var(--accent-emerald);">
+          <!-- Recommendation info -->
+        </div>
       </div>
     </div>
 
@@ -879,6 +879,6 @@
 
   </div>
 
-  <script src="app.js?v=3.4.0"></script>
+  <script src="app.js?v=3.5.0"></script>
 </body>
 </html>
