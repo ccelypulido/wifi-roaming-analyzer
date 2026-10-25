@@ -1500,11 +1500,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const locMod = [a.location, a.model].filter(Boolean).join(' • ') || '<span style="color: var(--text-muted); font-size: 0.8rem;">--</span>';
       return `
         <tr>
-          <td style="font-family: monospace; font-weight: 600; color: #e2e8f0;">${bssid}</td>
-          <td><strong style="color: var(--accent-cyan);">${a.name}</strong></td>
-          <td>${locMod}</td>
+          <td style="font-family: monospace; font-weight: 600; color: #334155;">${escapeHtml(bssid)}</td>
+          <td><strong style="color: var(--accent-cyan);">${escapeHtml(a.name)}</strong></td>
+          <td style="color: var(--text-secondary);">${locMod}</td>
           <td style="text-align: center;">
-            <button class="btn-icon-danger" onclick="removeApName('${bssid}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn-icon-danger" onclick="removeApName('${escapeHtml(bssid)}')" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
           </td>
         </tr>
       `;
