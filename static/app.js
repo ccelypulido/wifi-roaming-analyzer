@@ -1233,9 +1233,448 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
         </tr>
       `).join('');
+
+      // Refresh real-time RF Spectrum Analyzer with scanned APs
+      updateSpectrumData(aps);
     } catch (e) {
       console.warn("Error escaneando APs:", e);
     }
+  }
+
+  // --- Wi-Fi Spectrum & Channel Analyzer (2.4 GHz, 5 GHz, 6 GHz, 7 GHz) ---
+  const wifiSpectrumCanvas = document.getElementById('wifiSpectrumCanvas');
+  const spectrumTooltip = document.getElementById('spectrum-tooltip');
+  const spectrumBandSelector = document.getElementById('spectrum-band-selector');
+  const btnSpectrumFilterSsid = document.getElementById('btn-spectrum-filter-ssid');
+  const spectrumFilterLabel = document.getElementById('spectrum-filter-label');
+  const btnRefreshSpectrum = document.getElementById('btn-refresh-spectrum');
+  const spectrumSummaryText = document.getElementById('spectrum-summary-text');
+  const spectrumRecommendation = document.getElementById('spectrum-recommendation');
+  const spectrumCount24 = document.getElementById('spectrum-count-24');
+  const spectrumCount5 = document.getElementById('spectrum-count-5');
+  const spectrumCount6 = document.getElementById('spectrum-count-6');
+
+  let activeSpectrumBand = '2.4';
+  let spectrumOnlySameSsid = false;
+  let cachedSpectrumAps = [];
+  let hoveredSpectrumAp = null;
+  let spectrumAutoSwitched = false;
+
+  const SPECTRUM_COLORS = [
+    '#4f46e5', // Tech Indigo
+    '#0284c7', // Sky Blue
+    '#059669', // Emerald
+    '#d97706', // Amber
+    '#e11d48', // Rose
+    '#7c3aed', // Violet
+    '#0d9488', // Teal
+    '#ea580c', // Orange
+    '#2563eb', // Blue
+    '#6366f1'  // Indigo Light
+  ];
+
+  function getSpectrumColor(ssid, bssid) {
+    const str = (ssid || '') + (bssid || '');
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (h << 5) - h + str.charCodeAt(i);
+      h |= 0;
+    }
+    return SPECTRUM_COLORS[Math.abs(h) % SPECTRUM_COLORS.length];
+  }
+
+  function hexToRgba(hex, alpha) {
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function normalizeApForSpectrum(ap) {
+    let freq = parseFloat(ap.freq || '0');
+    let chan = parseInt(ap.channel || '0', 10);
+    if (isNaN(chan)) chan = 0;
+    if (isNaN(freq)) freq = 0;
+
+    if (chan === 0 && freq > 0) {
+      if (freq >= 2400 && freq < 2500) {
+        chan = Math.round((freq - 2407) / 5);
+        if (chan < 1) chan = 1;
+        if (chan > 14) chan = 14;
+      } else if (freq >= 5000 && freq < 5900) {
+        chan = Math.round((freq - 5000) / 5);
+      } else if (freq >= 5900) {
+        chan = Math.round((freq - 5950) / 5);
+      }
+    }
+
+    let band = '2.4';
+    if (freq >= 5900 || chan > 177) {
+      band = '6';
+    } else if (freq >= 5000 || chan > 14) {
+      band = '5';
+    } else {
+      band = '2.4';
+    }
+
+    const signalPct = Math.max(0, Math.min(100, Number(ap.signal) || 0));
+    let dbm = -100;
+    if (ap.signal_dbm !== undefined && ap.signal_dbm !== null) {
+      dbm = Number(ap.signal_dbm);
+    } else {
+      dbm = Math.round((signalPct / 2) - 100);
+    }
+    dbm = Math.max(-100, Math.min(-10, dbm));
+
+    return {
+      ...ap,
+      chanNum: chan,
+      freqNum: freq,
+      band: band,
+      dbm: dbm,
+      signalPct: signalPct
+    };
+  }
+
+  function updateSpectrumData(aps) {
+    if (!aps || !Array.isArray(aps)) return;
+    cachedSpectrumAps = aps.map(normalizeApForSpectrum);
+
+    // Update band badge counters
+    const count24 = cachedSpectrumAps.filter(a => a.band === '2.4').length;
+    const count5 = cachedSpectrumAps.filter(a => a.band === '5').length;
+    const count6 = cachedSpectrumAps.filter(a => a.band === '6').length;
+
+    if (spectrumCount24) spectrumCount24.textContent = count24;
+    if (spectrumCount5) spectrumCount5.textContent = count5;
+    if (spectrumCount6) spectrumCount6.textContent = count6;
+
+    // Auto-select band of currently connected AP on initial load
+    if (!spectrumAutoSwitched && cachedSpectrumAps.length > 0) {
+      const activeAp = cachedSpectrumAps.find(a => a.active);
+      if (activeAp && (activeAp.band === '5' || activeAp.band === '6')) {
+        activeSpectrumBand = activeAp.band;
+        if (spectrumBandSelector) {
+          spectrumBandSelector.querySelectorAll('button').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.band === activeSpectrumBand);
+          });
+        }
+      }
+      spectrumAutoSwitched = true;
+    }
+
+    drawWifiSpectrum();
+  }
+
+  function drawWifiSpectrum() {
+    if (!wifiSpectrumCanvas) return;
+    const ctx = wifiSpectrumCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = wifiSpectrumCanvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    wifiSpectrumCanvas.width = rect.width * dpr;
+    wifiSpectrumCanvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const padLeft = 52;
+    const padRight = 24;
+    const padTop = 26;
+    const padBottom = 28;
+    const chartW = Math.max(10, rect.width - padLeft - padRight);
+    const chartH = Math.max(10, rect.height - padTop - padBottom);
+
+    function yToPix(dbm) {
+      const clamped = Math.max(-100, Math.min(-10, dbm));
+      return padTop + (1 - (clamped - (-100)) / 90) * chartH;
+    }
+
+    // Configure coordinate scales based on active band
+    let chanToX, channelWidth, ticks = [], bandName = '2.4 GHz';
+    if (activeSpectrumBand === '2.4') {
+      bandName = 'Banda 2.4 GHz';
+      chanToX = (ch) => padLeft + ((ch - 0.5) / 14) * chartW;
+      channelWidth = 2.2;
+      for (let i = 1; i <= 14; i++) ticks.push(i);
+    } else if (activeSpectrumBand === '5') {
+      bandName = 'Banda 5 GHz';
+      chanToX = (ch) => padLeft + ((ch - 32) / (168 - 32)) * chartW;
+      channelWidth = 2.4;
+      ticks = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
+    } else {
+      bandName = 'Banda 6 GHz / 7 GHz (Wi-Fi 6E/7)';
+      chanToX = (ch) => padLeft + ((ch - 1) / (233 - 1)) * chartW;
+      channelWidth = 4.0;
+      ticks = [1, 17, 33, 49, 65, 81, 97, 113, 129, 145, 161, 177, 193, 209, 225, 233];
+    }
+
+    // 1. Draw horizontal gridlines & Y labels
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    const dbmSteps = [-20, -40, -60, -80, -100];
+
+    dbmSteps.forEach(dbm => {
+      const y = yToPix(dbm);
+      ctx.beginPath();
+      ctx.strokeStyle = dbm === -100 ? '#cbd5e1' : '#e2e8f0';
+      ctx.lineWidth = dbm === -100 ? 1.5 : 1;
+      if (dbm === -100) {
+        ctx.setLineDash([]);
+      } else {
+        ctx.setLineDash([3, 4]);
+      }
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(padLeft + chartW, y);
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = '#64748b';
+      ctx.font = "10px 'Outfit', -apple-system, sans-serif";
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${dbm} dBm`, padLeft - 8, y);
+    });
+
+    // 2. Draw vertical ticks and channel labels on X axis
+    ctx.setLineDash([]);
+    ticks.forEach(ch => {
+      const x = chanToX(ch);
+      if (x < padLeft || x > padLeft + chartW) return;
+
+      const isKeyChan = (activeSpectrumBand === '2.4' && (ch === 1 || ch === 6 || ch === 11));
+
+      // Tick line
+      ctx.beginPath();
+      ctx.strokeStyle = isKeyChan ? '#4f46e5' : '#cbd5e1';
+      ctx.lineWidth = isKeyChan ? 1.5 : 1;
+      ctx.moveTo(x, yToPix(-100));
+      ctx.lineTo(x, yToPix(-100) + 5);
+      ctx.stroke();
+
+      // Channel label
+      ctx.font = isKeyChan ? "bold 10px 'Outfit', sans-serif" : "9px 'Outfit', sans-serif";
+      ctx.fillStyle = isKeyChan ? '#4f46e5' : '#64748b';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(String(ch), x, yToPix(-100) + 7);
+    });
+
+    // Watermark band tag
+    ctx.font = "bold 9px 'Outfit', sans-serif";
+    ctx.fillStyle = '#94a3b8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(bandName, padLeft + 6, padTop + 14);
+
+    // 3. Filter APs for current band
+    let visibleAps = cachedSpectrumAps.filter(a => a.band === activeSpectrumBand && a.chanNum > 0);
+    if (spectrumOnlySameSsid) {
+      visibleAps = visibleAps.filter(a => a.is_same_ssid);
+    }
+
+    // Sort APs so weaker ones draw behind stronger ones
+    visibleAps.sort((a, b) => a.dbm - b.dbm);
+
+    // Keep references for hover detection
+    visibleAps.forEach(ap => {
+      ap._curvePeakX = chanToX(ap.chanNum);
+      ap._curvePeakY = yToPix(ap.dbm);
+      ap._curveStartX = chanToX(ap.chanNum - channelWidth);
+      ap._curveEndX = chanToX(ap.chanNum + channelWidth);
+      ap._curveBaseY = yToPix(-100);
+    });
+
+    // Draw curves
+    visibleAps.forEach(ap => {
+      const color = getSpectrumColor(ap.ssid, ap.bssid);
+      const isHovered = hoveredSpectrumAp && (hoveredSpectrumAp.bssid === ap.bssid);
+      const isConnected = !!ap.active;
+
+      const peakX = ap._curvePeakX;
+      const peakY = ap._curvePeakY;
+      const startX = ap._curveStartX;
+      const endX = ap._curveEndX;
+      const baseY = ap._curveBaseY;
+
+      // Draw Bell / Parabolic curve
+      ctx.beginPath();
+      ctx.moveTo(startX, baseY);
+      ctx.bezierCurveTo(
+        startX + (peakX - startX) * 0.45, baseY,
+        peakX - (peakX - startX) * 0.25, peakY,
+        peakX, peakY
+      );
+      ctx.bezierCurveTo(
+        peakX + (endX - peakX) * 0.25, peakY,
+        endX - (endX - peakX) * 0.45, baseY,
+        endX, baseY
+      );
+      ctx.closePath();
+
+      // Semi-transparent gradient fill
+      const grad = ctx.createLinearGradient(0, peakY, 0, baseY);
+      const alphaPeak = (isConnected || isHovered) ? 0.38 : 0.18;
+      const alphaBase = 0.02;
+      grad.addColorStop(0, hexToRgba(color, alphaPeak));
+      grad.addColorStop(1, hexToRgba(color, alphaBase));
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Colored contour stroke
+      ctx.strokeStyle = color;
+      ctx.lineWidth = (isConnected || isHovered) ? 3.0 : 1.8;
+      ctx.stroke();
+
+      // Draw label above the peak
+      const rawLabel = ap.ssid || 'Oculto';
+      const shortLabel = rawLabel.length > 15 ? rawLabel.substring(0, 14) + '…' : rawLabel;
+      ctx.font = (isConnected || isHovered) ? "bold 11px Outfit, sans-serif" : "600 10px Outfit, sans-serif";
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(shortLabel, peakX, Math.max(padTop - 4, peakY - 6));
+
+      // Connected AP indicator dot
+      if (isConnected) {
+        ctx.fillStyle = '#059669';
+        ctx.beginPath();
+        ctx.arc(peakX, peakY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // 4. Update Footer Summary & Recommendations
+    const chanCounts = {};
+    visibleAps.forEach(a => {
+      chanCounts[a.chanNum] = (chanCounts[a.chanNum] || 0) + 1;
+    });
+
+    let maxChan = null, maxCount = 0;
+    for (const [ch, cnt] of Object.entries(chanCounts)) {
+      if (cnt > maxCount) {
+        maxCount = cnt;
+        maxChan = ch;
+      }
+    }
+
+    if (spectrumSummaryText) {
+      if (visibleAps.length === 0) {
+        spectrumSummaryText.innerHTML = `<i class="fa-solid fa-circle-info" style="color: var(--text-muted); margin-right: 0.3rem;"></i> No se detectaron redes en ${bandName}.`;
+      } else {
+        const congInfo = maxChan ? ` • Canal más ocupado: <strong>Ch ${maxChan}</strong> (${maxCount} redes)` : '';
+        spectrumSummaryText.innerHTML = `<i class="fa-solid fa-satellite-dish" style="color: var(--accent-cyan); margin-right: 0.3rem;"></i> <strong>${visibleAps.length}</strong> redes detectadas en ${bandName}${congInfo}`;
+      }
+    }
+
+    if (spectrumRecommendation) {
+      if (activeSpectrumBand === '2.4') {
+        const c1 = chanCounts[1] || 0;
+        const c6 = chanCounts[6] || 0;
+        const c11 = chanCounts[11] || 0;
+        let cleanest = 1, minCount = c1;
+        if (c6 < minCount) { cleanest = 6; minCount = c6; }
+        if (c11 < minCount) { cleanest = 11; minCount = c11; }
+        spectrumRecommendation.innerHTML = `<i class="fa-solid fa-lightbulb" style="color: var(--accent-amber); margin-right: 0.3rem;"></i> Canal 2.4 GHz más libre: <strong>Canal ${cleanest}</strong> (${minCount} APs)`;
+      } else if (activeSpectrumBand === '5') {
+        spectrumRecommendation.innerHTML = `<i class="fa-solid fa-shield-halved" style="color: var(--accent-emerald); margin-right: 0.3rem;"></i> 5 GHz: Menor solapamiento y canales de 40/80 MHz`;
+      } else {
+        spectrumRecommendation.innerHTML = `<i class="fa-solid fa-bolt" style="color: var(--accent-cyan); margin-right: 0.3rem;"></i> 6 GHz / 7 GHz: Cero interferencia de redes legadas`;
+      }
+    }
+  }
+
+  // --- Spectrum Event Handlers & Tooltips ---
+  if (spectrumBandSelector) {
+    spectrumBandSelector.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn || !btn.dataset.band) return;
+      activeSpectrumBand = btn.dataset.band;
+      spectrumBandSelector.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      drawWifiSpectrum();
+    });
+  }
+
+  if (btnSpectrumFilterSsid) {
+    btnSpectrumFilterSsid.addEventListener('click', () => {
+      spectrumOnlySameSsid = !spectrumOnlySameSsid;
+      if (spectrumFilterLabel) {
+        spectrumFilterLabel.textContent = spectrumOnlySameSsid ? 'Solo mi Red' : 'Todos';
+      }
+      btnSpectrumFilterSsid.classList.toggle('active', spectrumOnlySameSsid);
+      drawWifiSpectrum();
+    });
+  }
+
+  if (btnRefreshSpectrum) {
+    btnRefreshSpectrum.addEventListener('click', () => {
+      loadApScanner();
+    });
+  }
+
+  if (wifiSpectrumCanvas) {
+    wifiSpectrumCanvas.addEventListener('mousemove', (e) => {
+      const rect = wifiSpectrumCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      let found = null;
+      let minDistance = 28;
+
+      const visibleAps = cachedSpectrumAps.filter(a => a.band === activeSpectrumBand && a.chanNum > 0);
+      visibleAps.forEach(ap => {
+        if (!ap._curvePeakX) return;
+        const dx = Math.abs(mx - ap._curvePeakX);
+        const dy = Math.abs(my - ap._curvePeakY);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDistance) {
+          minDistance = dist;
+          found = ap;
+        }
+      });
+
+      if (found !== hoveredSpectrumAp) {
+        hoveredSpectrumAp = found;
+        drawWifiSpectrum();
+      }
+
+      if (found && spectrumTooltip) {
+        const color = getSpectrumColor(found.ssid, found.bssid);
+        spectrumTooltip.style.display = 'block';
+        spectrumTooltip.style.left = `${Math.min(rect.width - 240, Math.max(10, mx - 100))}px`;
+        spectrumTooltip.style.top = `${Math.max(10, my - 110)}px`;
+        spectrumTooltip.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 700; margin-bottom: 0.3rem;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>
+            <span style="color: #fff;">${escapeHtml(found.ssid || 'Oculto')}</span>
+            ${found.active ? '<span class="badge" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; background: #059669; color: #fff;">CONECTADO</span>' : ''}
+          </div>
+          <div style="font-size: 0.74rem; color: #cbd5e1; display: flex; flex-direction: column; gap: 0.2rem;">
+            <div>BSSID: <span style="font-family: monospace; color: #fff;">${escapeHtml(found.bssid)}</span></div>
+            ${found.ap_name ? `<div>AP Asignado: <strong style="color: #38bdf8;">${escapeHtml(found.ap_name)}</strong></div>` : ''}
+            <div>Canal: <strong style="color: #fff;">Ch ${found.chanNum}</strong> (${found.freqNum || '--'} MHz)</div>
+            <div>Señal: <strong style="color: ${color};">${found.signalPct}% (${found.dbm} dBm)</strong></div>
+            <div>Fabricante: <span style="color: #94a3b8;">${escapeHtml(found.vendor || 'Desconocido')}</span></div>
+          </div>
+        `;
+      } else if (!found && spectrumTooltip) {
+        spectrumTooltip.style.display = 'none';
+      }
+    });
+
+    wifiSpectrumCanvas.addEventListener('mouseleave', () => {
+      hoveredSpectrumAp = null;
+      if (spectrumTooltip) spectrumTooltip.style.display = 'none';
+      drawWifiSpectrum();
+    });
+
+    window.addEventListener('resize', () => {
+      drawWifiSpectrum();
+    });
   }
 
   // --- Tab 5: Sedes & Zonas Manager ---

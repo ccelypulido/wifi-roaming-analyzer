@@ -294,6 +294,7 @@ def parse_windows_networks(output, current_ssid=None):
             m_sig = re.match(r'(?i)^Señal\s*:\s*(\d+)%', line) or re.match(r'(?i)^Signal\s*:\s*(\d+)%', line)
             if m_sig:
                 current_ap["signal"] = int(m_sig.group(1))
+                current_ap["signal_dbm"] = int((current_ap["signal"] / 2) - 100)
 
             m_chan = re.match(r'(?i)^Canal\s*:\s*(\d+)', line) or re.match(r'(?i)^Channel\s*:\s*(\d+)', line)
             if m_chan:
@@ -584,6 +585,7 @@ def update_wifi_telemetry():
                         "ssid": ap_ssid,
                         "bssid": ap_bssid,
                         "signal": ap_sig,
+                        "signal_dbm": int((ap_sig / 2) - 100),
                         "freq": ap_freq,
                         "channel": ap_chan,
                         "rate": ap_rate,
