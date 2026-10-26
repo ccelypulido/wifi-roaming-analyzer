@@ -23,7 +23,8 @@
    - [6. Gestión Jerárquica de Sedes y Zonas (Walk-Tests y Zonas Estáticas)](#6-gestión-jerárquica-de-sedes-y-zonas-walk-tests-y-zonas-estáticas)
    - [7. Métricas Consolidadas, Percentiles y Paquete de Auditoría ZIP](#7-métricas-consolidadas-percentiles-y-paquete-de-auditoría-zip)
    - [8. Mapeo de Nombres de APs de Controladoras (Cisco, Aruba, UniFi)](#8-mapeo-de-nombres-de-aps-de-controladoras-cisco-aruba-unifi)
-   - [9. Base de Datos IEEE OUI de Fabricantes Offline](#9-base-de-datos-ieee-oui-de-fabricantes-offline)
+   - [9. Base de Datos IEEE OUI de Fabricantes y Actualización Oficial](#9-base-de-datos-ieee-oui-de-fabricantes-y-actualización-oficial)
+   - [10. Parámetros de Configuración Centralizada y Autenticación Corporativa](#10-parámetros-de-configuración-centralizada-y-autenticación-corporativa)
 4. [Estructura del Proyecto](#-estructura-del-proyecto)
 5. [Instalación y Puesta en Marcha](#-instalación-y-puesta-en-marcha)
 6. [Referencia Completa de la API REST](#-referencia-completa-de-la-api-rest)
@@ -56,18 +57,19 @@ El sistema está diseñado bajo un modelo modular de **Zero Pip Dependencies** (
 ```mermaid
 flowchart TD
     subgraph Frontend["Frontend SPA (HTML5 / Vanilla JS / CSS3)"]
-        UI_Dash["Dashboard Telemetría Sincronizada"]
-        UI_Roam["Historial de Roaming & Handoffs"]
-        UI_Spec["Análisis de Espectro y Canales"]
-        UI_HTTP["Fases de Latencia HTTP"]
-        UI_Diag["Diagnóstico ICMP & Traceroute"]
-        UI_Sedes["Gestor Sedes & Zonas"]
-        UI_Audit["Auditoría, Percentiles & Exportación ZIP"]
+        UI_Dash["Dashboard Telemetría Sincronizada (RF dBm, Ping, HTTP)"]
+        UI_Roam["Tab 1: Historial de Roaming & Handoffs"]
+        UI_Spec["Tab 2: Escáner de APs y Espectro (2.4/5/6/7 GHz)"]
+        UI_HTTP["Tab 3: Fases de Latencia HTTP (DNS, TCP, TLS, TTFB)"]
+        UI_Diag["Tab 4: Diagnóstico de Red (Traceroute & Multi-Ping)"]
+        UI_Sedes["Tab 5: Sedes y Zonas (Catálogo Jerárquico)"]
+        UI_Audit["Tab 6: Estadísticas & Auditoría (Percentiles & ZIP)"]
+        UI_Config["Tab 7: Configuración, IEEE OUI & Nombres APs"]
     end
 
     subgraph Backend["Servidor Central (server.py)"]
         Router["HTTP Request Handler (puerto 8050)"]
-        REST_API["API REST (/api/status, /api/stats, /api/export)"]
+        REST_API["API REST (/api/status, /api/oui, /api/export, etc.)"]
         State_Mgr["WiFiState (Gestor de Estado y Concurrencia con Locks)"]
     end
 
@@ -102,6 +104,7 @@ flowchart TD
     UI_Diag <--> REST_API
     UI_Sedes <--> REST_API
     UI_Audit <--> REST_API
+    UI_Config <--> REST_API
 
     Router --> REST_API
     REST_API <--> State_Mgr
@@ -361,15 +364,82 @@ Adicionalmente, un único AP físico que emite múltiples redes emite **BSSIDs v
 
 ---
 
-### 9. Base de Datos IEEE OUI de Fabricantes Offline
+### 9. Base de Datos IEEE OUI de Fabricantes y Actualización Oficial
 
 #### 📚 Contexto Teórico:
-Los primeros 3 octetos (24 bits) de una dirección MAC corresponden al **OUI** (*Organizationally Unique Identifier*) asignado por el IEEE a fabricantes de hardware (ej. `00:0B:86` $\to$ Aruba Networks, `00:1A:A1` $\to$ Cisco Systems).
+Las direcciones de control de acceso al medio (**MAC / EUI-48**) son identificadores físicos de 48 bits (6 octetos) representados convencionalmente en notación hexadecimal (`XX:XX:XX:XX:XX:XX` o `XX-XX-XX-XX-XX-XX`).
+
+El estándar IEEE 802 divide la estructura de una dirección MAC en dos segmentos fundamentales de 24 bits cada uno:
+
+```
+       ┌───────────────────────────────┬───────────────────────────────┐
+       │   OUI (IEEE Manufacturer)     │    NIC / Radio Identifier     │
+       │           24 bits             │            24 bits            │
+       └───────────────────────────────┴───────────────────────────────┘
+         Octeto 1   Octeto 2   Octeto 3   Octeto 4   Octeto 5   Octeto 6
+        [  00   :     0B   :     86  ] : [  12   :     34   :     56  ]
+                         ▲
+                         └─ Asignado a: Aruba Networks / HPE
+```
+
+1. **OUI (Organizationally Unique Identifier):** Los primeros 24 bits (3 octetos) son asignados exclusivamente por la **IEEE Registration Authority** a cada fabricante de hardware (*MA-L: MAC Address Large Registry*).
+   - Bit 0 del primer octeto: **I/G (Individual / Group):** `0` = Unicast, `1` = Multicast/Broadcast.
+   - Bit 1 del primer octeto: **U/L (Universal / Local):** `0` = Globalmente único (asignado oficialmente por IEEE), `1` = Administrado localmente (dirección privada/aleatorizada generada por smartphones o sistemas operativos modernos).
+2. **NIC Specific / Device Identifier:** Los 24 bits restantes (3 octetos) son administrados internamente por el fabricante para numerar de manera unívoca cada tarjeta de red, interfaz física o radio virtual (vBSSID).
+
+En entornos de auditoría y troubleshooting de radiofrecuencia, la resolución OUI en tiempo real ofrece ventajas operativas críticas:
+- **Detección de Rogue APs (Puntos de Acceso Piratas):** Identifica de inmediato si un AP emitiendo el SSID corporativo pertenece a la marca homologada (ej. Cisco, Aruba, Ruckus) o si es un router doméstico o hotspot no autorizado (ej. TP-Link, Xiaomi, Tenda).
+- **Correlación de Fallas de Roaming por Hardware:** Permite diagnosticar si ciertos saltos problemáticos ocurren consistentemente al conectar con APs de un lote o fabricante específico.
+- **Auditoría Física y Mapeo en Sitio:** Ayuda a los ingenieros de campo a localizar rápidamente equipos físicos en techos o bandejas portacables.
 
 #### ⚙️ Cómo Funciona ([core/oui_manager.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/oui_manager.py)):
-- Base de datos local precargada con más de 40,000 registros en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json).
-- **Actualización en 1 Clic:** Posibilidad de descargar y recompilar el registro oficial del IEEE directamente desde la web o mediante CLI (`python3 scripts/update_oui.py`).
-- Soporte de registros personalizados (*custom overrides*) que no se sobrescriben al actualizar.
+- **Base de Datos Local Offline:** Incluye un archivo precompilado en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json) con **más de 40,358 fabricantes registrados** por el IEEE, operando al 100% en entornos air-gapped o sin acceso a Internet.
+- **Normalización de Formatos MAC:** Acepta indistintamente delimitadores de dos puntos (`00:1A:2B`), guiones (`00-1A-2B`), puntos tipo Cisco (`001A.2B`) o cadenas continuas (`001A2B`).
+- **Gestión Visual Centralizada (Pestaña 7 - "Configuración"):**
+  - **Métricas Visuales en Vivo:** Tarjetas resumen de *Total Fabricantes*, *Personalizados* y *Fecha de Última Sincronización*.
+  - **Sincronización en 1 Clic con el IEEE (`Actualizar desde IEEE`):** Descarga en segundo plano el registro oficial MA-L (`standards-oui.ieee.org`), procesa el archivo CSV e incorpora las nuevas asignaciones sin reiniciar el servidor.
+  - **Banner Dinámico de Progreso:** Alerta visual en tiempo real que reporta los estados de avance (`Conectando`, `Descargando`, `Procesando`, `Completado`).
+  - **Búsqueda Instantánea con Debounce:** Cuadro de búsqueda reactivo con retardo de 300 ms para consultar inmediatamente por prefijo MAC o por nombre comercial del fabricante.
+  - **Registro de Prefijos Personalizados (Custom Overrides):** Permite registrar prefijos o modelos particulares de laboratorio (ej. `00:1A:1E` $\to$ `Cisco Catalyst Lab 9130`). Estos registros tienen prioridad absoluta y **se conservan íntegros ante cualquier actualización oficial del IEEE**.
+  - **Eliminación Rápida:** Botón de papelera en la tabla para remover personalizaciones en un clic.
+- **Herramienta de Consola (CLI):** Sincronizable y consultable también desde terminal mediante [scripts/update_oui.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/scripts/update_oui.py).
+
+---
+
+### 10. Parámetros de Configuración Centralizada y Autenticación Corporativa
+
+#### 📚 Contexto Teórico:
+Las aplicaciones empresariales de misión crítica (como **SAP Fiori**, **Oracle WMS**, **Manhattan SCALE** o **Microsoft SharePoint**) típicamente implementan mecanismos robustos de control de acceso en Capa 7 (Aplicación).
+
+Para evaluar con fidelidad la latencia y disponibilidad real que experimenta un usuario o terminal móvil, la sonda de diagnóstico debe autenticarse de forma transparente y legítima frente al servidor web o gateway corporativo:
+- **NTLM (NT LAN Manager) v1 y v2:** Protocolo propietario de Microsoft basado en un desafío/respuesta (*Challenge-Response*) de tres vías con funciones hash criptográficas DES, MD4 y HMAC-MD5. Es el estándar obligatorio en portales corporativos basados en IIS y SharePoint con integración a Active Directory.
+- **Basic Authentication (RFC 7617):** Esquema donde las credenciales de usuario y contraseña se transmiten en Base64 bajo el encabezado HTTP estándar `Authorization: Basic <credentials>`.
+- **Bearer Tokens / OAuth2 (RFC 6750):** Mecanismo utilizado por arquitecturas modernas de microservicios y APIs REST, donde la autorización se concede mediante un token criptográfico o JWT en el encabezado `Authorization: Bearer <token>`.
+
+#### ⚙️ Cómo Funciona (Pestaña 7 - "Configuración"):
+La pestaña **Configuración** consolida en un único panel de control todas las variables de operación del sistema:
+
+1. **Card 1: Selección de Interfaz de Red Wi-Fi:**
+   - Detecta automáticamente todas las interfaces inalámbricas activas en Linux (`wlan0`, `wlan1`, `wlp3s0`).
+   - Permite conmutar la interfaz monitoreada en caliente sin necesidad de reiniciar el servicio ni interrumpir la captura.
+2. **Card 2: Parámetros del Motor de Telemetría:**
+   - *Intervalo de Muestreo:* Frecuencia de escaneo y consulta de radiofrecuencia (por defecto 5 segundos).
+   - *Timeout de Sonda:* Tiempo máximo de espera para peticiones HTTP antes de declarar falla.
+   - *Verificación SSL:* Permite deshabilitar la validación de certificados para entornos de prueba con certificados autofirmados o de CA interna.
+   - *Destinos Adicionales de Ping:* Direcciones IP o nombres de host adicionales (ej. base de datos o controlador de dominio) separados por comas.
+   - *Diagnóstico Periódico de Red:* Frecuencia en minutos para disparar automáticamente pruebas de Traceroute y Multi-ping.
+   - *Pausa y Reanudación de Captura:* Selector que permite pausar temporalmente la ingesta de telemetría sin perder la configuración activa.
+3. **Card 3: Inventario y Mapeo de Nombres de APs:**
+   - Asignación manual de nombres nemotécnicos de AP a BSSIDs físicos o virtuales.
+   - **Importador CSV Inteligente:** Parser capaz de interpretar exportaciones de Cisco Catalyst Center, Aruba Central/AirWave, FortiGate y UniFi.
+   - Exportación de respaldo en formato CSV y botón de limpieza total con diálogo de confirmación.
+4. **Card 4: Base de Datos de Fabricantes IEEE OUI:**
+   - Panel de control completo para consulta, búsqueda reactiva, registro de fabricantes propios y sincronización en 1 clic con el registro de la IEEE.
+5. **Card 5: Autenticación Empresarial (Capa 7):**
+   - Selector dinámico de esquema: `NTLMv1/v2`, `Basic Auth` o `Bearer Token`.
+   - Campos configurables de Dominio, Usuario, Contraseña y Token con revelador visual interactivo (`eye toggle`).
+   - **Motor Criptográfico NTLM Nativo ([core/ntlm_auth.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/ntlm_auth.py)):** Implementa el handshake NTLMv2 completo (`Type 1 Negotiation` $\to$ `Type 2 Challenge` $\to$ `Type 3 Authentication`) utilizando sockets y la biblioteca estándar de Python sin requerir librerías externas.
+   - **Botón `Probar Credenciales Ahora`:** Ejecuta una sonda HTTP inmediata contra la URL de destino (`POST /api/probe/now`) y despliega al instante el código de respuesta HTTP obtenido (ej. `200 OK`, `401 Unauthorized`), la latencia total y cualquier error devuelto por el servidor, validando las credenciales antes de iniciar recorridos en sitio.
 
 ---
 
@@ -456,30 +526,44 @@ python3 server.py --list
 
 | Endpoint | Parámetros Query | Descripción |
 | :--- | :--- | :--- |
-| `GET /api/status` | - | Estado en tiempo real del AP conectado, RSSI, canal, bitrates y última sonda HTTP. |
-| `GET /api/scan` | - | Lista de todos los APs vecinos detectados con BSSID, SSID, dBm, canal, banda y fabricante. |
-| `GET /api/interfaces` | - | Interfaces Wi-Fi disponibles en el sistema operativo y la interfaz activa. |
-| `GET /api/stats` | `location`, `zone`, `start_date`, `end_date` | Estadísticas acumuladas, percentiles ($P_{50}, P_{90}, P_{95}, P_{99}$), jitter y uptime. |
-| `GET /api/history` | `limit`, `location`, `zone` | Muestras recientes de telemetría de red y radiofrecuencia. |
-| `GET /api/roaming-history`| `limit`, `location`, `zone` | Registro de eventos de roaming (handoffs) y veredictos. |
-| `GET /api/http-phases/history`| `limit`, `location`, `zone` | Historial de mediciones de latencia HTTP desglosadas por fases. |
-| `GET /api/net-diag` | - | Caché del último diagnóstico de Gateway, servidores DNS locales e historial. |
-| `GET /api/locations` | `configured_only`, `only_data` | Listado de sedes disponibles para auditoría o configuración. |
+| `GET /api/status` | - | Estado en tiempo real del AP conectado, RSSI (dBm), canal, bitrates, ping y última sonda HTTP. |
+| `GET /api/scan` | - | Lista de todos los APs vecinos detectados con BSSID, SSID, dBm, canal, banda y fabricante OUI. |
+| `GET /api/interfaces` | - | Interfaces Wi-Fi detectadas por el sistema operativo y la interfaz activa monitoreada. |
+| `GET /api/stats` | `location`, `zone`, `start_date`, `end_date` | Estadísticas acumuladas, percentiles ($P_{50}, P_{90}, P_{95}, P_{99}$), jitter y uptime de sesión. |
+| `GET /api/history` | `limit`, `location`, `zone` | Muestras recientes de telemetría de radiofrecuencia, ping y HTTP. |
+| `GET /api/roaming-history`| `limit`, `location`, `zone` | Registro cronológico de eventos de roaming (handoffs) y veredictos de calidad. |
+| `GET /api/http-phases/history`| `limit`, `location`, `zone` | Historial de latencia HTTP desglosada por fases (DNS, TCP, TLS, TTFB, Transfer). |
+| `GET /api/net-diag` | - | Caché del último diagnóstico de Gateway, servidores DNS locales e historial de Traceroute. |
+| `GET /api/locations` | `configured_only`, `only_data` | Listado jerárquico de sedes disponibles para auditoría o configuración. |
 | `GET /api/zones` | - | Mapeo relacional de Sedes a Zonas configuradas. |
-| `GET /api/export` | `type`, `format`, `location`, `zone`, `start_date`, `end_date` | Genera y descarga informes individuales CSV o el paquete completo `.ZIP`. |
+| `GET /api/oui` | - | Resumen general de la base de datos de fabricantes OUI (total, personalizados, fecha de actualización). |
+| `GET /api/oui/search` | `q`, `limit` | Búsqueda reactiva de fabricantes por prefijo MAC (ej: `00:1A:2B`) o nombre (`Cisco`, `Aruba`, etc.). |
+| `GET /api/oui/status` | - | Estado en tiempo real del proceso de sincronización con la IEEE (`idle`, `downloading`, `processing`, `completed`). |
+| `GET /api/ap-names` | `q`, `limit` | Inventario de nombres de APs registrados (BSSID, nombre asignado, ubicación y modelo). |
+| `GET /api/presets` | - | Listado de presets de configuración rápida predefinidos (Manhattan WMS, SAP GUI, Retail POS, etc.). |
+| `GET /api/export` | `type`, `format`, `location`, `zone`, `start_date`, `end_date` | Genera y descarga informes individuales CSV o el paquete consolidado `.ZIP`. |
 
 ### Endpoints de Control y Configuración (POST):
 
 | Endpoint | Payload JSON | Descripción |
 | :--- | :--- | :--- |
-| `POST /api/config` | `{ "target_url": "...", "probe_interval": 5, ... }` | Actualiza la configuración global del motor de telemetría. |
-| `POST /api/locations/sync` | `{}` | Recarga limpiamente el catálogo maestro desde `data/sedes_zonas.json`. |
+| `POST /api/config` | `{ "target_url": "...", "probe_interval_seconds": 5, ... }` | Actualiza la configuración global del motor de telemetría y autenticación. |
+| `POST /api/probe/now` | `{}` | Dispara una sonda HTTP inmediata para validar en caliente la conexión y las credenciales corporativas. |
+| `POST /api/trigger-test-ping` | `{}` | Ejecuta una ráfaga de pings de prueba hacia el gateway para evaluar estabilidad y pérdida de paquetes. |
+| `POST /api/locations/sync` | `{}` | Recarga limpiamente el catálogo maestro desde `data/sedes_zonas.json` reemplazando zonas en memoria. |
 | `POST /api/locations/delete`| `{ "location": "Nombre_Sede" }` | Elimina una sede de la configuración activa. |
 | `POST /api/zones` | `{ "location": "Sede", "zone": "Nueva_Zona" }` | Registra una nueva zona operativa en la sede indicada. |
 | `POST /api/zones/delete` | `{ "location": "Sede", "zone": "Zona" }` | Elimina una zona específica de la sede indicada. |
 | `POST /api/net-diag/run` | `{}` | Dispara un diagnóstico de red en tiempo real (Multi-ping y Traceroute). |
+| `POST /api/oui/update` | `{}` | Inicia la descarga y compilación del registro oficial de fabricantes del IEEE en segundo plano. |
+| `POST /api/oui/add` | `{ "prefix": "00:1A:1E", "vendor": "Nombre" }` | Registra o actualiza un prefijo OUI personalizado con persistencia garantizada. |
+| `POST /api/oui/remove` | `{ "prefix": "00:1A:1E" }` | Elimina un prefijo OUI personalizado. |
+| `POST /api/ap-names/add` | `{ "bssid": "...", "name": "...", "location": "...", "model": "..." }` | Registra o actualiza un Access Point en el inventario. |
+| `POST /api/ap-names/remove` | `{ "bssid": "..." }` | Elimina un Access Point del inventario. |
+| `POST /api/ap-names/import-csv` | `{ "csv_content": "..." }` | Importación masiva de inventario de APs desde archivo CSV. |
+| `POST /api/ap-names/clear` | `{}` | Elimina todos los Access Points registrados en el inventario. |
 | `POST /api/clear` | `{ "scope": "all" \| "telemetry" \| "roaming" }` | Limpia los historiales de la base de datos según el alcance seleccionado. |
-| `POST /api/set-interface` | `{ "interface": "wlan0" }` | Cambia en caliente la interfaz inalámbrica monitoreada. |
+| `POST /api/set-interface` | `{ "interface": "wlan0" }` | Cambia en caliente la interfaz inalámbrica monitoreada sin reiniciar. |
 
 ---
 
