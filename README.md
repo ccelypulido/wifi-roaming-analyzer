@@ -1,357 +1,527 @@
 # 📶 Wi-Fi & Enterprise Application Telemetry Analyzer
 
-Un analizador multipropósito e interactivo de red y aplicaciones que monitorea **en tiempo real** la intensidad de señal Wi-Fi (RF), el roaming automático entre Access Points y la **latencia HTTP por fases** hacia endpoints corporativos en **Tiendas/POS**, **Sedes Administrativas** y **Centros de Distribución / Bodegas**.
+> **Plataforma Integral de Diagnóstico de Red y Observabilidad de Aplicaciones en Tiempo Real**  
+> *¿Congelamiento de terminales o lentitud operativa? Diagnóstico instantáneo: Capa 1/2 (Wi-Fi RF / Roaming) vs Capa 3/4 (Transporte / Red) vs Capa 7 (Servidor / Aplicación).*
 
-## 🎯 ¿Qué es este proyecto?
+[![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![Zero External Dependencies](https://img.shields.io/badge/Dependencies-Zero%20Pip%20Packages-success.svg)](requirements.txt)
+[![Offline Ready](https://img.shields.io/badge/Offline-100%25%20Air--Gapped-brightgreen.svg)](#-arquitectura-100-offline-y-zero-pip-dependencies)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey.svg)](LICENSE)
 
-Este es un dashboard visual y plataforma de observabilidad de conectividad diseñada para responder de inmediato si un congelamiento o lentitud en terminales o equipos se debe a la **red inalámbrica (Capa 1/2)** o al **servidor/aplicación (Capa 3/4/7)**:
+---
 
-- **Intensidad de Señal Wi-Fi** 📊 - Métricas de dBm, porcentaje de cobertura, canal, banda (2.4/5/6 GHz) y tasas TX/RX.
-- **Latencia de Aplicación Multipropósito** ⏱️ - Sonda HTTP de bajo nivel con desglose secuencial de 5 fases: **Resolución DNS**, **Handshake TCP**, **Negociación TLS/SSL**, **Time to First Byte (TTFB)** y **Transferencia**.
-- **Perfiles de Entorno Preconfigurados** 🏢 - Ajuste inmediato para:
-  - 🏬 **Tienda / Punto de Venta (POS):** Monitoreo de cajas, pasarelas de pago y piso de venta.
-  - 🏢 **Sede Administrativa / Oficinas:** Laptops corporativas, videollamadas VoIP, ERP (SAP/Oracle) y Microsoft 365.
-  - 🏭 **Centro de Distribución / Bodega:** Terminales PDA, pistolas RF y Manhattan WMS/SCE.
-  - ⚙️ **Personalizado / Libre:** Cualquier URL interna o externa en HTTP/HTTPS con o sin autenticación.
-- **Diagnóstico Integral de Red** 🛠️ - Pings simultáneos a Puerta de Enlace, Servidores DNS locales y Servidor Aplicativo, junto con **Traceroute paso a paso**.
-- **Gestión Jerárquica de Sedes y Zonas** 📍 - Categorización de auditoría por ubicación física (ej. *Tienda 102 -> Cajas 1-4* o *Bodega -> Rack 5*).
-- **Eventos de Roaming (Handoffs)** 🔄 - Detección automática de cambios de AP con medición del impacto de latencia antes y después del salto.
-- **Persistencia SQLite WAL y Exportación CSV** 💾 - Histórico completo, cálculo de percentiles ($P_{50}, P_{90}, P_{95}, P_{99}$) y auditoría exportable.
-- **Zero Pip Dependencies & 100% Offline** ⚡ - Funciona con la biblioteca estándar de Python sin requerir instalación de paquetes externos ni conexión a internet en sitios cerrados.
+## 📑 Tabla de Contenidos
+
+1. [Visión General y Propósito](#-visión-general-y-propósito)
+2. [Arquitectura General del Sistema](#-arquitectura-general-del-sistema)
+3. [Funcionalidades Principales y Contexto Teórico](#-funcionalidades-principales-y-contexto-teórico)
+   - [1. Telemetría Wi-Fi en Tiempo Real y Monitoreo RF](#1-telemetría-wi-fi-en-tiempo-real-y-monitoreo-rf)
+   - [2. Análisis y Detección de Eventos de Roaming (Handoffs)](#2-análisis-y-detección-de-eventos-de-roaming-handoffs)
+   - [3. Espectro Wi-Fi y Análisis de Canales (2.4 GHz, 5 GHz, 6 GHz, 7 GHz)](#3-espectro-wi-fi-y-análisis-de-canales-24-ghz-5-ghz-6-ghz-7-ghz)
+   - [4. Sonda de Latencia HTTP de Alta Precisión por Fases (Capa 7)](#4-sonda-de-latencia-http-de-alta-precisión-por-fases-capa-7)
+   - [5. Diagnóstico de Red ICMP y Traceroute Inteligente](#5-diagnóstico-de-red-icmp-y-traceroute-inteligente)
+   - [6. Gestión Jerárquica de Sedes y Zonas (Walk-Tests y Zonas Estáticas)](#6-gestión-jerárquica-de-sedes-y-zonas-walk-tests-y-zonas-estáticas)
+   - [7. Métricas Consolidadas, Percentiles y Paquete de Auditoría ZIP](#7-métricas-consolidadas-percentiles-y-paquete-de-auditoría-zip)
+   - [8. Mapeo de Nombres de APs de Controladoras (Cisco, Aruba, UniFi)](#8-mapeo-de-nombres-de-aps-de-controladoras-cisco-aruba-unifi)
+   - [9. Base de Datos IEEE OUI de Fabricantes Offline](#9-base-de-datos-ieee-oui-de-fabricantes-offline)
+4. [Estructura del Proyecto](#-estructura-del-proyecto)
+5. [Instalación y Puesta en Marcha](#-instalación-y-puesta-en-marcha)
+6. [Referencia Completa de la API REST](#-referencia-completa-de-la-api-rest)
+7. [Herramientas de Línea de Comandos (CLI)](#-herramientas-de-línea-de-comandos-cli)
+
+---
+
+## 🎯 Visión General y Propósito
+
+En entornos empresariales críticos (**Centros de Distribución con WMS Manhattan/SAP**, **Puntos de Venta POS en Retail**, **Centros Hospitalarios** y **Oficinas Corporativas**), las terminales de radiofrecuencia (pistolas PDA, handhelds, lectores de código de barras y carretillas elevadoras) frecuentemente sufren desconexiones, pantallas congeladas o bloqueos intermitentes.
+
+El personal operativo suele atribuir el problema a *"la señal Wi-Fi"*, mientras que los ingenieros de infraestructura sospechan de *"la aplicación o la base de datos"*.
+
+**Wi-Fi & Enterprise Telemetry Analyzer** resuelve esta discrepancia de forma definitiva mediante telemetría simultánea y correlacionada:
+
+```mermaid
+flowchart LR
+    A["Terminal / Cliente Móvil"] --> B{"¿Dónde está el problema?"}
+    B -->|"Capa 1/2: RF & Roaming"| C["Caída de dBm, Salto a AP lejano, Handoff lento o Ping Gap"]
+    B -->|"Capa 3/4: Transporte"| D["Pérdida en Gateway, DNS local saturado o salto Traceroute"]
+    B -->|"Capa 7: Servidor/App"| E["TTFB elevado, Timeout TLS, Bloqueo de Backend o Servidor Web"]
+```
+
+---
+
+## 🏛️ Arquitectura General del Sistema
+
+El sistema está diseñado bajo un modelo modular de **Zero Pip Dependencies** (utiliza exclusivamente la biblioteca estándar de Python) y arquitectura **100% Offline-Ready** para funcionar en sitios de alta seguridad o áreas cerradas sin acceso a internet.
+
+```mermaid
+flowchart TD
+    subgraph Frontend["Frontend SPA (HTML5 / Vanilla JS / CSS3)"]
+        UI_Dash["Dashboard Telemetría Sincronizada"]
+        UI_Roam["Historial de Roaming & Handoffs"]
+        UI_Spec["Análisis de Espectro y Canales"]
+        UI_HTTP["Fases de Latencia HTTP"]
+        UI_Diag["Diagnóstico ICMP & Traceroute"]
+        UI_Sedes["Gestor Sedes & Zonas"]
+        UI_Audit["Auditoría, Percentiles & Exportación ZIP"]
+    end
+
+    subgraph Backend["Servidor Central (server.py)"]
+        Router["HTTP Request Handler (puerto 8050)"]
+        REST_API["API REST (/api/status, /api/stats, /api/export)"]
+        State_Mgr["WiFiState (Gestor de Estado y Concurrencia con Locks)"]
+    end
+
+    subgraph Core["Motores Core de Medición (core/)"]
+        M_Probe["probe.py (Sonda HTTP de 5 Fases con Sockets)"]
+        M_Diag["net_diag.py (Gateway, Multi-Ping, Traceroute)"]
+        M_Auth["ntlm_auth.py (Motor Criptográfico NTLMv1/v2 Nativo)"]
+        M_AP["ap_manager.py (Mapeo BSSID / vBSSID a AP Name)"]
+        M_OUI["oui_manager.py (Resolución Offline IEEE OUI)"]
+    end
+
+    subgraph Storage["Capa de Persistencia Relacional (database/)"]
+        SQLite["SQLite WAL Mode (telemetry.db)"]
+        T_Samples["telemetry_samples (Muestras Sincronizadas)"]
+        T_Roam["roaming_events (Saltos entre APs)"]
+        T_HTTP["http_probe_history (Fases de Latencia)"]
+        T_Diag["net_diag_history (ICMP & Traceroute)"]
+        T_Config["config (Configuración del Sistema)"]
+        JSON_Catalog["data/sedes_zonas.json (Catálogo Maestro)"]
+    end
+
+    subgraph OS_Network["Capa de Red del Sistema Operativo (Linux)"]
+        NL80211["nl80211 / iw / iwconfig (Estado Wi-Fi y Escaneo)"]
+        IPRoute["ip route (Detección de Default Gateway)"]
+        Resolv["/etc/resolv.conf (Servidores DNS del Sistema)"]
+    end
+
+    UI_Dash <--> REST_API
+    UI_Roam <--> REST_API
+    UI_Spec <--> REST_API
+    UI_HTTP <--> REST_API
+    UI_Diag <--> REST_API
+    UI_Sedes <--> REST_API
+    UI_Audit <--> REST_API
+
+    Router --> REST_API
+    REST_API <--> State_Mgr
+    State_Mgr <--> M_Probe
+    State_Mgr <--> M_Diag
+    State_Mgr <--> M_AP
+    State_Mgr <--> M_OUI
+
+    M_Probe <--> M_Auth
+    M_Probe --> SQLite
+    M_Diag --> SQLite
+    State_Mgr --> SQLite
+    SQLite --> T_Samples
+    SQLite --> T_Roam
+    SQLite --> T_HTTP
+    SQLite --> T_Diag
+    SQLite --> T_Config
+    JSON_Catalog <--> SQLite
+
+    State_Mgr <--> NL80211
+    M_Diag <--> IPRoute
+    M_Diag <--> Resolv
+```
+
+---
+
+## 🔬 Funcionalidades Principales y Contexto Teórico
+
+### 1. Telemetría Wi-Fi en Tiempo Real y Monitoreo RF
+
+#### 📚 Contexto Teórico:
+La intensidad de señal recibida (**RSSI**, *Received Signal Strength Indicator*) se mide en **dBm** (decibelios relativos a 1 milivatio). Es una escala logarítmica donde cada incremento de 3 dB duplica la potencia de la señal:
+- **-30 a -50 dBm:** Señal excepcional (muy cerca del AP).
+- **-50 a -65 dBm:** Rango óptimo empresarial para datos de alta velocidad y voz/VoIP.
+- **-67 dBm:** Umbral mínimo de diseño recomendado por Cisco/Aruba para roaming corporativo.
+- **-70 a -75 dBm:** Cobertura límite; los clientes inician escaneos agresivos para cambiar de AP.
+- **-80 dBm o menor:** Zona muerta o altamente susceptible a pérdidas de paquetes y desasociación.
+
+#### ⚙️ Cómo Funciona:
+El motor consulta la interfaz inalámbrica activa en Linux a través de `nl80211` (`iw dev <iface> link`) o herramientas de soporte (`iwconfig` / `nmcli`). Extrae en tiempo real:
+- **BSSID y SSID:** Dirección física MAC del radio del AP y nombre de red.
+- **Canal y Frecuencia Central:** Frecuencia exacta en MHz y canal asignado.
+- **Banda Operativa:** Clasificación inmediata en 2.4 GHz, 5.0 GHz o 6.0 GHz.
+- **Tasas de Transmisión (TX/RX Bitrate):** Modulación MCS, ancho de canal y número de flujos espaciales (NSS).
+- **Ping Local a Puerta de Enlace:** Mide el retardo puro de la capa inalámbrica hacia el router/switch local.
+
+---
+
+### 2. Análisis y Detección de Eventos de Roaming (Handoffs)
+
+#### 📚 Contexto Teórico:
+El **roaming Wi-Fi** (o *handoff*) es el proceso mediante el cual un dispositivo cliente decide desconectarse de su Access Point actual y asociarse a otro AP con mejor señal o menor congestión dentro del mismo ESSID.
+- **Roaming Proactivo / Eficiente:** El cliente detecta degradación (< -70 dBm) y cambia a un AP con ganancia positiva ($\Delta > 10 \text{ dBm}$) con una interrupción mínima.
+- **Sticky Client (Cliente Pegajoso):** El dispositivo permanece atado a un AP lejano (-78 dBm) a pesar de estar físicamente debajo de un AP con -45 dBm, causando lentitud extrema.
+- **Roaming Degradado / Ineficiente:** El cliente salta a un AP con igual o peor señal ($\Delta \le 0 \text{ dBm}$).
+- **Ping Gap:** Lapso de milisegundos en el que la interfaz pierde conectividad de Capa 2 durante el reasociamiento y reautenticación 802.1X/WPA2-PSK.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Operador as Técnico con PDA / Handheld
+    participant AP_Orig as AP Origen (BSSID A)
+    participant Cliente as Motor Analizador
+    participant AP_Dest as AP Destino (BSSID B)
+    participant SQLite as telemetry.db
+
+    Operador->>Cliente: Se desplaza por pasillo de Bodega
+    Cliente->>AP_Orig: Telemetría periódica (-72 dBm, Ping 4 ms)
+    Note over Cliente: Detección de cambio de BSSID
+    Cliente->>AP_Dest: Reasociación a nuevo radio (-52 dBm)
+    Cliente->>Cliente: Ejecución de Ping de verificación post-salto
+    Cliente->>Cliente: Cálculo de Delta (+20 dBm) y verificación de latencia HTTP
+    Cliente->>SQLite: Registro de Evento de Roaming con Veredicto "Excelente Mejora (+20 dBm)"
+```
+
+#### ⚙️ Cómo Funciona:
+El hilo supervisor compara en cada iteración el BSSID actual con el BSSID anterior. Si detecta un cambio:
+1. Registra el instante exacto (`timestamp` Unix en UTC).
+2. Captura la señal antes del salto (`prev_signal_dbm`) y la señal del nuevo AP (`new_signal_dbm`).
+3. Calcula el $\Delta \text{ dBm} = \text{Señal Nueva} - \text{Señal Anterior}$.
+4. Dispara un ciclo de diagnóstico de red inmediato para medir si hubo pérdida de paquetes en el salto.
+5. Emite un **Veredicto Automático** clasificado en:
+   - 🟢 **Excelente Mejora ($\ge +10 \text{ dBm}$)**
+   - 🔵 **Mejora Aceptable ($+3 \text{ a } +9 \text{ dBm}$)**
+   - 🟡 **Roaming Lateral / Neutro ($-2 \text{ a } +2 \text{ dBm}$)**
+   - 🔴 **Roaming Degradado ($\le -3 \text{ dBm}$)**
+
+---
+
+### 3. Espectro Wi-Fi y Análisis de Canales (2.4 GHz, 5 GHz, 6 GHz, 7 GHz)
+
+#### 📚 Contexto Teórico:
+La interferencia en redes Wi-Fi proviene de dos fuentes:
+- **Interferencia Co-Canal (CCI):** Varios APs transmitiendo en la misma frecuencia central compiten por el medio mediante CSMA/CA, causando retardo y encolamiento.
+- **Interferencia de Canal Adyacente (ACI):** APs en canales solapados (típico en 2.4 GHz en canales que no sean 1, 6 u 11) degradan el SNR (*Signal-to-Noise Ratio*).
+- **Anchos de Canal:** Canales de 20 MHz (máxima estabilidad en almacenes), 40 MHz, 80 MHz y 160 MHz (alta velocidad pero mayor susceptibilidad a interferencia).
+
+```
+   Banda 2.4 GHz (Canales No Solapados):
+   [-- Canal 1 --]       [-- Canal 6 --]       [-- Canal 11 --]
+     2412 MHz              2437 MHz              2462 MHz
+
+   Banda 5 GHz (UNII-1, UNII-2, UNII-3):
+   [Ch 36] [Ch 40] [Ch 44] [Ch 48] ... [Ch 149] [Ch 153] [Ch 157] [Ch 161]
+```
+
+#### ⚙️ Cómo Funciona:
+El analizador activa un escaneo de fondo periódico (`iw dev scan` o `nmcli dev wifi`) y grafica en tiempo real un **diagrama parabólico de densidad espectral**:
+- **Curvas de campana parabólica:** La altura de cada campana representa la intensidad RSSI en dBm; el ancho de la campana representa el ancho de canal (20, 40, 80 o 160 MHz).
+- **Filtro Multi-Banda:** Selector para alternar instantáneamente entre **Todas las Bandas**, **2.4 GHz**, **5.0 GHz**, **6.0 GHz (Wi-Fi 6E)** y **7.0 GHz (Wi-Fi 7)**.
+- **Resaltado del AP Conectado:** El radio activo se resalta con borde de alta luminosidad y etiquetas distintivas.
+- **Tooltip Técnico Interactivo:** Al pasar el cursor sobre cualquier campana, se desglosa el SSID, BSSID, Nombre de AP corporativo, canal exacto, frecuencia en MHz, dBm y fabricante del hardware.
+
+---
+
+### 4. Sonda de Latencia HTTP de Alta Precisión por Fases (Capa 7)
+
+#### 📚 Contexto Teórico:
+Una solicitud HTTP/HTTPS hacia un servidor de aplicaciones transita por múltiples fases que deben aislarse para diagnosticar con certeza el origen de un retardo:
+
+```mermaid
+gantt
+    title Desglose de Fases de Latencia HTTP (Capa 7)
+    dateFormat X
+    axisFormat %s ms
+    section Fases de Conexión
+    1. Resolución DNS          :done, 0, 15
+    2. Handshake TCP (SYN/ACK) :active, 15, 45
+    3. Negociación TLS / SSL   :crit, 45, 110
+    4. Espera Servidor (TTFB)  :milestone, 110, 240
+    5. Descarga de Contenido   :done, 240, 260
+```
+
+1. **Resolución DNS (`DNS Lookup`):** Tiempo en traducir el nombre de dominio a IP. Un valor alto (> 50 ms) delata servidores DNS locales mal configurados o saturados.
+2. **Handshake TCP (`TCP Connect`):** Tiempo del saludo de 3 vías (`SYN -> SYN-ACK -> ACK`). Es el indicador puro del **Round Trip Time (RTT)** de la red física.
+3. **Negociación TLS (`TLS Handshake`):** Intercambio criptográfico de certificados y claves simétricas. Requiere típicamente 1 o 2 RTTs adicionales y procesamiento de CPU.
+4. **Time to First Byte (`TTFB`):** Tiempo transcurrido desde que se envía la petición HTTP hasta que llega el primer byte de respuesta. **Si el TTFB es alto pero el TCP es bajo, la lentitud es 100% interna del servidor web, microservicio, aplicación o base de datos.**
+5. **Transferencia de Datos (`Content Transfer`):** Tiempo de lectura del payload completo por el socket.
+
+#### ⚙️ Cómo Funciona:
+Implementado en [core/probe.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/probe.py) utilizando **sockets puros de Python (`socket`, `ssl`)** sin librerías de alto nivel como `requests` o `urllib3` que enmascaran los tiempos intermedios:
+- Mide con precisión de microsegundos (`time.perf_counter()`) cada transición.
+- **Detección de Conexión Fría vs Reutilizada (`Cold vs Warm Total`):** Muestra el costo inicial de apertura contra el costo en estado estacionario.
+- **Autenticación Corporativa Integrada:**
+  - `Bearer Token` (para APIs REST y microservicios modernos).
+  - `Basic Auth` (RFC 7617).
+  - `NTLMv1 / NTLMv2` nativo implementado con criptografía pura (DES, MD4, HMAC-MD5) sin requerir `pywinrm` ni librerías externas.
+
+---
+
+### 5. Diagnóstico de Red ICMP y Traceroute Inteligente
+
+#### 📚 Contexto Teórico:
+- **Default Gateway (Puerta de Enlace):** El primer salto hacia la infraestructura cableada. Un ping alto hacia el gateway mientras la señal Wi-Fi es buena delata sobrecarga en el AP o saturación del switch de acceso.
+- **Traceroute (TTL Incremental):** Utiliza paquetes con Time-to-Live progresivo ($TTL = 1, 2, 3\dots$) para provocar mensajes ICMP `Time Exceeded` e identificar en qué salto geográfico o router intermedio se dispara la latencia o se descartan paquetes.
+- **Jitter (RFC 3550):** Variación estadística del retardo entre paquetes consecutivos:
+  $$J = J_{prev} + \frac{|D(i, i-1)| - J_{prev}}{16}$$
+  Un jitter alto (> 15 ms) provoca degradación severa en lectores inalámbricos y terminales de voz.
+
+```mermaid
+flowchart LR
+    A["Cliente Wi-Fi"] -->|Salto 1| B["192.168.3.1 (Gateway Local)"]
+    B -->|Salto 2| C["10.50.0.1 (Router Núcleo WAN)"]
+    C -->|Salto 3| D["190.157.0.1 (Enlace Troncal ISP)"]
+    D -->|Salto 4| E["Servidor de Aplicaciones (WMS / POS)"]
+```
+
+#### ⚙️ Cómo Funciona ([core/net_diag.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/net_diag.py)):
+- **Detección Automática de Gateway:** Analiza las tablas de enrutamiento (`ip route show default` o `route -n`) de forma no intrusiva.
+- **Detección de Servidores DNS Locales:** Extrae los resolvers primarios y secundarios de `/etc/resolv.conf`.
+- **Multi-Ping Concurrente:** Envía ráfagas sincronizadas al Gateway, a los servidores DNS locales y al Host objetivo de la aplicación.
+- **Traceroute Integrado:** Diagnostica hasta 30 saltos con detección de nombres DNS inversos y retardo individual.
+
+---
+
+### 6. Gestión Jerárquica de Sedes y Zonas (Walk-Tests y Zonas Estáticas)
+
+#### 📚 Contexto Teórico:
+Las pruebas de rendimiento inalámbrico se dividen operativamente en dos metodologías:
+1. **Prueba Estática en Zona Crítica:** El técnico ubica el equipo en un punto fijo de alta fricción (ej. *Caja 1*, *Muelle 8*, *Rack 12-13*) para evaluar estabilidad durante 30 a 60 minutos.
+2. **Prueba en Movimiento (Walk-Test / Recorrido Completo):** El técnico camina a velocidad normal atravesando pasillos, racks y áreas de despacho para forzar saltos entre APs e identificar zonas de sombra, solapamiento insuficiente o pérdida de sesión.
+
+#### ⚙️ Cómo Funciona:
+- **Catálogo Maestro JSON ([data/sedes_zonas.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/sedes_zonas.json)):** Estructura jerárquica de sedes físicas (`Tienda_Principal`, `Bodega_CLEN`, `Oficina_Av68`) con sus respectivas zonas operativas.
+- **Sincronización Limpia (`Recargar sedes_zonas.json`):** Al recargar, el sistema reemplaza fielmente el catálogo activo desde el archivo en disco, evitando que zonas antiguas o renombradas se mezclen con el catálogo nuevo.
+- **Gestión Directa en la Interfaz (Pestaña 5):**
+  - Creación de nuevas sedes y zonas.
+  - Contador visual en vivo de zonas asignadas (ej. `25 zonas`).
+  - Eliminación individual de zonas mediante botón interactivo `×`.
+  - Importación y exportación de respaldos en formatos JSON y CSV.
+
+---
+
+### 7. Métricas Consolidadas, Percentiles y Paquete de Auditoría ZIP
+
+#### 📚 Contexto Teórico:
+En redes de computadores, el **promedio aritmético oculta los incidentes**: si 99 solicitudes tardan 50 ms y 1 tarda 5000 ms, el promedio es 99.5 ms (aparentemente "normal"), pero el usuario experimentó una congelación severa.
+Los **percentiles** revelan la experiencia real del usuario:
+- **$P_{50}$ (Mediana):** Comportamiento del 50% de las solicitudes normales.
+- **$P_{90}$ y $P_{95}$:** Rendimiento bajo condiciones de carga o micro-interferencias.
+- **$P_{99}$:** El peor 1% de las transacciones; captura con exactitud los congelamientos de pantalla y cortes de sesión.
+
+```mermaid
+flowchart TD
+    subgraph Filtro["Panel de Auditoría y Filtros (Pestaña 6)"]
+        F_Dates["Rango de Fechas: Desde / Hasta (Hoy, 7d, Todo)"]
+        F_Sede["Sede: Todas las Sedes o Sede Específica"]
+        F_Zona["Alcance: Todas las Zonas (Recorrido) o Zona Estática"]
+    end
+
+    subgraph DB["Motor de Agregación SQLite (database.py)"]
+        Query["SQL con Timestamp UTC & Filtros de Alcance"]
+        Calc["Cálculo de Percentiles P50, P90, P95, P99, Jitter y Uptime"]
+    end
+
+    subgraph Export["Generador de Paquete ZIP (server.py)"]
+        ZIP["auditoria_completa_red_roaming_{sede}_{zona}_{rango}_{ts}.zip"]
+        CSV1["01_telemetria_sincronizada_rf_icmp_http.csv"]
+        CSV2["02_eventos_roaming_handoffs.csv"]
+        CSV3["03_latencia_fases_http.csv"]
+        CSV4["04_diagnostico_red_icmp_traceroute.csv"]
+        TXT["00_resumen_auditoria.txt (Ficha Técnica Ejecutiva)"]
+    end
+
+    Filtro --> Query
+    Query --> Calc
+    Calc --> Export
+    Export --> ZIP
+    ZIP --> CSV1
+    ZIP --> CSV2
+    ZIP --> CSV3
+    ZIP --> CSV4
+    ZIP --> TXT
+```
+
+#### 📦 Estructura del Paquete ZIP de Auditoría:
+Al pulsar **`Exportar Todo (.ZIP)`**, el servidor compila en memoria un paquete de auditoría que incluye:
+1. `01_telemetria_sincronizada_rf_icmp_http.csv`: Registro exhaustivo de cada segundo con dBm, canal, banda, ping y fases HTTP.
+2. `02_eventos_roaming_handoffs.csv`: Historial de saltos entre APs con MACs, nombres de AP, deltas y veredictos.
+3. `03_latencia_fases_http.csv`: Tiempos discriminados de DNS, TCP, TLS, TTFB y Transferencia.
+4. `04_diagnostico_red_icmp_traceroute.csv`: Registros de pruebas multi-ping y saltos de traceroute.
+5. `00_resumen_auditoria.txt`: Ficha técnica ejecutiva con metadata de la prueba (fecha/hora, sede, alcance de recorrido, percentiles calculados y uptime).
+
+---
+
+### 8. Mapeo de Nombres de APs de Controladoras (Cisco, Aruba, UniFi)
+
+#### 📚 Contexto Teórico:
+Las controladoras de red asignan nombres nemotécnicos a cada AP (`AP-Bodega-Norte-01`), pero las tramas de radio 802.11 únicamente transmiten el **BSSID (MAC física)**.
+Adicionalmente, un único AP físico que emite múltiples redes emite **BSSIDs virtuales (vBSSID / MBSSID)** que difieren en los últimos bits o en el primer octeto.
+
+#### ⚙️ Cómo Funciona ([core/ap_manager.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/ap_manager.py)):
+- Normaliza automáticamente cualquier formato de MAC (`00:11:22:33:44:55`, `00-11-22-33-44-55`, `0011.2233.4455`).
+- **Resolución por Máscara de Prefijo:** Si la controladora exportó la MAC base ethernet del AP, el analizador detecta las coincidencias de los vBSSIDs correspondientes.
+- Permite importar inventarios masivos desde archivos CSV exportados de Cisco Catalyst Center, Aruba Central, UniFi Controller, Huawei iMaster NCE o FortiGate.
+- Muestra el nombre asignado en la cabecera del dashboard, en el historial de roaming y en el escáner de espectro.
+
+---
+
+### 9. Base de Datos IEEE OUI de Fabricantes Offline
+
+#### 📚 Contexto Teórico:
+Los primeros 3 octetos (24 bits) de una dirección MAC corresponden al **OUI** (*Organizationally Unique Identifier*) asignado por el IEEE a fabricantes de hardware (ej. `00:0B:86` $\to$ Aruba Networks, `00:1A:A1` $\to$ Cisco Systems).
+
+#### ⚙️ Cómo Funciona ([core/oui_manager.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/oui_manager.py)):
+- Base de datos local precargada con más de 40,000 registros en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json).
+- **Actualización en 1 Clic:** Posibilidad de descargar y recompilar el registro oficial del IEEE directamente desde la web o mediante CLI (`python3 scripts/update_oui.py`).
+- Soporte de registros personalizados (*custom overrides*) que no se sobrescriben al actualizar.
+
+---
 
 ## 📁 Estructura del Proyecto
 
 ```
 wifi-roaming-analyzer/
-├── core/                        # Motores de telemetría, sonda y diagnóstico de red
-│   ├── probe.py                 # Sonda secuencial de latencia HTTP (sockets puros)
-│   ├── net_diag.py              # Diagnóstico de red, Gateway, DNS y Traceroute
-│   ├── ntlm_auth.py             # Motor criptográfico NTLM / MD4 (Zero pip deps)
-│   ├── ap_manager.py            # Gestor de nombres amigables de Access Points
-│   └── oui_manager.py           # Identificador de fabricantes por MAC (IEEE OUI)
-├── database/                    # Capa de persistencia relacional
-│   ├── database.py              # Controlador SQLite WAL, percentiles y exportación CSV
-│   └── (telemetry.db)           # Base de datos SQLite (ignorado por git)
-├── data/                        # Catálogos, plantillas y archivos JSON de datos
-│   ├── sedes_zonas.json         # Catálogo de sedes y zonas por defecto
-│   ├── ap_names.json            # Mapeo BSSID -> Nombre amigable de AP
-│   ├── ap_names.example.json    # Plantilla de ejemplo de mapeo de APs
-│   ├── oui_vendors.json         # Base de datos offline de fabricantes IEEE OUI
-│   └── roaming_history.json     # Historial JSON (compatibilidad)
-├── scripts/                     # Utilidades de mantenimiento, CLI e instaladores
-│   ├── manage_aps.py            # Herramienta CLI para gestionar nombres de APs
-│   ├── update_oui.py            # Script para actualizar la base IEEE OUI
-│   └── install-dependencies.sh  # Instalador de utilidades de red del sistema (Linux)
-├── static/                      # Frontend web (100% offline-ready)
-│   ├── index.html               # Dashboard visual y pestañas
-│   ├── app.js                   # Lógica reactiva y comunicación API
-│   ├── styles.css               # Diseño moderno, glassmorphism y tema oscuro
-│   ├── chart.umd.min.js         # Motor local de gráficos Chart.js
-│   └── lucide.min.js            # Iconografía local
-├── server.py                    # Punto de entrada principal (Entrypoint del servidor)
-├── run.sh / run.bat / run.ps1   # Lanzadores rápidos en la raíz
-├── stop.sh / stop.bat / stop.ps1# Scripts de detención y liberación de puerto
-├── README.md                    # Documentación y guía de uso
-├── .gitignore                   # Exclusiones de control de versiones
-├── requirements.txt             # Dependencias de Python (0 dependencias externas)
-└── requirements-system.txt      # Dependencias del sistema operativo
+├── core/                        # Motores de telemetría y diagnóstico
+│   ├── probe.py                 # Sonda HTTP de 5 fases (sockets puros)
+│   ├── net_diag.py              # Diagnóstico ICMP, Gateway, DNS y Traceroute
+│   ├── ntlm_auth.py             # Motor criptográfico NTLMv1/v2 nativo
+│   ├── ap_manager.py            # Resolución y mapeo de nombres de APs
+│   └── oui_manager.py           # Base de datos y resolución IEEE OUI
+├── database/                    # Capa de persistencia SQLite
+│   ├── database.py              # Modelos relacionales, percentiles y exportaciones
+│   └── telemetry.db             # Base SQLite WAL (generada automáticamente)
+├── data/                        # Archivos de datos y catálogos maestros
+│   ├── sedes_zonas.json         # Catálogo maestro de Sedes y Zonas
+│   ├── ap_names.json            # Mapeo activo BSSID -> Nombre de AP
+│   ├── ap_names.example.json    # Plantilla de ejemplo de inventario de APs
+│   ├── oui_vendors.json         # Base de datos de fabricantes IEEE OUI
+│   └── roaming_history.json     # Historial JSON de respaldo
+├── scripts/                     # Herramientas de soporte y CLI
+│   ├── manage_aps.py            # CLI para consulta y gestión de APs
+│   ├── update_oui.py            # CLI para sincronizar con el IEEE OUI Registry
+│   └── install-dependencies.sh  # Instalador de utilidades de red Linux
+├── static/                      # Frontend SPA (100% Offline)
+│   ├── index.html               # Estructura del dashboard y pestañas
+│   ├── app.js                   # Lógica de renderizado, gráficos y eventos
+│   ├── styles.css               # Diseño moderno, contrastes e iconografía
+│   └── chart.umd.min.js         # Motor de gráficos Chart.js local
+├── server.py                    # Entrypoint principal y servidor HTTP/REST
+├── run.sh / run.bat / run.ps1   # Scripts de inicio rápido multiplataforma
+├── stop.sh / stop.bat           # Scripts de detención limpia del servidor
+├── requirements.txt             # Dependencias Python (0 dependencias externas)
+├── requirements-system.txt      # Paquetes del sistema operativo (Linux)
+└── README.md                    # Documentación técnica completa
 ```
 
-## 🛠️ Personalización
+---
 
-### Cambiar el puerto
-Si el puerto 8050 está ocupado, edita `server.py` y cambia:
-```python
-PORT = 8050  # Cambiar este número
-```
+## 🚀 Instalación y Puesta en Marcha
 
-O usa la opción de línea de comandos:
+### Prerrequisitos del Sistema (Linux / Debian / Ubuntu / Raspberry Pi OS):
 ```bash
-./run.sh --port 9000
+# Actualizar repositorios e instalar utilidades de red
+sudo apt-get update
+sudo apt-get install -y python3 iw wireless-tools iproute2 iputils-ping
 ```
 
-### Cambiar la interfaz Wi-Fi
-Tienes tres formas:
-
-**Opción 1: Línea de comandos (recomendado)**
+### Iniciar el Servidor:
 ```bash
-./run.sh -i wlan0
-```
+# Otorgar permisos de ejecución (primera vez)
+chmod +x run.sh stop.sh
 
-**Opción 2: Detectar automáticamente**
-El programa intenta detectar automáticamente la interfaz, pero si tienes múltiples adaptadores, especifícala.
-
-**Opción 3: Editar directamente**
-Si prefieres editar `server.py` directamente:
-```python
-state = WiFiState(interface="wlan0")  # Cambia esto
-```
-
-**Opción 4: API REST en tiempo real**
-Puedes cambiar la interfaz mientras el servidor está corriendo:
-```bash
-curl -X POST http://localhost:8050/api/set-interface \
-  -H "Content-Type: application/json" \
-  -d '{"interface": "wlan0"}'
-```
-
-## � API REST Endpoints
-
-El servidor expone estos endpoints que puedes usar:
-
-### GET `/api/status`
-Obtiene el estado actual de la conexión Wi-Fi
-```json
-{
-  "bssid": "AA:BB:CC:DD:EE:FF",
-  "ssid": "MiRed",
-  "signal_dbm": -65,
-  "signal_pct": 70,
-  "interface": "wlan0",
-  "band": "5.0 GHz",
-  "channel": 36,
-  ...
-}
-```
-
-### GET `/api/interfaces`
-Lista todas las interfaces Wi-Fi disponibles
-```json
-{
-  "available": ["wlp2s0", "wlan0"],
-  "current": "wlp2s0",
-  "count": 2
-}
-```
-
-### POST `/api/set-interface`
-Cambia la interfaz Wi-Fi activa
-```bash
-curl -X POST http://localhost:8050/api/set-interface \
-  -H "Content-Type: application/json" \
-  -d '{"interface": "wlan0"}'
-```
-
-### GET `/api/scan`
-Obtiene lista de APs disponibles (red vecinos)
-
-### GET `/api/roaming-history`
-Obtiene historial de cambios de AP (roaming events)
-
-### POST `/api/clear-roaming-log`
-Limpia el historial de eventos de roaming
-
-### POST `/api/trigger-test-ping`
-Ejecuta 5 pings de prueba y mide latencia
-
-## 📝 Notas Técnicas
-
-- **Sistema Operativo**: Optimizado para Linux (requiere herramientas de Wi-Fi de Linux)
-- **Lenguaje**: Python 3 para backend, HTML/CSS/JavaScript vanilla para frontend
-- **Puerto**: 8050 (configurable con `--port`)
-- **Interfaz**: Auto-detectada o especificable con `-i` o `--interface`
-- **Refresco**: Datos actualizados cada 1 segundo
-- **Argumentos soportados**: Ver `python3 server.py --help` o `./run.sh --help`
-
-## 🐛 Solución de Problemas
-
-### El servidor no inicia
-```bash
-# Verifica que Python 3 esté instalado
-python3 --version
-
-# Instala las herramientas Wi-Fi necesarias
-sudo apt-get install iw wireless-tools
-```
-
-### No se ve el dashboard
-- Asegúrate de que el navegador puede acceder a `http://localhost:8050`
-- Verifica que no hay firewall bloqueando el puerto
-
-### La señal muestra "Sin Señal"
-- Confirma que tu interfaz Wi-Fi está activa
-- Revisa que tienes una conexión Wi-Fi establecida
-
-## 🤖 Automatización e Integración CI/CD
-
-### Instalación Automatizada
-
-Para automatizar la instalación en servidores, contenedores o pipelines CI/CD:
-
-```bash
-# Instalación automática de dependencias
-sudo bash install-dependencies.sh
-
-# Luego iniciar el servidor
+# Iniciar el analizador
 ./run.sh
 ```
 
-### Docker (Ejemplo para futura implementación)
+El servidor iniciará automáticamente en `http://localhost:8050`. Abre cualquier navegador web (Chrome, Firefox, Edge) para interactuar con la plataforma.
 
-```dockerfile
-FROM python:3.9-slim
-
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
-    iw \
-    iproute2 \
-    iputils-ping \
-    network-manager \
-    wireless-tools \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copiar proyecto
-WORKDIR /app
-COPY . .
-
-# Ejecutar servidor
-CMD ["python3", "server.py"]
-```
-
-### GitHub Actions / CI/CD
-
-Ejemplo de workflow para despliegue automático:
-
-```yaml
-name: Setup Wi-Fi Analyzer
-
-on: [push]
-
-jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install system dependencies
-        run: |
-          sudo bash install-dependencies.sh
-      - name: Test server startup
-        run: |
-          timeout 5 python3 server.py -i $(python3 server.py --list 2>/dev/null | head -1) || true
-```
-
-### Verificación de Dependencias
-
-Para verificar que todo está instalado correctamente:
-
+### Opciones de Inicio Avanzadas:
 ```bash
-# Verificar herramientas individuales
-which iw
-which ip
-which ping
-which nmcli
+# Iniciar en un puerto específico
+./run.sh --port 9000
 
-# Listar interfaces disponibles
+# Especificar la interfaz inalámbrica de forma manual
+./run.sh -i wlan0
+
+# Listar interfaces Wi-Fi detectadas por el sistema
 python3 server.py --list
+```
 
-# Ver ayuda de línea de comandos
-./run.sh --help
+### Detener el Servidor:
+```bash
+./stop.sh
 ```
 
 ---
 
-## 🏢 Gestión y Actualización de Fabricantes de APs (OUI)
+## 📡 Referencia Completa de la API REST
 
-El analizador identifica la marca y fabricante de cada Punto de Acceso analizando el **OUI** (*Organizationally Unique Identifier* - los primeros 3 octetos de la dirección MAC del AP).
+### Endpoints de Monitoreo y Estado (GET):
 
-### 1️⃣ Base de Datos Externa (`oui_vendors.json`)
-La base de datos se guarda en un archivo externo independiente: `oui_vendors.json`.
-- Viene precargado con los fabricantes más habituales (Aruba/HPE, Cisco/Meraki, Ubiquiti, Ruckus, Fortinet, Mikrotik, TP-Link, Huawei, etc.).
-- Permite registros **personalizados** (*custom overrides*) para asignar nombres amigables a APs de laboratorio o routers específicos. Los registros personalizados tienen prioridad absoluta y **no se borran ni sobrescriben** al actualizar.
+| Endpoint | Parámetros Query | Descripción |
+| :--- | :--- | :--- |
+| `GET /api/status` | - | Estado en tiempo real del AP conectado, RSSI, canal, bitrates y última sonda HTTP. |
+| `GET /api/scan` | - | Lista de todos los APs vecinos detectados con BSSID, SSID, dBm, canal, banda y fabricante. |
+| `GET /api/interfaces` | - | Interfaces Wi-Fi disponibles en el sistema operativo y la interfaz activa. |
+| `GET /api/stats` | `location`, `zone`, `start_date`, `end_date` | Estadísticas acumuladas, percentiles ($P_{50}, P_{90}, P_{95}, P_{99}$), jitter y uptime. |
+| `GET /api/history` | `limit`, `location`, `zone` | Muestras recientes de telemetría de red y radiofrecuencia. |
+| `GET /api/roaming-history`| `limit`, `location`, `zone` | Registro de eventos de roaming (handoffs) y veredictos. |
+| `GET /api/http-phases/history`| `limit`, `location`, `zone` | Historial de mediciones de latencia HTTP desglosadas por fases. |
+| `GET /api/net-diag` | - | Caché del último diagnóstico de Gateway, servidores DNS locales e historial. |
+| `GET /api/locations` | `configured_only`, `only_data` | Listado de sedes disponibles para auditoría o configuración. |
+| `GET /api/zones` | - | Mapeo relacional de Sedes a Zonas configuradas. |
+| `GET /api/export` | `type`, `format`, `location`, `zone`, `start_date`, `end_date` | Genera y descarga informes individuales CSV o el paquete completo `.ZIP`. |
 
-### 2️⃣ Actualización Automática desde el Registro Oficial IEEE
-Puedes sincronizar **más de 40,000 fabricantes** actualizados directamente desde el registro oficial del IEEE (MA-L Registry) de dos formas:
+### Endpoints de Control y Configuración (POST):
 
-#### A. Desde la Interfaz Web (1 Clic)
-1. Abre el dashboard en `http://localhost:8050`.
-2. Ve a la pestaña **"Base de Fabricantes (OUI)"**.
-3. Haz clic en el botón **"Actualizar desde IEEE"**.
-4. Verás una barra de progreso en vivo indicando la descarga y procesamiento.
-
-#### B. Desde la Línea de Comandos (CLI)
-Incluye la herramienta `update_oui.py` para automatizaciones y consultas en terminal:
-
-```bash
-# Descargar y sincronizar con la base de datos oficial del IEEE
-python3 update_oui.py
-
-# Ver estadísticas actuales de la base de datos
-python3 update_oui.py --stats
-
-# Consultar el fabricante de una MAC o BSSID
-python3 update_oui.py --lookup 00:27:0D:11:22:33
-
-# Buscar fabricantes por nombre o prefijo
-python3 update_oui.py --search ubiquiti
-python3 update_oui.py --search "cisco"
-
-# Registrar o modificar un fabricante personalizado
-python3 update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab AP"
-```
+| Endpoint | Payload JSON | Descripción |
+| :--- | :--- | :--- |
+| `POST /api/config` | `{ "target_url": "...", "probe_interval": 5, ... }` | Actualiza la configuración global del motor de telemetría. |
+| `POST /api/locations/sync` | `{}` | Recarga limpiamente el catálogo maestro desde `data/sedes_zonas.json`. |
+| `POST /api/locations/delete`| `{ "location": "Nombre_Sede" }` | Elimina una sede de la configuración activa. |
+| `POST /api/zones` | `{ "location": "Sede", "zone": "Nueva_Zona" }` | Registra una nueva zona operativa en la sede indicada. |
+| `POST /api/zones/delete` | `{ "location": "Sede", "zone": "Zona" }` | Elimina una zona específica de la sede indicada. |
+| `POST /api/net-diag/run` | `{}` | Dispara un diagnóstico de red en tiempo real (Multi-ping y Traceroute). |
+| `POST /api/clear` | `{ "scope": "all" \| "telemetry" \| "roaming" }` | Limpia los historiales de la base de datos según el alcance seleccionado. |
+| `POST /api/set-interface` | `{ "interface": "wlan0" }` | Cambia en caliente la interfaz inalámbrica monitoreada. |
 
 ---
 
-## 🏷️ Nombres de APs de Controladoras Wi-Fi (Cisco, Aruba, UniFi, Huawei, etc.)
+## 💻 Herramientas de Línea de Comandos (CLI)
 
-En redes corporativas, educativas o de oficina, cada Punto de Acceso tiene un nombre configurado en la controladora (por ejemplo: `AP-Piso2-SalaJuntas`, `AP-Bodega-Norte`, `AP-Auditorio-01`).
-
-Esta función permite asociar cada dirección MAC/BSSID con su nombre en la controladora, mostrando **ambos valores simultáneamente** en todo el dashboard:
-- **Cabecera y Tarjeta de AP Conectado:** Muestra el Nombre del AP y su MAC física.
-- **Historial de Roaming (Handoffs):** Indica de qué AP a qué AP te moviste (ej: `AP-Piso2-SalaA` ➡️ `AP-Piso2-Pasillo`).
-- **Escáner de APs Cercanos (Mesh):** Muestra el nombre asignado junto al BSSID y permite nombrar nuevos APs con un solo clic.
-
-### 1️⃣ Carga Masiva desde CSV de Controladora
-Puedes importar el listado completo exportado desde cualquier controladora:
-- **Cisco Catalyst Center / DNA Center / Cisco WLC:** Soporta formato de puntos (ej: `b014.df11.2230`).
-- **Aruba Central / Mobility Controller:** Exportaciones estándar de AP inventory.
-- **Ubiquiti UniFi, Huawei iMaster NCE, FortiGate, Ruijie Reyee, TP-Link Omada.**
-
-#### Cómo importar desde la Web:
-1. Abre el dashboard en `http://localhost:8050` y ve a la pestaña **"Nombres APs (Controladora)"**.
-2. Haz clic en **"Importar CSV Controladora"**.
-3. Selecciona tu archivo `.csv` o pega el texto directamente.
-4. Presiona **"Procesar e Importar APs"**. El sistema detecta automáticamente las columnas y normaliza cualquier formato de MAC.
-
-### 2️⃣ Gestión por Línea de Comandos (`manage_aps.py`)
-Compatible tanto con **Windows** (PowerShell / CMD) como con **Linux**:
-
+### 1. Gestor de Nombres de APs ([scripts/manage_aps.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/scripts/manage_aps.py)):
+Permite administrar el inventario de Access Points desde terminal o scripts de automatización:
 ```bash
-# En Windows (PowerShell / CMD) o Linux:
-python manage_aps.py --list
+# Listar todos los APs registrados en el inventario
+python3 scripts/manage_aps.py --list
 
-# Consultar el nombre de un BSSID / MAC:
-python manage_aps.py --lookup B0:14:DF:11:22:30
+# Buscar un AP por nombre o ubicación
+python3 scripts/manage_aps.py --search "Bodega Norte"
 
-# Buscar APs por nombre, MAC o ubicación:
-python manage_aps.py --search "Piso 2"
+# Consultar un AP por dirección MAC / BSSID
+python3 scripts/manage_aps.py --lookup 00:11:22:33:44:55
 
-# Registrar un AP manualmente:
-python manage_aps.py --add "B0:14:DF:11:22:30" "AP-Piso2-SalaJuntas" --location "Piso 2" --model "Cisco 9120"
+# Registrar o actualizar un AP manualmente
+python3 scripts/manage_aps.py --add "00:11:22:33:44:55" "AP-Muelle-01" --location "Bodega CLEN" --model "Cisco 9120"
 
-# Importar un archivo CSV desde la consola:
-python manage_aps.py --import-csv mis_aps_controladora.csv
-
-# Eliminar un AP:
-python manage_aps.py --remove "B0:14:DF:11:22:30"
+# Importar inventario masivo desde archivo CSV
+python3 scripts/manage_aps.py --import-csv data/mis_aps_cisco.csv
 ```
 
-> [!TIP]
-> **Compatibilidad con vBSSID / MBSSID:** Los puntos de acceso corporativos suelen emitir múltiples BSSIDs virtuales (uno por SSID y radio). Si tu controladora exporta la MAC Base Ethernet del AP, el analizador detecta automáticamente el prefijo y asocia los vBSSIDs correspondientes a ese mismo nombre.
+### 2. Actualizador de Fabricantes IEEE OUI ([scripts/update_oui.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/scripts/update_oui.py)):
+Permite consultar y mantener actualizada la base de datos de fabricantes OUI con los estándares oficiales del IEEE:
+```bash
+# Sincronizar y compilar la base de datos oficial del IEEE
+python3 scripts/update_oui.py
+
+# Ver estadísticas actuales del catálogo OUI
+python3 scripts/update_oui.py --stats
+
+# Consultar el fabricante de una dirección MAC
+python3 scripts/update_oui.py --lookup 00:0B:86:12:34:56
+
+# Añadir un fabricante o router de laboratorio personalizado
+python3 scripts/update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab"
+```
 
 ---
 
 ## 📄 Licencia
 
-Este proyecto es libre para usar y modificar. ¡Siéntete libre de adaptarlo a tus necesidades!
-
-## 🎓 Aprende Más
-
-¿Interesado en cómo funciona internamente? Revisa:
-- `server.py` - Toda la lógica de captura de datos Wi-Fi y endpoints REST
-- `ap_manager.py` - Motor de resolución, almacenamiento y mapeo de nombres de APs
-- `manage_aps.py` - Herramienta de línea de comandos para importar y consultar APs
-- `oui_manager.py` - Motor de resolución y descarga de fabricantes OUI
-- `update_oui.py` - Herramienta de línea de comandos para gestionar la base OUI
-- `static/app.js` - Telemetría, gráficos en tiempo real, escáner y módulo de nombres de APs
-- `static/index.html` - Estructura del HTML y elementos visuales
-- `static/styles.css` - Estilos modernos glassmórficos y temas responsivos
+Este proyecto está distribuido bajo la licencia **MIT**. Eres libre de utilizarlo, modificarlo y desplegarlo en entornos comerciales, corporativos o educativos.
