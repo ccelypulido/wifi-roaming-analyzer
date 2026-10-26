@@ -16,7 +16,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
   
-  <link rel="stylesheet" href="styles.css?v=3.3.0">
+  <link rel="stylesheet" href="styles.css?v=3.4.0">
 </head>
 <body>
   <div class="dashboard-container">
@@ -615,14 +615,75 @@
 
       <!-- Tab 6: Statistics & Percentiles -->
       <div id="tab-stats" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            Análisis estadístico acumulado en SQLite: Percentiles de latencia (<span style="color: var(--accent-cyan);">$P_{50}, P_{90}, P_{95}, P_{99}$</span>), Jitter y rendimiento de enlace.
-          </p>
-          <div style="display: flex; gap: 0.5rem;">
-            <button id="btn-export-telemetry-csv" class="btn-primary" style="font-size: 0.8rem;">
-              <i class="fa-solid fa-file-csv"></i> Exportar Telemetría Completa (CSV)
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color);">
+          <div style="max-width: 650px;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;">
+              <i class="fa-solid fa-chart-pie" style="color: var(--accent-cyan); font-size: 1.1rem;"></i>
+              <strong style="font-size: 1.05rem; color: var(--text-primary);">Métricas Consolidadas & Auditoría Completa</strong>
+            </div>
+            <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4;">
+              Análisis estadístico acumulado en SQLite: Percentiles de latencia (<span style="color: var(--accent-cyan); font-weight: 600;">P50, P90, P95, P99</span>), Jitter, Roaming y salud de red por Sede y Zona.
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 0.55rem; align-items: center; flex-wrap: wrap;">
+            <!-- Primary ZIP Export Button -->
+            <button id="btn-export-audit-zip" class="btn-primary" style="font-size: 0.82rem; font-weight: 700; padding: 0.55rem 1.05rem; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);" title="Descarga un paquete ZIP con los 4 informes independientes: Roaming, HTTP, ICMP y Telemetría">
+              <i class="fa-solid fa-file-zipper" style="font-size: 0.95rem;"></i> Exportar Todo (.ZIP)
             </button>
+
+            <!-- Export Options Dropdown -->
+            <div class="dropdown-wrapper" style="position: relative;">
+              <button id="btn-export-options-toggle" type="button" class="btn-secondary" style="font-size: 0.82rem; padding: 0.55rem 0.85rem; display: inline-flex; align-items: center; gap: 0.45rem;">
+                <i class="fa-solid fa-download"></i> Opciones CSV <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; opacity: 0.8;"></i>
+              </button>
+              <div id="export-options-menu" class="export-dropdown-menu" style="display: none;">
+                <button type="button" class="export-menu-item" id="btn-export-opt-zip" style="color: var(--accent-cyan); font-weight: 600;">
+                  <i class="fa-solid fa-file-zipper"></i>
+                  <div style="flex: 1; text-align: left;">
+                    <div>Paquete Completo Auditoría</div>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Roaming + HTTP + ICMP + Resumen</small>
+                  </div>
+                  <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem; background: rgba(79, 70, 229, 0.1); color: var(--accent-cyan);">.ZIP</span>
+                </button>
+                <div style="height: 1px; background: var(--border-color); margin: 0.35rem 0;"></div>
+                <button type="button" class="export-menu-item" id="btn-export-opt-roaming">
+                  <i class="fa-solid fa-route" style="color: var(--accent-purple);"></i>
+                  <div style="flex: 1; text-align: left;">
+                    <div>Eventos de Roaming</div>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Saltos entre APs, Deltas dBm y Veredictos</small>
+                  </div>
+                  <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">.CSV</span>
+                </button>
+                <button type="button" class="export-menu-item" id="btn-export-opt-http">
+                  <i class="fa-solid fa-stopwatch" style="color: var(--accent-emerald);"></i>
+                  <div style="flex: 1; text-align: left;">
+                    <div>Fases de Latencia HTTP</div>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">DNS, TCP, TLS, TTFB y Transferencia</small>
+                  </div>
+                  <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">.CSV</span>
+                </button>
+                <button type="button" class="export-menu-item" id="btn-export-opt-icmp">
+                  <i class="fa-solid fa-network-wired" style="color: var(--accent-sky);"></i>
+                  <div style="flex: 1; text-align: left;">
+                    <div>Diagnóstico ICMP & Traceroute</div>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Multi-ping, Pérdida y Saltos de Red</small>
+                  </div>
+                  <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">.CSV</span>
+                </button>
+                <button type="button" class="export-menu-item" id="btn-export-opt-telemetry">
+                  <i class="fa-solid fa-table" style="color: var(--text-secondary);"></i>
+                  <div style="flex: 1; text-align: left;">
+                    <div>Telemetría Sincronizada</div>
+                    <small style="color: var(--text-muted); font-size: 0.72rem;">Muestras periódicas RF, Ping y App</small>
+                  </div>
+                  <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">.CSV</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Legacy fallback button -->
+            <button id="btn-export-telemetry-csv" style="display: none;"></button>
           </div>
         </div>
 
@@ -879,6 +940,6 @@
 
   </div>
 
-  <script src="app.js?v=3.6.0"></script>
+  <script src="app.js?v=3.7.0"></script>
 </body>
 </html>

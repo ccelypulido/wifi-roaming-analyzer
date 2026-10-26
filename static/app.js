@@ -1864,17 +1864,76 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnExportTelemetryCsv.addEventListener('click', () => {
-    const loc = selLocation.value;
-    const zone = selZone.value;
-    window.location.href = `/api/export?type=telemetry&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
-  });
+  const btnExportAuditZip = document.getElementById('btn-export-audit-zip');
+  const btnExportOptionsToggle = document.getElementById('btn-export-options-toggle');
+  const exportOptionsMenu = document.getElementById('export-options-menu');
+  const btnExportOptZip = document.getElementById('btn-export-opt-zip');
+  const btnExportOptRoaming = document.getElementById('btn-export-opt-roaming');
+  const btnExportOptHttp = document.getElementById('btn-export-opt-http');
+  const btnExportOptIcmp = document.getElementById('btn-export-opt-icmp');
+  const btnExportOptTelemetry = document.getElementById('btn-export-opt-telemetry');
 
-  btnExportQuick.addEventListener('click', () => {
+  function triggerExport(type, format = '') {
     const loc = selLocation.value;
     const zone = selZone.value;
-    window.location.href = `/api/export?type=telemetry&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
-  });
+    let url = `/api/export?type=${encodeURIComponent(type)}&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
+    if (format) url += `&format=${encodeURIComponent(format)}`;
+    window.location.href = url;
+  }
+
+  if (btnExportAuditZip) {
+    btnExportAuditZip.addEventListener('click', () => triggerExport('all', 'zip'));
+  }
+  if (btnExportOptZip) {
+    btnExportOptZip.addEventListener('click', () => {
+      triggerExport('all', 'zip');
+      if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+    });
+  }
+  if (btnExportOptRoaming) {
+    btnExportOptRoaming.addEventListener('click', () => {
+      triggerExport('roaming');
+      if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+    });
+  }
+  if (btnExportOptHttp) {
+    btnExportOptHttp.addEventListener('click', () => {
+      triggerExport('http');
+      if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+    });
+  }
+  if (btnExportOptIcmp) {
+    btnExportOptIcmp.addEventListener('click', () => {
+      triggerExport('icmp');
+      if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+    });
+  }
+  if (btnExportOptTelemetry) {
+    btnExportOptTelemetry.addEventListener('click', () => {
+      triggerExport('telemetry');
+      if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+    });
+  }
+  if (btnExportTelemetryCsv) {
+    btnExportTelemetryCsv.addEventListener('click', () => triggerExport('telemetry'));
+  }
+  if (btnExportQuick) {
+    btnExportQuick.addEventListener('click', () => triggerExport('all', 'zip'));
+  }
+
+  if (btnExportOptionsToggle && exportOptionsMenu) {
+    btnExportOptionsToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = exportOptionsMenu.style.display === 'block';
+      exportOptionsMenu.style.display = isVisible ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!exportOptionsMenu.contains(e.target) && e.target !== btnExportOptionsToggle) {
+        exportOptionsMenu.style.display = 'none';
+      }
+    });
+  }
 
   // --- Tab 7: Configuration & AP Names ---
   async function loadConfigView() {

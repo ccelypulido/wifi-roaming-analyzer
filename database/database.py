@@ -914,7 +914,7 @@ def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: O
         "DNS_ms", "TCP_ms", "TLS_ms", "TTFB_ms", "Transfer_ms",
         "Total_Activo_ms", "Cold_Total_ms", "Error", "Error_Msg"
     ])
-    probes = get_http_probe_history(limit=1000, location_filter=location_filter, zone_filter=zone_filter)
+    probes = get_http_probe_history(limit=50000, location_filter=location_filter, zone_filter=zone_filter)
     for r in probes:
         writer.writerow([
             r.get('id', ''), r.get('created_at', ''), r.get('timestamp', 0), r.get('time', ''), r.get('date', ''),
@@ -924,6 +924,58 @@ def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: O
             r.get('transfer_ms', 0), r.get('total_ms', 0), r.get('cold_total_ms', 0),
             r.get('is_error', 0), r.get('error_message', '')
         ])
+    return output.getvalue()
+
+def export_icmp_diag_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
+    """Exports ICMP ping & traceroute diagnostic history into CSV string."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Run_ID", "Fecha_Hora_UTC", "Timestamp", "Sede", "Zona", "Target_URL_Configurada",
+        "Target_Tipo", "Target_Nombre", "Target_Host", "Estado",
+        "Ping_Min_ms", "Ping_Avg_ms", "Ping_Max_ms", "Jitter_mdev_ms",
+        "Perdida_Pct", "Traceroute_Saltos", "Traceroute_Alcanzado", "Traceroute_Ruta", "Error"
+    ])
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM net_diag_history WHERE 1=1"
+        params = []
+        if location_filter and location_filter != 'all':
+            query += " AND location = ?"
+            params.append(location_filter)
+        if zone_filter and zone_filter != 'all':
+            query += " AND zone = ?"
+            params.append(zone_filter)
+        query += " ORDER BY id ASC"
+        cursor.execute(query, params)
+        for r in cursor.fetchall():
+            run_id = r['id']
+            created_at = r['created_at']
+            ts = r['timestamp']
+            loc = r['location']
+            z = r['zone']
+            url = r['target_url'] or ''
+            try:
+                targets = json.loads(r['results_json'])
+            except Exception:
+                targets = []
+            for t in targets:
+                p = t.get('ping', {})
+                tr = t.get('traceroute', {})
+                hops = tr.get('hops', [])
+                path_parts = []
+                for h in hops:
+                    rtt = f"{h.get('rtt_ms')}ms" if h.get('rtt_ms') is not None else "timeout"
+                    path_parts.append(f"#{h.get('hop')}:{h.get('ip')} ({rtt})")
+                path_str = " -> ".join(path_parts) if path_parts else ""
+
+                writer.writerow([
+                    run_id, created_at, ts, loc, z, url,
+                    t.get('type', 'target'), t.get('name', t.get('host', '')), t.get('host', ''), t.get('status', 'healthy'),
+                    p.get('min_ms', ''), p.get('avg_ms', ''), p.get('max_ms', ''), p.get('mdev_ms', ''),
+                    p.get('loss_pct', 0.0), tr.get('hops_count', len(hops)), tr.get('reached', False),
+                    path_str, p.get('error') or tr.get('error') or ''
+                ])
     return output.getvalue()
 
 def clear_history(scope: str = 'all'):

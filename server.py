@@ -12,6 +12,8 @@ import argparse
 import webbrowser
 import io
 import csv
+import datetime
+import zipfile
 from urllib.parse import parse_qs, urlparse
 
 IS_WINDOWS = sys.platform == 'win32'
@@ -916,24 +918,98 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "history": history
             })
         elif parsed.path == '/api/export':
-            exp_type = qs.get('type', ['telemetry'])[0]
+            exp_type = qs.get('type', ['telemetry'])[0].lower()
+            exp_fmt = qs.get('format', [''])[0].lower()
             loc = qs.get('location', ['all'])[0]
             zone = qs.get('zone', ['all'])[0]
-            if exp_type == 'roaming':
-                csv_str = database.export_roaming_csv(location_filter=loc, zone_filter=zone)
-                filename = f"roaming_history_{loc}.csv"
-            elif exp_type in ('http-phases', 'probes'):
-                csv_str = database.export_http_probes_csv(location_filter=loc, zone_filter=zone)
-                filename = f"http_phases_history_{loc}.csv"
+            loc_filter = None if loc in ('all', '', 'todas') else loc
+            zone_filter = None if zone in ('all', '', 'todas') else zone
+
+            clean_loc = re.sub(r'[^a-zA-Z0-9_\-]', '_', loc) if loc else "all"
+            clean_zone = re.sub(r'[^a-zA-Z0-9_\-]', '_', zone) if zone else "all"
+            loc_suffix = f"_{clean_loc}" if clean_loc != "all" else ""
+            zone_suffix = f"_zona_{clean_zone}" if clean_zone != "all" else ""
+            date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            # 1. ZIP Export: Full Audit Package (Roaming + HTTP + ICMP + Telemetry + Summary)
+            if exp_type in ('all', 'zip', 'audit', 'full') or exp_fmt == 'zip':
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    # File 1: Telemetría Sincronizada RF + HTTP + ICMP
+                    telemetry_csv = database.export_telemetry_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                    zf.writestr(f"01_telemetria_sincronizada_rf_icmp_http{loc_suffix}{zone_suffix}.csv", telemetry_csv.encode('utf-8-sig'))
+
+                    # File 2: Resultados y Eventos de Roaming (Handoffs)
+                    roaming_csv = database.export_roaming_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                    zf.writestr(f"02_eventos_roaming_handoffs{loc_suffix}{zone_suffix}.csv", roaming_csv.encode('utf-8-sig'))
+
+                    # File 3: Telemetría de Pruebas de Latencia HTTP por Fases
+                    http_csv = database.export_http_probes_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                    zf.writestr(f"03_latencia_fases_http{loc_suffix}{zone_suffix}.csv", http_csv.encode('utf-8-sig'))
+
+                    # File 4: Telemetría de Diagnóstico de Red ICMP & Traceroute
+                    icmp_csv = database.export_icmp_diag_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                    zf.writestr(f"04_diagnostico_red_icmp_traceroute{loc_suffix}{zone_suffix}.csv", icmp_csv.encode('utf-8-sig'))
+
+                    # File 5: Resumen de Auditoría
+                    stats = database.get_statistics(location_filter=loc_filter or 'all', zone_filter=zone_filter or 'all')
+                    summary_text = (
+                        "======================================================================\n"
+                        " PAQUETE DE AUDITORÍA Y TELEMETRÍA DE RED, ROAMING Y APLICACIÓN       \n"
+                        "======================================================================\n"
+                        f"Fecha y Hora de Generación : {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                        f"Sede Evaluada             : {loc if loc != 'all' else 'Todas las Sedes'}\n"
+                        f"Zona Evaluada             : {zone if zone != 'all' else 'Todas las Zonas'}\n"
+                        "----------------------------------------------------------------------\n"
+                        "MÉTRICAS CONSOLIDADAS:\n"
+                        f"  • Muestras Totales de Telemetría: {stats.get('total_samples', 0)}\n"
+                        f"  • Disponibilidad (Uptime)       : {stats.get('uptime_percentage', 100)}%\n"
+                        f"  • Eventos de Roaming Wi-Fi      : {stats.get('roaming_count', 0)}\n"
+                        f"  • Latencia HTTP Mediana (P50)   : {stats.get('percentiles', {}).get('p50', 0)} ms\n"
+                        f"  • Latencia HTTP Percentil 95 (P95): {stats.get('percentiles', {}).get('p95', 0)} ms\n"
+                        f"  • Latencia HTTP Percentil 99 (P99): {stats.get('percentiles', {}).get('p99', 0)} ms\n"
+                        f"  • Jitter Promedio de Red        : {stats.get('jitter', 0)} ms\n"
+                        f"  • Señal Wi-Fi Promedio          : {stats.get('averages', {}).get('signal_dbm', '--')} dBm\n"
+                        "----------------------------------------------------------------------\n"
+                        "ARCHIVOS ADJUNTOS EN ESTE ZIP:\n"
+                        "  1. 01_telemetria_sincronizada_rf_icmp_http.csv -> Muestras completas periódicas\n"
+                        "  2. 02_eventos_roaming_handoffs.csv             -> Registro de saltos entre APs\n"
+                        "  3. 03_latencia_fases_http.csv                  -> Tiempos DNS, TCP, TLS, TTFB y Transfer\n"
+                        "  4. 04_diagnostico_red_icmp_traceroute.csv      -> Pruebas multi-ping y saltos traceroute\n"
+                        "  5. 00_resumen_auditoria.txt                    -> Ficha técnica del informe\n"
+                        "======================================================================\n"
+                    )
+                    zf.writestr(f"00_resumen_auditoria{loc_suffix}{zone_suffix}.txt", summary_text.encode('utf-8'))
+
+                zip_data = zip_buffer.getvalue()
+                filename = f"auditoria_completa_red_roaming{loc_suffix}{zone_suffix}_{date_str}.zip"
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/zip')
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
+                self.send_header('Content-Length', str(len(zip_data)))
+                self.end_headers()
+                self.wfile.write(zip_data)
+                return
+
+            # 2. Individual CSV Exports
+            elif exp_type == 'roaming':
+                csv_str = database.export_roaming_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                filename = f"eventos_roaming{loc_suffix}{zone_suffix}_{date_str}.csv"
+            elif exp_type in ('http-phases', 'probes', 'http'):
+                csv_str = database.export_http_probes_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                filename = f"latencia_fases_http{loc_suffix}{zone_suffix}_{date_str}.csv"
+            elif exp_type in ('icmp', 'net-diag'):
+                csv_str = database.export_icmp_diag_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                filename = f"diagnostico_red_icmp{loc_suffix}{zone_suffix}_{date_str}.csv"
             elif exp_type == 'sedes-zonas-csv':
                 csv_str = database.export_sedes_zonas_csv()
-                filename = "sedes_zonas.csv"
+                filename = f"sedes_zonas_{date_str}.csv"
             elif exp_type == 'sedes-zonas-json':
                 json_str = json.dumps(database.get_location_zones_map(), ensure_ascii=False, indent=2)
                 content = json_str.encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.send_header('Content-Disposition', 'attachment; filename="sedes_zonas.json"')
+                self.send_header('Content-Disposition', f'attachment; filename="sedes_zonas_{date_str}.json"')
                 self.send_header('Content-Length', str(len(content)))
                 self.end_headers()
                 self.wfile.write(content)
@@ -946,10 +1022,10 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 for a in aps:
                     writer.writerow([a.get('mac', ''), a.get('name', ''), a.get('location', ''), a.get('model', '')])
                 csv_str = out.getvalue()
-                filename = "ap_names_inventory.csv"
+                filename = f"ap_names_inventory_{date_str}.csv"
             else:
-                csv_str = database.export_telemetry_csv(location_filter=loc, zone_filter=zone)
-                filename = f"telemetry_{loc}.csv"
+                csv_str = database.export_telemetry_csv(location_filter=loc_filter, zone_filter=zone_filter)
+                filename = f"telemetria_sincronizada{loc_suffix}{zone_suffix}_{date_str}.csv"
 
             content = csv_str.encode('utf-8-sig')
             self.send_response(200)
