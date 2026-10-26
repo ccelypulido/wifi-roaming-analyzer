@@ -1,3 +1,21 @@
+"""
+Capa de Persistencia Relacional y Motor de Métricas SQLite (telemetry.db)
+Wi-Fi & Enterprise Application Telemetry Analyzer.
+
+Provee:
+1. Conexiones thread-safe con modo WAL (Write-Ahead Logging) y PRAGMA busy_timeout=5000.
+2. Tablas relacionales con índices optimizados:
+   - telemetry_samples: Muestras sincronizadas de RF (dBm, canal, bitrates), ping local y HTTP.
+   - roaming_events: Saltos entre Access Points (handoffs), deltas dBm y veredictos automáticos.
+   - http_probe_history: Fases de latencia de Capa 7 (DNS, TCP, TLS, TTFB y Transferencia).
+   - net_diag_history: Diagnósticos periódicos de multi-ping (Gateway, DNS) y Traceroute.
+   - config: Configuración persistente del motor de telemetría y autenticación.
+3. Agregaciones estadísticas avanzadas: Percentiles (P50, P90, P95, P99), Jitter (RFC 3550) y Uptime.
+4. Generación de paquetes de auditoría (.ZIP con 4 CSVs y ficha técnica .TXT).
+5. Sincronización jerárquica con el catálogo maestro data/sedes_zonas.json.
+6. Purga segura de historiales con compactación y truncado de archivo WAL.
+"""
+
 import sqlite3
 import datetime
 import math
