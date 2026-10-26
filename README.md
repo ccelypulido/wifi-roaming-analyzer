@@ -399,7 +399,7 @@ En entornos de auditoría y troubleshooting de radiofrecuencia, la resolución O
 - **Auditoría Física y Mapeo en Sitio:** Ayuda a los ingenieros de campo a localizar rápidamente equipos físicos en techos o bandejas portacables.
 
 #### ⚙️ Cómo Funciona ([core/oui_manager.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/oui_manager.py)):
-- **Base de Datos Local Offline:** Incluye un archivo precompilado en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json) con **más de 40,358 fabricantes registrados** por el IEEE, operando al 100% en entornos air-gapped o sin acceso a Internet.
+- **Base de Datos Local Offline:** Incluye un archivo precompilado en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json) con **más de 40,395 fabricantes registrados** por el IEEE, operando al 100% en entornos air-gapped o sin acceso a Internet.
 - **Normalización de Formatos MAC:** Acepta indistintamente delimitadores de dos puntos (`00:1A:2B`), guiones (`00-1A-2B`), puntos tipo Cisco (`001A.2B`) o cadenas continuas (`001A2B`).
 - **Gestión Visual Centralizada (Pestaña 7 - "Configuración"):**
   - **Métricas Visuales en Vivo:** Tarjetas resumen de *Total Fabricantes*, *Personalizados* y *Fecha de Última Sincronización*.
