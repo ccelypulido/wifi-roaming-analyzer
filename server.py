@@ -880,7 +880,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(PRESETS)
         elif parsed.path == '/api/locations':
             only_data = (qs.get('only_data', ['0'])[0] in ('1', 'true'))
-            locs = database.get_locations(only_with_data=only_data)
+            configured_only = (qs.get('configured_only', ['0'])[0] in ('1', 'true'))
+            locs = database.get_locations(only_with_data=only_data, configured_only=configured_only)
             self.send_json_response({"locations": locs})
         elif parsed.path == '/api/zones':
             mapping = database.get_location_zones_map()
@@ -1217,8 +1218,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json_response({"status": "error", "message": "Parámetro enabled requerido"}, status=400)
 
         elif parsed.path == '/api/locations/sync':
-            database.auto_preload_sedes_zonas()
-            self.send_json_response({"status": "success", "locations": database.get_locations()})
+            mapping = database.reload_sedes_zonas_file(overwrite=True)
+            self.send_json_response({"status": "success", "locations": list(mapping.keys()), "zones": mapping})
 
         elif parsed.path == '/api/locations/import':
             content = data.get('content', '') if isinstance(data, dict) else body
@@ -1245,6 +1246,15 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json_response({"status": "success", "zones": database.get_location_zones_map()})
             else:
                 self.send_json_response({"status": "error", "message": "Faltan parámetros"})
+
+        elif parsed.path == '/api/zones/delete':
+            loc = data.get('location')
+            zone = data.get('zone')
+            if loc and zone:
+                database.remove_zone_from_location(loc, zone)
+                self.send_json_response({"status": "success", "zones": database.get_location_zones_map()})
+            else:
+                self.send_json_response({"status": "error", "message": "Faltan parámetros location y zone"}, status=400)
 
         elif parsed.path == '/api/net-diag/run':
             cfg = database.get_config()

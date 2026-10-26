@@ -1076,6 +1076,13 @@ body {
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.zone-delete-btn:hover {
+  opacity: 1 !important;
+  color: var(--accent-rose) !important;
+  transform: scale(1.15);
 }
 
 /* Network Diagnostics Target Cards (Tab 3) */

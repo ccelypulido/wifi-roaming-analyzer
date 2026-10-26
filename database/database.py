@@ -654,8 +654,19 @@ def get_statistics(
             "roaming_count": roaming_count
         }
 
-def get_locations(only_with_data: bool = False) -> List[str]:
+def get_locations(only_with_data: bool = False, configured_only: bool = False) -> List[str]:
     """Returns list of distinct configured/recorded locations."""
+    if configured_only:
+        cfg = get_config()
+        raw = cfg.get("zones_by_location", "")
+        try:
+            mapping = json.loads(raw) if raw else {}
+        except Exception:
+            mapping = {}
+        if not mapping:
+            mapping = get_location_zones_map()
+        return list(mapping.keys())
+
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT DISTINCT location FROM telemetry_samples WHERE location IS NOT NULL AND location != '' ORDER BY location ASC")
@@ -673,30 +684,37 @@ def get_locations(only_with_data: bool = False) -> List[str]:
 
     curr_loc = cfg.get("location_name", "")
     all_locs = []
-    for l in ([curr_loc] + list(mapping.keys()) + db_locs):
+    # Prioritize configured sedes in mapping
+    for l in (list(mapping.keys()) + ([curr_loc] if curr_loc else []) + db_locs):
         l_str = str(l).strip()
         if l_str and l_str not in all_locs:
             all_locs.append(l_str)
     return all_locs
 
 def get_location_zones_map() -> Dict[str, List[str]]:
-    """Returns mapping of Sede -> list of configured zones."""
+    """
+    Returns mapping of Sede -> list of configured zones.
+    Only returns currently configured zones from config or sedes_zonas.json.
+    Does NOT contaminate active configuration with obsolete historical samples.
+    """
     cfg = get_config()
     raw = cfg.get("zones_by_location", "")
-    try:
-        mapping = json.loads(raw) if raw else {}
-    except Exception:
-        mapping = {}
+    mapping: Dict[str, List[str]] = {}
+    if raw:
+        try:
+            mapping = json.loads(raw)
+        except Exception:
+            mapping = {}
 
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT location, zone FROM telemetry_samples WHERE zone IS NOT NULL AND zone != ''")
-        for row in cursor.fetchall():
-            loc, z = row['location'], row['zone']
-            if loc not in mapping:
-                mapping[loc] = []
-            if z not in mapping[loc]:
-                mapping[loc].append(z)
+    if not mapping and os.path.exists(SEDES_ZONAS_FILE):
+        try:
+            with open(SEDES_ZONAS_FILE, "r", encoding="utf-8") as f:
+                file_data = json.load(f)
+            if isinstance(file_data, dict):
+                mapping = file_data
+                set_config("zones_by_location", json.dumps(mapping, ensure_ascii=False))
+        except Exception:
+            pass
 
     return mapping
 
@@ -716,6 +734,14 @@ def add_zone_to_location(location: str, zone: str):
         mapping[location].append(z_clean)
         set_config("zones_by_location", json.dumps(mapping, ensure_ascii=False))
 
+def remove_zone_from_location(location: str, zone: str):
+    """Removes a single zone from a location in the active configuration."""
+    mapping = get_location_zones_map()
+    if location in mapping:
+        z_clean = zone.strip()
+        mapping[location] = [z for z in mapping[location] if z != z_clean]
+        set_config("zones_by_location", json.dumps(mapping, ensure_ascii=False))
+
 def delete_location(location: str):
     """Removes a location from configuration."""
     mapping = get_location_zones_map()
@@ -723,29 +749,74 @@ def delete_location(location: str):
         del mapping[location]
         set_config("zones_by_location", json.dumps(mapping, ensure_ascii=False))
 
-def auto_preload_sedes_zonas():
-    """Loads sedes_zonas.json into config if available and not yet loaded."""
+def reload_sedes_zonas_file(overwrite: bool = True) -> Dict[str, List[str]]:
+    """
+    Reloads sedes_zonas.json cleanly into SQLite config.
+    When overwrite=True (default when clicking 'Recargar sedes_zonas.json'):
+    - Sedes present in sedes_zonas.json have their zones cleanly replaced by the exact JSON list.
+    - Eliminates obsolete / combined historical zones that are no longer in the JSON.
+    - Preserves custom sedes added by user that are not present in the JSON file.
+    """
     if not os.path.exists(SEDES_ZONAS_FILE):
-        return
+        return get_location_zones_map()
+
     try:
         with open(SEDES_ZONAS_FILE, "r", encoding="utf-8") as f:
             file_data = json.load(f)
-        if isinstance(file_data, dict):
-            current_map = get_location_zones_map()
-            changed = False
-            for loc, zones in file_data.items():
-                if loc not in current_map:
-                    current_map[loc] = zones
-                    changed = True
-                else:
-                    for z in zones:
-                        if z not in current_map[loc]:
-                            current_map[loc].append(z)
-                            changed = True
-            if changed:
-                set_config("zones_by_location", json.dumps(current_map, ensure_ascii=False))
     except Exception:
-        pass
+        return get_location_zones_map()
+
+    if not isinstance(file_data, dict):
+        return get_location_zones_map()
+
+    clean_file_map: Dict[str, List[str]] = {}
+    for loc, zones in file_data.items():
+        loc_clean = str(loc).strip()
+        if not loc_clean:
+            continue
+        clean_file_map[loc_clean] = []
+        if isinstance(zones, list):
+            for z in zones:
+                z_str = str(z).strip()
+                if z_str and z_str not in clean_file_map[loc_clean]:
+                    clean_file_map[loc_clean].append(z_str)
+
+    cfg = get_config()
+    raw = cfg.get("zones_by_location", "")
+    try:
+        current_map = json.loads(raw) if raw else {}
+    except Exception:
+        current_map = {}
+
+    if overwrite:
+        # Strictly replace zones for all sedes present in sedes_zonas.json
+        result_map: Dict[str, List[str]] = {}
+        # 1. Sedes from file in exact order
+        for loc, zones in clean_file_map.items():
+            result_map[loc] = list(zones)
+        # 2. Preserve any user-created custom sedes not in file
+        for loc, zones in current_map.items():
+            if loc not in result_map:
+                result_map[loc] = list(zones)
+    else:
+        result_map = dict(current_map)
+        for loc, zones in clean_file_map.items():
+            if loc not in result_map:
+                result_map[loc] = list(zones)
+            else:
+                for z in zones:
+                    if z not in result_map[loc]:
+                        result_map[loc].append(z)
+
+    set_config("zones_by_location", json.dumps(result_map, ensure_ascii=False))
+    return result_map
+
+def auto_preload_sedes_zonas():
+    """Loads sedes_zonas.json into config if not yet configured."""
+    cfg = get_config()
+    raw = cfg.get("zones_by_location", "")
+    if not raw or raw == "{}":
+        reload_sedes_zonas_file(overwrite=True)
 
 def import_sedes_zonas_data(content: str, overwrite: bool = False) -> Dict[str, Any]:
     """

@@ -1765,26 +1765,35 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadSedesAndZones() {
     try {
       const [resLocs, resZones] = await Promise.all([
-        fetch('/api/locations'),
+        fetch('/api/locations?configured_only=1'),
         fetch('/api/zones')
       ]);
       const dataLocs = await resLocs.json();
       const zonesMap = await resZones.json();
 
-      const locs = dataLocs.locations || [];
+      const locs = (dataLocs.locations && dataLocs.locations.length > 0)
+        ? dataLocs.locations
+        : Object.keys(zonesMap);
+
       sedesCardsContainer.innerHTML = locs.map(l => {
         const zones = zonesMap[l] || [];
         return `
           <div class="sede-card">
             <div class="sede-card-header">
               <div class="sede-card-title">
-                <i class="fa-solid fa-building"></i> ${l.replace(/_/g, ' ')}
+                <i class="fa-solid fa-building"></i> ${escapeHtml(l.replace(/_/g, ' '))}
+                <span class="badge" style="font-size: 0.72rem; padding: 0.15rem 0.45rem; background: rgba(79, 70, 229, 0.1); color: var(--accent-cyan); font-weight: 600;">${zones.length} zonas</span>
               </div>
-              <button class="btn-icon-danger" onclick="deleteSede('${l}')" title="Eliminar Sede"><i class="fa-solid fa-trash"></i></button>
+              <button class="btn-icon-danger" onclick="deleteSede('${escapeHtml(l)}')" title="Eliminar Sede"><i class="fa-solid fa-trash"></i></button>
             </div>
             <div class="zone-chips-container">
-              ${zones.map(z => `<span class="zone-chip">${z}</span>`).join('')}
-              <button class="zone-chip" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: var(--accent-cyan); cursor: pointer;" onclick="promptAddZone('${l}')">
+              ${zones.map(z => `
+                <span class="zone-chip" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                  <span>${escapeHtml(z)}</span>
+                  <i class="fa-solid fa-xmark zone-delete-btn" onclick="deleteSingleZone('${escapeHtml(l)}', '${escapeHtml(z)}')" title="Eliminar zona" style="cursor: pointer; opacity: 0.55; font-size: 0.72rem; margin-left: 0.15rem;"></i>
+                </span>
+              `).join('')}
+              <button class="zone-chip" style="background: rgba(79, 70, 229, 0.12); color: var(--accent-cyan); border-color: var(--accent-cyan); cursor: pointer; font-weight: 600;" onclick="promptAddZone('${escapeHtml(l)}')">
                 <i class="fa-solid fa-plus"></i> Añadir Zona
               </button>
             </div>
@@ -1795,6 +1804,22 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error("Error cargando gestor de sedes:", e);
     }
   }
+
+  window.deleteSingleZone = async function(loc, zone) {
+    if (confirm(`¿Eliminar la zona "${zone}" de la sede "${loc.replace(/_/g, ' ')}"?`)) {
+      try {
+        await fetch('/api/zones/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: loc, zone: zone })
+        });
+        loadSedesAndZones();
+        loadLocationsAndZones();
+      } catch (e) {
+        console.error("Error eliminando zona:", e);
+      }
+    }
+  };
 
   window.promptAddZone = async function(loc) {
     const newZ = prompt(`Añadir zona a ${loc}:`);
@@ -1836,10 +1861,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnSyncSedesJson.addEventListener('click', async () => {
-    await fetch('/api/locations/sync', { method: 'POST' });
-    loadSedesAndZones();
-    loadLocationsAndZones();
-    alert("Sedes y Zonas sincronizadas desde sedes_zonas.json");
+    const origHtml = btnSyncSedesJson.innerHTML;
+    btnSyncSedesJson.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Recargando...';
+    btnSyncSedesJson.disabled = true;
+    try {
+      const res = await fetch('/api/locations/sync', { method: 'POST' });
+      const data = await res.json();
+      await loadSedesAndZones();
+      await loadLocationsAndZones();
+      alert("Sedes y Zonas recargadas exitosamente desde sedes_zonas.json");
+    } catch (e) {
+      alert("Error al recargar sedes_zonas.json: " + e.message);
+    } finally {
+      btnSyncSedesJson.innerHTML = origHtml;
+      btnSyncSedesJson.disabled = false;
+    }
   });
 
   if (btnImportSedesFile && inputFileSedesZonas) {
