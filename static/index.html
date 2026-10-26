@@ -16,7 +16,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
   
-  <link rel="stylesheet" href="styles.css?v=3.5.1">
+  <link rel="stylesheet" href="styles.css?v=3.6.0">
 </head>
 <body>
   <div class="dashboard-container">
@@ -981,6 +981,113 @@
               </table>
             </div>
           </div>
+
+          <!-- Card 4: IEEE OUI Vendor Database & MAC Range Management -->
+          <div class="card" style="grid-column: 1 / -1;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+              <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-microchip" style="color: var(--accent-cyan);"></i>
+                <span style="font-weight: 600;">Base de Datos de Fabricantes de APs (IEEE OUI / Rangos MAC)</span>
+                <span id="oui-stat-badge" class="badge" style="background: rgba(79, 70, 229, 0.08); color: var(--accent-cyan); font-weight: 700; margin-left: 0.5rem;">40,358 Fabricantes</span>
+              </div>
+              
+              <div class="oui-actions-wrapper" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" id="btn-update-oui" class="btn-primary" style="font-size: 0.82rem; padding: 0.45rem 0.85rem;" title="Descargar y sincronizar con el registro oficial de la IEEE">
+                  <i class="fa-solid fa-cloud-arrow-down"></i> Actualizar desde IEEE
+                </button>
+                <button type="button" id="btn-toggle-add-oui" class="btn-secondary" style="font-size: 0.82rem; padding: 0.45rem 0.85rem;">
+                  <i class="fa-solid fa-plus"></i> Registrar Fabricante
+                </button>
+              </div>
+            </div>
+
+            <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1rem;">
+              Identifica la marca y fabricante de hardware de cada Access Point mediante el prefijo de su dirección MAC (<strong style="color: var(--accent-cyan);">OUI - Organizationally Unique Identifier</strong>). La base de datos offline incluye más de 40,000 asignaciones del registro oficial del IEEE (Cisco, Aruba, Ruckus, Ubiquiti, Huawei, etc.) y permite registrar o personalizar prefijos específicos que se conservan tras actualizaciones oficiales.
+            </p>
+
+            <!-- OUI Summary Stats Cards -->
+            <div class="oui-summary-panel" style="margin-bottom: 1.25rem;">
+              <div class="oui-stat-card">
+                <div class="oui-stat-icon"><i class="fa-solid fa-microchip"></i></div>
+                <div class="oui-stat-info">
+                  <span class="oui-stat-label">Total Fabricantes</span>
+                  <span id="oui-stat-total" class="oui-stat-val">--</span>
+                </div>
+              </div>
+              <div class="oui-stat-card">
+                <div class="oui-stat-icon"><i class="fa-solid fa-sliders"></i></div>
+                <div class="oui-stat-info">
+                  <span class="oui-stat-label">Personalizados</span>
+                  <span id="oui-stat-custom" class="oui-stat-val">--</span>
+                </div>
+              </div>
+              <div class="oui-stat-card">
+                <div class="oui-stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                <div class="oui-stat-info">
+                  <span class="oui-stat-label">Última Actualización</span>
+                  <span id="oui-stat-updated" class="oui-stat-val">--</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Update Progress Alert Banner -->
+            <div id="oui-update-banner" class="oui-alert-banner" style="display: none;">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <span id="oui-update-status-text">Actualizando base de datos desde IEEE...</span>
+            </div>
+
+            <!-- Form to Add / Override Custom OUI -->
+            <div id="oui-add-form-container" class="oui-add-panel" style="display: none; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-plus-circle" style="color: var(--accent-cyan);"></i> Agregar o Modificar Fabricante Personalizado
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+                Asigna un nombre descriptivo a un prefijo MAC de 3 octetos (OUI). Esta entrada tiene prioridad absoluta y se conservará intacta tras actualizaciones oficiales.
+              </p>
+              <div class="oui-form-fields" style="display: grid; grid-template-columns: 200px 1fr auto; gap: 0.75rem; align-items: end;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label for="oui-input-prefix">Prefijo MAC (3 octetos):</label>
+                  <input type="text" id="oui-input-prefix" class="toolbar-input" placeholder="Ej: 00:1A:1E o 00-1A-1E" maxlength="17" style="width: 100%;">
+                </div>
+                <div class="form-group" style="flex: 2; margin-bottom: 0;">
+                  <label for="oui-input-vendor">Nombre del Fabricante / AP:</label>
+                  <input type="text" id="oui-input-vendor" class="toolbar-input" placeholder="Ej: Cisco Catalyst Lab / Aruba AP-515" style="width: 100%;">
+                </div>
+                <div class="form-group-actions" style="display: flex; gap: 0.5rem;">
+                  <button type="button" id="btn-save-custom-oui" class="btn-primary" style="height: 38px; padding: 0 1rem; white-space: nowrap;">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar
+                  </button>
+                  <button type="button" id="btn-cancel-custom-oui" class="btn-secondary" style="height: 38px; padding: 0 0.85rem;">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Search Controls Row -->
+            <div class="oui-controls-row" style="margin-bottom: 0.75rem;">
+              <div class="oui-search-box" style="position: relative; max-width: 450px; width: 100%;">
+                <input type="text" id="oui-search-input" class="toolbar-input" placeholder="🔍 Buscar por prefijo MAC (ej: 00:1A:2B) o fabricante (Cisco, Aruba, Huawei)..." style="width: 100%; padding-left: 0.75rem;">
+              </div>
+            </div>
+
+            <!-- OUI Results Table -->
+            <div class="table-responsive" style="max-height: 380px; overflow-y: auto;">
+              <table class="custom-table" style="width: 100%;">
+                <thead>
+                  <tr>
+                    <th style="width: 160px;">Prefijo OUI</th>
+                    <th>Fabricante Asignado</th>
+                    <th style="width: 150px;">Tipo Registro</th>
+                    <th style="width: 90px; text-align: center;">Acción</th>
+                  </tr>
+                </thead>
+                <tbody id="oui-table-body">
+                  <!-- Loaded via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -988,6 +1095,6 @@
 
   </div>
 
-  <script src="app.js?v=3.8.1"></script>
+  <script src="app.js?v=3.9.0"></script>
 </body>
 </html>
