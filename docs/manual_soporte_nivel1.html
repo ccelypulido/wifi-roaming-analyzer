@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual de Usuario - Soporte Nivel 1 | Wi-Fi Roaming & Enterprise Analyzer</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 14mm 16mm 14mm 16mm;
+      @bottom-right {
+        content: "Página " counter(page);
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #64748b;
+      }
+      @bottom-left {
+        content: "Wi-Fi & Enterprise Telemetry Analyzer • Manual Soporte Nivel 1";
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      font-size: 9.3pt;
+      line-height: 1.44;
+      color: #1e293b;
+      background: #ffffff;
+    }
+
+    /* Cover Page */
+    .cover-page {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 92vh;
+      padding: 1.5rem 0.5rem 0.5rem 0.5rem;
+      border-bottom: 4px solid #4f46e5;
+    }
+
+    .cover-top {
+      margin-top: 1.5rem;
+    }
+
+    .badge-doc {
+      display: inline-block;
+      padding: 0.35rem 0.85rem;
+      background: #eef2ff;
+      color: #4f46e5;
+      font-weight: 700;
+      font-size: 8.5pt;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 1.25rem;
+      border: 1px solid #c7d2fe;
+    }
+
+    .cover-title {
+      font-size: 25pt;
+      font-weight: 800;
+      line-height: 1.15;
+      color: #0f172a;
+      margin-bottom: 0.65rem;
+    }
+
+    .cover-subtitle {
+      font-size: 12.5pt;
+      font-weight: 400;
+      color: #475569;
+      line-height: 1.35;
+      margin-bottom: 1.75rem;
+    }
+
+    .cover-highlight-box {
+      background: #f8fafc;
+      border-left: 4px solid #4f46e5;
+      border-radius: 0 8px 8px 0;
+      padding: 1.15rem 1.35rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    }
+
+    .cover-highlight-box p {
+      font-size: 9.6pt;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    .cover-highlight-box strong {
+      color: #4f46e5;
+    }
+
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .meta-item {
+      font-size: 8.8pt;
+    }
+
+    .meta-item span {
+      display: block;
+      color: #64748b;
+      font-size: 7.8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.15rem;
+    }
+
+    .meta-item strong {
+      color: #0f172a;
+      font-size: 9.2pt;
+    }
+
+    /* Headings */
+    h1 {
+      font-size: 15.5pt;
+      font-weight: 800;
+      color: #0f172a;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.35rem;
+      margin-top: 1.4rem;
+      margin-bottom: 0.65rem;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: #1e1b4b;
+      margin-top: 1rem;
+      margin-bottom: 0.45rem;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 0.75rem;
+      margin-bottom: 0.3rem;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin-bottom: 0.55rem;
+      text-align: justify;
+    }
+
+    /* Callout & Tips */
+    .callout {
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      margin: 0.7rem 0;
+      page-break-inside: avoid;
+      font-size: 8.9pt;
+      line-height: 1.4;
+    }
+
+    .callout-info {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+    }
+
+    .callout-tip {
+      background: #f0fdf4;
+      border-left: 4px solid #10b981;
+      color: #065f46;
+    }
+
+    .callout-warning {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .callout-danger {
+      background: #fef2f2;
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 9.2pt;
+      margin-bottom: 0.2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.7rem 0;
+      font-size: 8.5pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 0.42rem 0.55rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      font-size: 7.5pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-blue  { background: #e0f2fe; color: #0369a1; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-red   { background: #fee2e2; color: #991b1b; }
+    .badge-purple{ background: #f3e8ff; color: #6b21a8; }
+
+    /* Numbered Step Lists */
+    .step-list {
+      margin: 0.5rem 0 0.75rem 1.25rem;
+    }
+
+    .step-list li {
+      margin-bottom: 0.35rem;
+      padding-left: 0.25rem;
+    }
+
+    /* Cards & Layout Containers */
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin: 0.7rem 0;
+      page-break-inside: avoid;
+    }
+
+    .mini-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.7rem 0.85rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+
+    .mini-card strong {
+      display: block;
+      color: #0f172a;
+      font-size: 9.1pt;
+      margin-bottom: 0.2rem;
+    }
+
+    .mini-card p {
+      font-size: 8.4pt;
+      color: #475569;
+      margin: 0;
+      text-align: left;
+    }
+
+    .code-snippet {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 8.5pt;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PORTADA ==================== -->
+  <div class="cover-page">
+    <div class="cover-top">
+      <span class="badge-doc">Guía Práctica Oficial • Soporte TI Nivel 1</span>
+      <h1 class="cover-title">Manual de Operación y Diagnóstico de Red Wi-Fi</h1>
+      <p class="cover-subtitle">
+        Wi-Fi &amp; Enterprise Application Telemetry Analyzer<br>
+        <em>Resolución rápida de lentitud, congelamientos de terminales y caídas de sesión.</em>
+      </p>
+
+      <div class="cover-highlight-box">
+        <p>
+          <strong>¿Para qué sirve este manual?</strong><br>
+          Cuando un usuario en bodega, tienda u oficina reporta: <em>"La pistola PDA se congeló"</em>, <em>"El lector no escanea"</em> o <em>"El sistema Manhattan/SAP está lento"</em>, este documento le enseña al técnico de Soporte Nivel 1 cómo usar la aplicación para <strong>identificar la causa real en menos de 3 minutos</strong> y saber con exactitud si debe escalar a Redes o al equipo de Aplicaciones.
+        </p>
+      </div>
+
+      <div class="card-grid" style="margin-top: 1.25rem;">
+        <div class="mini-card" style="border-left: 3px solid #10b981;">
+          <strong>🟢 Si es problema de Red / Wi-Fi</strong>
+          <p>Mala señal dBm, antena lejana, saturación del router o salto defectuoso entre antenas.</p>
+        </div>
+        <div class="mini-card" style="border-left: 3px solid #3b82f6;">
+          <strong>🔵 Si es problema de Aplicación / Servidor</strong>
+          <p>Buena señal Wi-Fi pero el servidor web o la base de datos tardan en responder.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-meta">
+      <div class="meta-item">
+        <span>Público Objetivo</span>
+        <strong>Mesa de Ayuda, Helpdesk y Técnicos en Sitio</strong>
+      </div>
+      <div class="meta-item">
+        <span>Versión de la Plataforma</span>
+        <strong>Release 3.9 (Edición Empresarial)</strong>
+      </div>
+      <div class="meta-item">
+        <span>Acceso Web Local</span>
+        <strong>http://localhost:8050</strong>
+      </div>
+      <div class="meta-item">
+        <span>Fecha de Publicación</span>
+        <strong>Octubre 2026</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== PÁGINA 2 ==================== -->
+  <h1>1. ¿Qué es esta Aplicación y Cuál es su Objetivo?</h1>
+  <p>
+    En las operaciones diarias de la empresa (bodegas de despacho, cajas de retail, clínicas o centros logísticos), el personal operativo depende de terminales móviles (pistolas PDA, lectores de código de barras y laptops). 
+  </p>
+  <p>
+    Frecuentemente el usuario reporta que <em>"se cayó el Wi-Fi"</em>, pero en la realidad el problema puede estar en tres sitios totalmente distintos:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Capa del Problema</th>
+        <th style="width: 45%;">¿Qué está pasando en realidad?</th>
+        <th style="width: 30%;">¿A quién se escala?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. Antena / Wi-Fi (Capa 1 y 2)</strong></td>
+        <td>La terminal está en una zona de sombra (-78 dBm), la antena del techo está apagada o el salto de antena (roaming) tardó demasiado.</td>
+        <td><span class="badge badge-amber">Infraestructura / Redes</span></td>
+      </tr>
+      <tr>
+        <td><strong>2. Router / Red Local (Capa 3 y 4)</strong></td>
+        <td>La señal Wi-Fi es buena, pero el router principal (Gateway) o el switch de piso están colapsados y pierden paquetes (Ping alto).</td>
+        <td><span class="badge badge-amber">Infraestructura / Redes</span></td>
+      </tr>
+      <tr>
+        <td><strong>3. Servidor / Aplicación (Capa 7)</strong></td>
+        <td>El Wi-Fi y el router responden en 3 ms, pero el servidor web (Manhattan WMS, SAP, POS) tarda 5 segundos en procesar la consulta.</td>
+        <td><span class="badge badge-blue">Equipo de Aplicaciones</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-tip">
+    <div class="callout-title">💡 La Regla de Oro de Nivel 1</div>
+    Con esta aplicación no necesitas adivinar. Miras la pantalla y en <strong>un solo vistazo</strong> sabes con pruebas y números irrefutables en cuál de los 3 sitios está la falla.
+  </div>
+
+  <h1>2. Cómo Iniciar y Conocer la Pantalla Principal</h1>
+  
+  <p>
+    El analizador corre como un servicio liviano en la computadora de diagnóstico. No requiere instalar programas pesados ni tener conexión a internet.
+  </p>
+
+  <h3>Paso a Paso para Abrir la Aplicación:</h3>
+  <ol class="step-list">
+    <li>Abre tu navegador web de preferencia (Google Chrome, Microsoft Edge o Mozilla Firefox).</li>
+    <li>En la barra de direcciones escribe: <span class="code-snippet">http://localhost:8050</span> y presiona <strong>Enter</strong>.</li>
+    <li>Verás de inmediato el tablero principal con los indicadores en tiempo real.</li>
+  </ol>
+
+  <div class="callout callout-info">
+    <div class="callout-title">🧭 El Selector Superior de Sede y Zona</div>
+    En la barra superior siempre encontrarás dos campos clave: <strong>Sede Activa</strong> y <strong>Zona de Medición</strong>.
+    <br>• Si estás en cajas, selecciona: <em>Tienda Principal &gt; Cajas 1-4</em>.
+    <br>• Si estás en despacho de bodega, selecciona: <em>Bodega CLEN &gt; Despacho</em>.
+    <br><em>Esto asegura que todas las mediciones se guarden con el nombre territorial correcto.</em>
+  </div>
+
+  <!-- ==================== PÁGINA 3 ==================== -->
+  <div class="page-break"></div>
+  <h1>3. El Semáforo de Señal Wi-Fi: ¿Buena o Mala?</h1>
+  <p>
+    La intensidad de la señal se mide en <strong>dBm</strong> (decibelios relativos a 1 milivatio). En esta escala, <strong>números más pequeños en negativo indican una señal mucho más fuerte</strong>.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 20%;">Rango dBm</th>
+        <th style="width: 20%;">Calificación</th>
+        <th style="width: 35%;">Experiencia de la Terminal</th>
+        <th style="width: 25%;">Acción Nivel 1</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>-30 a -60 dBm</strong></td>
+        <td><span class="badge badge-green">Excelente</span></td>
+        <td>Máxima velocidad, escaneo instantáneo, cero demoras.</td>
+        <td>Operación normal. Si hay lentitud, es del servidor.</td>
+      </tr>
+      <tr>
+        <td><strong>-61 a -68 dBm</strong></td>
+        <td><span class="badge badge-blue">Bueno / Óptimo</span></td>
+        <td>Rango corporativo estándar para bodegas y tiendas.</td>
+        <td>Todo debe operar con normalidad.</td>
+      </tr>
+      <tr>
+        <td><strong>-69 a -75 dBm</strong></td>
+        <td><span class="badge badge-amber">Límite / Alerta</span></td>
+        <td>La terminal nota la señal débil y empieza a buscar otra antena cercana.</td>
+        <td>Observar si la terminal cambia de antena o se queda pegada.</td>
+      </tr>
+      <tr>
+        <td><strong>-76 a -90 dBm</strong></td>
+        <td><span class="badge badge-red">Crítico / Caída</span></td>
+        <td>Pantallas congeladas, desconexiones, pérdida de paquetes.</td>
+        <td>Zona de sombra Wi-Fi. Reportar antena apagada o hueco de cobertura.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>¿Qué significa el Ping al Gateway (ms)?</h3>
+  <p>El <strong>Gateway</strong> es el router o switch principal del edificio:</p>
+  <ul class="step-list">
+    <li>🟢 <strong>1 a 10 ms:</strong> Excelente. El aire y el cableado están despejados.</li>
+    <li>🟡 <strong>15 a 40 ms:</strong> Aceptable, pero con algo de congestión en la red.</li>
+    <li>🔴 <strong>Mayor a 50 ms o "Pérdida de paquetes":</strong> Grave. El router o la antena del techo están sobrecargados.</li>
+  </ul>
+
+  <h1>4. Pruebas de Movimiento (Roaming y Saltos de Antena)</h1>
+  <p>
+    El <strong>Roaming</strong> es el traspaso automático mediante el cual una terminal (pistola PDA o montacargas) se desconecta de una antena lejana y se conecta a una antena más cercana mientras el operador camina.
+  </p>
+
+  <div class="callout callout-warning">
+    <div class="callout-title">⚠️ El Síndrome del "Cliente Pegajoso" (Sticky Client)</div>
+    A veces una terminal camina del pasillo 1 al pasillo 8 y se queda conectada a la antena lejana del pasillo 1 (-80 dBm), ignorando que tiene una antena nueva en su cabeza (-45 dBm). Esto provoca que la aplicación se congele.
+  </div>
+
+  <h3>Cómo hacer una Prueba de Recorrido (Walk-Test):</h3>
+  <ol class="step-list">
+    <li>En la barra superior, fija la <strong>Sede</strong> donde te encuentras.</li>
+    <li>Abre la pestaña <strong>Historial de Roaming</strong> (Pestaña 1).</li>
+    <li>Camina a paso normal atravesando los pasillos o racks críticos.</li>
+    <li>Observa la tabla de eventos: cada salto mostrará su veredicto:
+      <br>• 🟢 <strong>Excelente Mejora (+10 dBm o más):</strong> El salto fue perfecto.
+      <br>• 🟡 <strong>Neutro (-2 a +2 dBm):</strong> Cambió de antena pero con señal similar.
+      <br>• 🔴 <strong>Roaming Degradado (-3 dBm o peor):</strong> Saltó a una antena más lejana. ¡Anotar y escalar a Redes!
+    </li>
+  </ol>
+
+  <!-- ==================== PÁGINA 4 ==================== -->
+  <div class="page-break"></div>
+  <h1>5. ¿Por qué la Aplicación está Lenta? (Pestaña HTTP)</h1>
+  <p>
+    En la pestaña <strong>Fases de Latencia HTTP</strong> (Pestaña 3), la aplicación simula la solicitud real que hace el navegador o la aplicación de la pistola contra el servidor empresarial (ej. SAP, Manhattan WMS, Intranet).
+  </p>
+  <p>
+    Desglosa la conexión en <strong>4 fases lógicas</strong> para saber con exactitud en qué punto se produce la demora:
+  </p>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <strong>1. DNS (Directorio Telefónico)</strong>
+      <p>Tiempo en traducir el nombre (ej. <em>wms.empresa.local</em>) a IP. Si supera 30 ms, el servidor DNS interno está saturado.</p>
+    </div>
+    <div class="mini-card">
+      <strong>2. TCP (Saludo de Red Físico)</strong>
+      <p>Tiempo puro del cable y la antena. Si el TCP es menor a 15 ms, <strong>la red física es inocente</strong>.</p>
+    </div>
+    <div class="mini-card">
+      <strong>3. TLS (Seguridad HTTPS)</strong>
+      <p>Negociación de certificados de seguridad. Tarda típicamente entre 10 y 40 ms.</p>
+    </div>
+    <div class="mini-card">
+      <strong>4. TTFB (Espera del Servidor)</strong>
+      <p>Tiempo que el servidor web se queda pensando antes de responder. <strong>¡El 90% de las lentitudes están aquí!</strong></p>
+    </div>
+  </div>
+
+  <div class="callout callout-danger">
+    <div class="callout-title">🎯 Cómo Responder con Autoridad al Usuario</div>
+    Si el usuario dice: <em>"El Wi-Fi está lentísimo"</em>, abres esta pestaña y observas:<br>
+    • <strong>TCP:</strong> 4 ms (La red Wi-Fi y el cable responden al instante).<br>
+    • <strong>TTFB:</strong> 4,200 ms (El servidor de base de datos se quedó pensando 4.2 segundos).<br>
+    👉 <strong>Diagnóstico de Nivel 1:</strong> <em>"Estimado usuario, la señal Wi-Fi y la red local están respondiendo en 4 milisegundos. La demora está en la consulta interna del servidor de aplicaciones. Escalamos el caso al equipo de sistemas/base de datos."</em>
+  </div>
+
+  <h1>6. Generar el Paquete de Evidencia ZIP y Limpiar BD</h1>
+  <p>
+    Al terminar una jornada de diagnóstico o recorrido en bodega, guarda las pruebas para adjuntarlas al ticket de soporte o enviarlas al equipo de redes.
+  </p>
+
+  <h3>Pasos para Exportar el Informe en 1 Clic:</h3>
+  <ol class="step-list">
+    <li>Haz clic en la pestaña <strong>Estadísticas &amp; Auditoría</strong> (Pestaña 6).</li>
+    <li>En el filtro de fechas, elige <strong>Hoy</strong> (o selecciona los días de la prueba).</li>
+    <li>Revisa los percentiles: <strong>P50</strong> (velocidad normal) y <strong>P95 / P99</strong> (los peores congelamientos).</li>
+    <li>Haz clic en el botón morado: <span class="badge badge-purple">📦 Exportar Todo (.ZIP)</span>.</li>
+    <li>Se descargará un archivo comprimido con los 4 informes CSV detallados y la ficha ejecutiva de texto.</li>
+  </ol>
+
+  <div class="callout callout-tip">
+    <div class="callout-title">🗑️ El Botón "Limpiar BD" (Empezar desde cero)</div>
+    Junto al botón de exportar encontrarás el botón rojo <strong>Limpiar BD</strong>. Al pulsarlo y confirmar en pantalla, la base de datos vaciará las mediciones viejas para que tu próxima prueba empiece limpia. Las configuraciones y nombres de APs se conservan intactos.
+  </div>
+
+  <!-- ==================== PÁGINA 5 ==================== -->
+  <div class="page-break"></div>
+  <h1>7. Configuración Rápida (Pestaña 7)</h1>
+  <p>
+    En la pestaña <strong>Configuración</strong> puedes ajustar los parámetros esenciales si cambias de equipo:
+  </p>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <strong>Tarjeta Wi-Fi Activa (Card 1)</strong>
+      <p>Si usas una antena USB externa, selecciónala en la lista desplegable y pulsa <em>Guardar Interfaz</em>.</p>
+    </div>
+    <div class="mini-card">
+      <strong>Nombres Amigables de APs (Card 3)</strong>
+      <p>Asocia una dirección MAC al nombre real del AP (ej: <code>AP-Muelle-04</code>) para identificarlo visualmente.</p>
+    </div>
+    <div class="mini-card">
+      <strong>Base de Fabricantes OUI (Card 4)</strong>
+      <p>Consulta más de 40,000 marcas (Cisco, Aruba, Huawei) y pulsa <em>Actualizar desde IEEE</em> para sincronizar.</p>
+    </div>
+    <div class="mini-card">
+      <strong>Probar Credenciales (Card 5)</strong>
+      <p>Ingresa usuario/contraseña de dominio (NTLM o Basic) y pulsa <em>Probar Credenciales Ahora</em> para validar acceso.</p>
+    </div>
+  </div>
+
+  <h1>8. Guía Rápida de Solución de Problemas (Cheat-Sheet)</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Lo que dice el Usuario</th>
+        <th style="width: 25%;">Lo que ves en la Herramienta</th>
+        <th style="width: 25%;">Causa Real</th>
+        <th style="width: 25%;">Acción Recomendada Nivel 1</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><em>"La pistola se desconectó en el pasillo 12"</em></td>
+        <td>Señal cae a <strong>-82 dBm</strong> o peor. No hay eventos de roaming.</td>
+        <td>Hueco de cobertura (antena apagada o dañada en ese pasillo).</td>
+        <td>Anotar el número de pasillo y escalar a Redes para revisar la antena física.</td>
+      </tr>
+      <tr>
+        <td><em>"El sistema se traba cada 5 minutos al caminar"</em></td>
+        <td>Eventos de roaming frecuentes con veredicto <strong>Rojo (-8 dBm)</strong>.</td>
+        <td>Cliente pegajoso; la terminal salta tarde o a la antena incorrecta.</td>
+        <td>Exportar ZIP y reportar a Redes para ajustar la potencia de transmisión (Tx Power).</td>
+      </tr>
+      <tr>
+        <td><em>"No abre la página de pedidos"</em></td>
+        <td>Wi-Fi en <strong>Verde (-52 dBm)</strong>, pero Ping Gateway marca <strong>100% pérdida</strong>.</td>
+        <td>Falla del switch de piso o cable de red desconectado en el armario de datos.</td>
+        <td>Escalar a Soporte de Infraestructura / Cableado.</td>
+      </tr>
+      <tr>
+        <td><em>"El lector tarda 6 segundos en confirmar el código"</em></td>
+        <td>Señal Wi-Fi en <strong>Verde (-48 dBm)</strong>, Ping <strong>4 ms</strong>, pero TTFB marca <strong>5,800 ms</strong>.</td>
+        <td>Sobrecarga de la base de datos o cola de transacciones en el servidor WMS/SAP.</td>
+        <td>No tocar el Wi-Fi. Escalar ticket al equipo de Aplicaciones WMS/SAP adjuntando el ZIP.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Glosario Esencial para Soporte Nivel 1:</h3>
+  <ul class="step-list" style="font-size: 8.5pt;">
+    <li><strong>AP (Access Point):</strong> Antena física instalada en techos o columnas que emite la señal inalámbrica.</li>
+    <li><strong>BSSID:</strong> Dirección MAC física única de cada antena (ej. <code>00:1A:1E:22:33:44</code>).</li>
+    <li><strong>SSID:</strong> El nombre de la red Wi-Fi visible (ej. <code>WIFI_OPERACIONES</code>).</li>
+    <li><strong>Gateway:</strong> Router principal que comunica las antenas con el resto de la empresa.</li>
+    <li><strong>dBm:</strong> Potencia de la señal. -50 dBm es excelente; -80 dBm es desconexión inminente.</li>
+    <li><strong>TTFB (Time to First Byte):</strong> Tiempo de espera hasta que el servidor web entrega su primer dato.</li>
+    <li><strong>Roaming / Handoff:</strong> Traspaso transparente de la terminal de una antena a otra al desplazarse.</li>
+  </ul>
+
+  <div style="margin-top: 1rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 0.6rem; color: #64748b; font-size: 8pt;">
+    Wi-Fi &amp; Enterprise Application Telemetry Analyzer • Documento de Uso Operativo para Soporte Nivel 1 • Confidencial Interno
+  </div>
+
+</body>
+</html>

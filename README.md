@@ -29,6 +29,7 @@
 5. [Instalación y Puesta en Marcha](#-instalación-y-puesta-en-marcha)
 6. [Referencia Completa de la API REST](#-referencia-completa-de-la-api-rest)
 7. [Herramientas de Línea de Comandos (CLI)](#-herramientas-de-línea-de-comandos-cli)
+8. [Manual de Usuario para Soporte Nivel 1 (PDF)](#-manual-de-usuario-para-soporte-nivel-1-pdf)
 
 ---
 
@@ -468,6 +469,9 @@ wifi-roaming-analyzer/
 │   ├── ap_names.example.json    # Plantilla de ejemplo de inventario de APs
 │   ├── oui_vendors.json         # Base de datos de fabricantes IEEE OUI
 │   └── roaming_history.json     # Historial JSON de respaldo
+├── docs/                        # Documentación operativa y manuales de usuario
+│   ├── manual_soporte_nivel1.html # Plantilla maquetada con soporte de impresión
+│   └── Manual_Usuario_Soporte_Nivel_1.pdf # Manual de usuario PDF oficial
 ├── scripts/                     # Herramientas de soporte y CLI
 │   ├── manage_aps.py            # CLI para consulta y gestión de APs
 │   ├── update_oui.py            # CLI para sincronizar con el IEEE OUI Registry
@@ -476,12 +480,14 @@ wifi-roaming-analyzer/
 │   ├── index.html               # Estructura del dashboard y pestañas
 │   ├── app.js                   # Lógica de renderizado, gráficos y eventos
 │   ├── styles.css               # Diseño moderno, contrastes e iconografía
-│   └── chart.umd.min.js         # Motor de gráficos Chart.js local
+│   ├── chart.umd.min.js         # Motor de gráficos Chart.js local
+│   └── Manual_Usuario_Soporte_Nivel_1.pdf # Descargable web directo
 ├── server.py                    # Entrypoint principal y servidor HTTP/REST
 ├── run.sh / run.bat / run.ps1   # Scripts de inicio rápido multiplataforma
 ├── stop.sh / stop.bat           # Scripts de detención limpia del servidor
 ├── requirements.txt             # Dependencias Python (0 dependencias externas)
 ├── requirements-system.txt      # Paquetes del sistema operativo (Linux)
+├── Manual_Usuario_Soporte_Nivel_1.pdf # Manual de usuario en raíz
 └── README.md                    # Documentación técnica completa
 ```
 
@@ -609,6 +615,26 @@ python3 scripts/update_oui.py --lookup 00:0B:86:12:34:56
 # Añadir un fabricante o router de laboratorio personalizado
 python3 scripts/update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab"
 ```
+
+---
+
+## 📘 Manual de Usuario para Soporte Nivel 1 (PDF)
+
+El proyecto incluye un manual completo de 5 páginas en formato PDF especialmente redactado en lenguaje sencillo y amigable para el equipo de **Mesa de Ayuda, Helpdesk y Técnicos de Soporte Nivel 1**:
+
+- **Ruta del archivo local:** [Manual_Usuario_Soporte_Nivel_1.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_Usuario_Soporte_Nivel_1.pdf)
+- **Acceso web en vivo:** En la cabecera del dashboard mediante el botón `Manual PDF` o navegando a `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
+- **Plantilla de maquetación HTML:** [docs/manual_soporte_nivel1.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_soporte_nivel1.html)
+
+### Contenido del Manual:
+1. **¿Qué es la herramienta y para qué sirve?** Diferenciación rápida de fallas (Wi-Fi vs Router vs Servidor/Aplicación).
+2. **Cómo iniciar y seleccionar la Sede/Zona** en la interfaz web.
+3. **El Semáforo de Señal Wi-Fi:** Tabla comparativa de valores dBm (-30 a -90) y latencia de Ping en ms.
+4. **Pruebas de Movimiento (Walk-Test / Roaming):** Cómo detectar clientes pegajosos (*Sticky Clients*) y evaluar saltos entre antenas.
+5. **¿Por qué la aplicación está lenta?** Guía para interpretar las fases HTTP (DNS, TCP, TLS, TTFB) y saber con exactitud a quién escalar.
+6. **Generar Evidencia y Limpiar la Base de Datos:** Pasos para exportar el paquete `.ZIP` y vaciar registros con el botón `Limpiar BD`.
+7. **Configuración Rápida:** Conmutar antenas Wi-Fi y probar credenciales en 1 clic.
+8. **Guía de Solución Rápida (Cheat-Sheet):** Matriz de síntomas reportados por el usuario vs causa real y glosario técnico esencial para Nivel 1.
 
 ---
 
