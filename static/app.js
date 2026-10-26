@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnAddSedeModal = document.getElementById('btn-add-sede-modal');
   const sedesCardsContainer = document.getElementById('sedes-cards-container');
 
-  // Tab 6: Statistics
+  // Tab 6: Statistics & Audit Scope
   const btnExportTelemetryCsv = document.getElementById('btn-export-telemetry-csv');
   const statTotalSamples = document.getElementById('stat-total-samples');
   const statUptimePct = document.getElementById('stat-uptime-pct');
@@ -253,6 +253,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const statJitter = document.getElementById('stat-jitter');
   const statAvgDbm = document.getElementById('stat-avg-dbm');
   const statRoamingCount = document.getElementById('stat-roaming-count');
+  const statsStartDate = document.getElementById('stats-start-date');
+  const statsEndDate = document.getElementById('stats-end-date');
+  const btnStatsToday = document.getElementById('btn-stats-today');
+  const btnStats7d = document.getElementById('btn-stats-7d');
+  const btnStatsAll = document.getElementById('btn-stats-all');
+  const statsLocationSelect = document.getElementById('stats-location-select');
+  const statsZoneSelect = document.getElementById('stats-zone-select');
+  const btnApplyStatsFilter = document.getElementById('btn-apply-stats-filter');
 
   // Tab 7: Configuration
   const cfgWifiInterface = document.getElementById('cfg-wifi-interface');
@@ -541,6 +549,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Populate Zones dropdown
       populateZones(currentLoc, currentZone);
 
+      // Populate Tab 6 Audit Scope dropdowns
+      populateStatsScopeFilters();
+
       // Set input values
       if (cfg.target_url) inputTargetUrl.value = cfg.target_url;
       if (cfg.active_preset) {
@@ -552,6 +563,47 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.error("Error cargando sedes y zonas:", e);
     }
+  }
+
+  function populateStatsScopeFilters() {
+    if (!statsLocationSelect || !statsZoneSelect) return;
+    const currentLoc = statsLocationSelect.value || 'all';
+    const currentZone = statsZoneSelect.value || 'all';
+
+    statsLocationSelect.innerHTML = '<option value="all">Todas las Sedes</option>';
+    locationsData.forEach(loc => {
+      const opt = document.createElement('option');
+      opt.value = loc;
+      opt.textContent = loc.replace(/_/g, ' ');
+      if (loc === currentLoc) opt.selected = true;
+      statsLocationSelect.appendChild(opt);
+    });
+
+    populateStatsZones(statsLocationSelect.value, currentZone);
+  }
+
+  function populateStatsZones(selectedLoc, selectedZone = 'all') {
+    if (!statsZoneSelect) return;
+    statsZoneSelect.innerHTML = '<option value="all">Todas las Zonas (Recorrido Completo)</option>';
+
+    let zones = [];
+    if (selectedLoc === 'all') {
+      const zoneSet = new Set();
+      Object.values(zonesByLocation).forEach(arr => {
+        if (Array.isArray(arr)) arr.forEach(z => zoneSet.add(z));
+      });
+      zones = Array.from(zoneSet);
+    } else {
+      zones = zonesByLocation[selectedLoc] || [];
+    }
+
+    zones.forEach(z => {
+      const opt = document.createElement('option');
+      opt.value = z;
+      opt.textContent = z;
+      if (z === selectedZone) opt.selected = true;
+      statsZoneSelect.appendChild(opt);
+    });
   }
 
   function populateZones(loc, selectedZone = '') {
@@ -1843,12 +1895,91 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Tab 6: Statistics ---
+  // --- Tab 6: Statistics & Audit Scope ---
+  function setDatePreset(preset) {
+    if (btnStatsToday) btnStatsToday.classList.remove('active');
+    if (btnStats7d) btnStats7d.classList.remove('active');
+    if (btnStatsAll) btnStatsAll.classList.remove('active');
+
+    const now = new Date();
+    const formatYMD = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+
+    if (preset === 'today') {
+      const todayStr = formatYMD(now);
+      if (statsStartDate) statsStartDate.value = todayStr;
+      if (statsEndDate) statsEndDate.value = todayStr;
+      if (btnStatsToday) btnStatsToday.classList.add('active');
+    } else if (preset === '7d') {
+      const past = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (statsStartDate) statsStartDate.value = formatYMD(past);
+      if (statsEndDate) statsEndDate.value = formatYMD(now);
+      if (btnStats7d) btnStats7d.classList.add('active');
+    } else if (preset === 'all') {
+      if (statsStartDate) statsStartDate.value = '';
+      if (statsEndDate) statsEndDate.value = '';
+      if (btnStatsAll) btnStatsAll.classList.add('active');
+    }
+    loadStatistics();
+  }
+
+  if (btnStatsToday) btnStatsToday.addEventListener('click', () => setDatePreset('today'));
+  if (btnStats7d) btnStats7d.addEventListener('click', () => setDatePreset('7d'));
+  if (btnStatsAll) btnStatsAll.addEventListener('click', () => setDatePreset('all'));
+
+  if (statsStartDate) {
+    statsStartDate.addEventListener('change', () => {
+      if (btnStatsToday) btnStatsToday.classList.remove('active');
+      if (btnStats7d) btnStats7d.classList.remove('active');
+      if (btnStatsAll) btnStatsAll.classList.remove('active');
+      loadStatistics();
+    });
+  }
+
+  if (statsEndDate) {
+    statsEndDate.addEventListener('change', () => {
+      if (btnStatsToday) btnStatsToday.classList.remove('active');
+      if (btnStats7d) btnStats7d.classList.remove('active');
+      if (btnStatsAll) btnStatsAll.classList.remove('active');
+      loadStatistics();
+    });
+  }
+
+  if (statsLocationSelect) {
+    statsLocationSelect.addEventListener('change', () => {
+      populateStatsZones(statsLocationSelect.value, 'all');
+      loadStatistics();
+    });
+  }
+
+  if (statsZoneSelect) {
+    statsZoneSelect.addEventListener('change', () => {
+      loadStatistics();
+    });
+  }
+
+  if (btnApplyStatsFilter) {
+    btnApplyStatsFilter.addEventListener('click', () => {
+      loadStatistics();
+    });
+  }
+
   async function loadStatistics() {
     try {
-      const loc = selLocation.value;
-      const zone = selZone.value;
-      const res = await fetch(`/api/stats?location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`);
+      const loc = statsLocationSelect ? statsLocationSelect.value : (selLocation ? selLocation.value : 'all');
+      const zone = statsZoneSelect ? statsZoneSelect.value : (selZone ? selZone.value : 'all');
+      const start = statsStartDate ? statsStartDate.value : '';
+      const end = statsEndDate ? statsEndDate.value : '';
+
+      let url = `/api/stats?location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
+      if (start) url += `&start_date=${encodeURIComponent(start)}`;
+      if (end) url += `&end_date=${encodeURIComponent(end)}`;
+
+      const res = await fetch(url);
       const s = await res.json();
 
       statTotalSamples.textContent = s.total_samples || 0;
@@ -1874,9 +2005,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportOptTelemetry = document.getElementById('btn-export-opt-telemetry');
 
   function triggerExport(type, format = '') {
-    const loc = selLocation.value;
-    const zone = selZone.value;
+    const loc = statsLocationSelect ? statsLocationSelect.value : (selLocation ? selLocation.value : 'all');
+    const zone = statsZoneSelect ? statsZoneSelect.value : (selZone ? selZone.value : 'all');
+    const start = statsStartDate ? statsStartDate.value : '';
+    const end = statsEndDate ? statsEndDate.value : '';
+
     let url = `/api/export?type=${encodeURIComponent(type)}&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
+    if (start) url += `&start_date=${encodeURIComponent(start)}`;
+    if (end) url += `&end_date=${encodeURIComponent(end)}`;
     if (format) url += `&format=${encodeURIComponent(format)}`;
     window.location.href = url;
   }

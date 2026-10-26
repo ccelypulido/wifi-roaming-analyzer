@@ -1245,3 +1245,90 @@ body {
   background: #f1f5f9;
 }
 
+/* Tab 6: Audit & Statistics Filters Panel */
+.stats-filter-panel {
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-main);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.stats-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.stats-filter-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+}
+
+.stats-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.stats-filter-group label {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.stats-filter-group input[type="date"],
+.stats-filter-group select {
+  padding: 0.42rem 0.65rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--text-primary);
+  font-family: inherit;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.stats-filter-group input[type="date"]:focus,
+.stats-filter-group select:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
+}
+
+.date-preset-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.74rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  font-weight: 600;
+}
+
+.date-preset-btn:hover {
+  background: #e2e8f0;
+  color: var(--text-primary);
+  border-color: #cbd5e1;
+}
+
+.date-preset-btn.active {
+  background: var(--accent-cyan);
+  color: #ffffff;
+  border-color: var(--accent-cyan);
+}
+

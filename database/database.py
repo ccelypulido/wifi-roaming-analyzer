@@ -292,7 +292,31 @@ def save_roaming_event(event: Dict[str, Any]) -> int:
         conn.commit()
         return cursor.lastrowid
 
-def get_roaming_events(limit: int = 50, location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+def parse_date_range(start_date: Optional[str] = None, end_date: Optional[str] = None) -> Tuple[Optional[float], Optional[float]]:
+    """Converts YYYY-MM-DD string inputs to UTC timestamps (start at 00:00:00, end at next day 00:00:00)."""
+    start_ts = None
+    end_ts = None
+    if start_date and str(start_date).strip() not in ('', 'all', 'null', 'undefined'):
+        try:
+            dt = datetime.datetime.strptime(str(start_date).strip(), "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc)
+            start_ts = dt.timestamp()
+        except Exception:
+            pass
+    if end_date and str(end_date).strip() not in ('', 'all', 'null', 'undefined'):
+        try:
+            dt = (datetime.datetime.strptime(str(end_date).strip(), "%Y-%m-%d") + datetime.timedelta(days=1)).replace(tzinfo=datetime.timezone.utc)
+            end_ts = dt.timestamp()
+        except Exception:
+            pass
+    return start_ts, end_ts
+
+def get_roaming_events(
+    limit: int = 50,
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """Retrieves roaming events with optional filtering."""
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -304,6 +328,13 @@ def get_roaming_events(limit: int = 50, location_filter: Optional[str] = None, z
         if zone_filter and zone_filter != 'all':
             query += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            query += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            query += " AND timestamp < ?"
+            params.append(end_ts)
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         cursor.execute(query, params)
@@ -408,7 +439,9 @@ def save_http_probe(
 def get_http_probe_history(
     limit: int = 50,
     location_filter: Optional[str] = None,
-    zone_filter: Optional[str] = None
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """Retrieves recent HTTP latency probe tests."""
     with get_connection() as conn:
@@ -421,6 +454,13 @@ def get_http_probe_history(
         if zone_filter and zone_filter != 'all':
             query += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            query += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            query += " AND timestamp < ?"
+            params.append(end_ts)
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
         cursor.execute(query, params)
@@ -450,6 +490,12 @@ def get_http_probe_history(
             if zone_filter and zone_filter != 'all':
                 query_fallback += " AND zone = ?"
                 params_fallback.append(zone_filter)
+            if start_ts is not None:
+                query_fallback += " AND timestamp >= ?"
+                params_fallback.append(start_ts)
+            if end_ts is not None:
+                query_fallback += " AND timestamp < ?"
+                params_fallback.append(end_ts)
             query_fallback += " ORDER BY id DESC LIMIT ?"
             params_fallback.append(limit)
             cursor.execute(query_fallback, params_fallback)
@@ -502,7 +548,12 @@ def calculate_percentile(sorted_list: List[float], p: float) -> float:
     d1 = sorted_list[int(c)] * (k - f)
     return round(d0 + d1, 2)
 
-def get_statistics(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> Dict[str, Any]:
+def get_statistics(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> Dict[str, Any]:
     """Calculates overall statistics, averages, percentiles, and Wi-Fi health."""
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -514,6 +565,13 @@ def get_statistics(location_filter: Optional[str] = None, zone_filter: Optional[
         if zone_filter and zone_filter != 'all':
             where_clause += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            where_clause += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            where_clause += " AND timestamp < ?"
+            params.append(end_ts)
 
         cursor.execute(f"SELECT COUNT(*) FROM telemetry_samples{where_clause}", params)
         total_samples = cursor.fetchone()[0]
@@ -840,8 +898,13 @@ def export_sedes_zonas_csv() -> str:
                 writer.writerow([loc, z])
     return output.getvalue()
 
-def export_telemetry_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
-    """Exports all telemetry samples into CSV string."""
+def export_telemetry_csv(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> str:
+    """Exports all telemetry samples into CSV string with date range filtering."""
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -861,6 +924,13 @@ def export_telemetry_csv(location_filter: Optional[str] = None, zone_filter: Opt
         if zone_filter and zone_filter != 'all':
             query += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            query += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            query += " AND timestamp < ?"
+            params.append(end_ts)
         query += " ORDER BY id ASC"
         cursor.execute(query, params)
         for r in cursor.fetchall():
@@ -873,8 +943,13 @@ def export_telemetry_csv(location_filter: Optional[str] = None, zone_filter: Opt
             ])
     return output.getvalue()
 
-def export_roaming_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
-    """Exports roaming handoff events into CSV string."""
+def export_roaming_csv(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> str:
+    """Exports roaming handoff events into CSV string with date range filtering."""
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -893,6 +968,13 @@ def export_roaming_csv(location_filter: Optional[str] = None, zone_filter: Optio
         if zone_filter and zone_filter != 'all':
             query += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            query += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            query += " AND timestamp < ?"
+            params.append(end_ts)
         query += " ORDER BY id ASC"
         cursor.execute(query, params)
         for r in cursor.fetchall():
@@ -904,8 +986,13 @@ def export_roaming_csv(location_filter: Optional[str] = None, zone_filter: Optio
             ])
     return output.getvalue()
 
-def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
-    """Exports HTTP probe phase latency history into CSV string."""
+def export_http_probes_csv(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> str:
+    """Exports HTTP probe phase latency history into CSV string with date range filtering."""
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -914,7 +1001,7 @@ def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: O
         "DNS_ms", "TCP_ms", "TLS_ms", "TTFB_ms", "Transfer_ms",
         "Total_Activo_ms", "Cold_Total_ms", "Error", "Error_Msg"
     ])
-    probes = get_http_probe_history(limit=50000, location_filter=location_filter, zone_filter=zone_filter)
+    probes = get_http_probe_history(limit=50000, location_filter=location_filter, zone_filter=zone_filter, start_date=start_date, end_date=end_date)
     for r in probes:
         writer.writerow([
             r.get('id', ''), r.get('created_at', ''), r.get('timestamp', 0), r.get('time', ''), r.get('date', ''),
@@ -926,8 +1013,13 @@ def export_http_probes_csv(location_filter: Optional[str] = None, zone_filter: O
         ])
     return output.getvalue()
 
-def export_icmp_diag_csv(location_filter: Optional[str] = None, zone_filter: Optional[str] = None) -> str:
-    """Exports ICMP ping & traceroute diagnostic history into CSV string."""
+def export_icmp_diag_csv(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> str:
+    """Exports ICMP ping & traceroute diagnostic history into CSV string with date range filtering."""
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
@@ -946,6 +1038,13 @@ def export_icmp_diag_csv(location_filter: Optional[str] = None, zone_filter: Opt
         if zone_filter and zone_filter != 'all':
             query += " AND zone = ?"
             params.append(zone_filter)
+        start_ts, end_ts = parse_date_range(start_date, end_date)
+        if start_ts is not None:
+            query += " AND timestamp >= ?"
+            params.append(start_ts)
+        if end_ts is not None:
+            query += " AND timestamp < ?"
+            params.append(end_ts)
         query += " ORDER BY id ASC"
         cursor.execute(query, params)
         for r in cursor.fetchall():
