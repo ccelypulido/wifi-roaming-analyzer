@@ -726,8 +726,22 @@
                     </div>
                     <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem;">.CSV</span>
                   </button>
+                  <div style="height: 1px; background: var(--border-color); margin: 0.35rem 0;"></div>
+                  <button type="button" class="export-menu-item" id="btn-export-opt-clear" style="color: #ef4444;">
+                    <i class="fa-solid fa-trash-can" style="color: #ef4444;"></i>
+                    <div style="flex: 1; text-align: left;">
+                      <div>Limpiar Base de Datos</div>
+                      <small style="color: var(--text-muted); font-size: 0.72rem;">Vacía telemetría, roaming y diagnósticos</small>
+                    </div>
+                    <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.4rem; background: rgba(239, 68, 68, 0.1); color: #ef4444;">PURGE</span>
+                  </button>
                 </div>
               </div>
+
+              <!-- Button to Clear Database History -->
+              <button id="btn-clear-db-stats" type="button" class="btn-secondary" style="font-size: 0.82rem; padding: 0.52rem 0.85rem; display: inline-flex; align-items: center; gap: 0.45rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.35);" title="Elimina todas las muestras de telemetría, eventos de roaming y diagnósticos de la base de datos">
+                <i class="fa-solid fa-trash-can"></i> Limpiar BD
+              </button>
 
               <!-- Legacy fallback button -->
               <button id="btn-export-telemetry-csv" style="display: none;"></button>
@@ -1095,6 +1109,6 @@
 
   </div>
 
-  <script src="app.js?v=3.9.0"></script>
+  <script src="app.js?v=3.9.1"></script>
 </body>
 </html>

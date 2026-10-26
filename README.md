@@ -348,6 +348,12 @@ Al pulsar **`Exportar Todo (.ZIP)`**, el servidor compila en memoria un paquete 
 4. `04_diagnostico_red_icmp_traceroute.csv`: Registros de pruebas multi-ping y saltos de traceroute.
 5. `00_resumen_auditoria.txt`: Ficha técnica ejecutiva con metadata de la prueba (fecha/hora, sede, alcance de recorrido, percentiles calculados y uptime).
 
+#### 🧹 Limpieza y Reinicio de la Base de Datos (`Limpiar BD`):
+- **Botón `Limpiar BD` en la Barra de Herramientas:** Permite vaciar con confirmación de seguridad todos los registros acumulados en la base de datos relacional (`telemetry_samples`, `roaming_events`, `http_probe_history` y `net_diag_history`) antes de iniciar una nueva jornada de pruebas o walk-test.
+- **Opción en Menú Desplegable:** Accesible también desde el menú *Opciones CSV* mediante la acción rápida `Limpiar Base de Datos`.
+- **Integridad Garantizada:** Preserva intactos los parámetros de configuración, el catálogo maestro de sedes/zonas y el inventario de nombres de APs.
+- **Compactación SQLite WAL:** Ejecuta un checkpoint con truncado (`PRAGMA wal_checkpoint(TRUNCATE)`) para recuperar espacio físico en disco de forma instantánea.
+
 ---
 
 ### 8. Mapeo de Nombres de APs de Controladoras (Cisco, Aruba, UniFi)

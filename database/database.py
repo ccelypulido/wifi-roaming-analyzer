@@ -1161,6 +1161,11 @@ def clear_history(scope: str = 'all'):
         if scope in ('probes', 'all'):
             cursor.execute("DELETE FROM http_probe_history")
         conn.commit()
+        if scope == 'all':
+            try:
+                cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                pass
 
 if __name__ == '__main__':
     print("Initializing SQLite database telemetry.db...")

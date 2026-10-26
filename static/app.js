@@ -2058,6 +2058,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportOptHttp = document.getElementById('btn-export-opt-http');
   const btnExportOptIcmp = document.getElementById('btn-export-opt-icmp');
   const btnExportOptTelemetry = document.getElementById('btn-export-opt-telemetry');
+  const btnExportOptClear = document.getElementById('btn-export-opt-clear');
+  const btnClearDbStats = document.getElementById('btn-clear-db-stats');
 
   function triggerExport(type, format = '') {
     const loc = statsLocationSelect ? statsLocationSelect.value : (selLocation ? selLocation.value : 'all');
@@ -2110,6 +2112,61 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (btnExportQuick) {
     btnExportQuick.addEventListener('click', () => triggerExport('all', 'zip'));
+  }
+
+  // Clear Database from Tab 6 (Estadísticas & Auditoría)
+  async function handleClearDatabaseAudit() {
+    const confirmMsg = 
+      "⚠️ ADVERTENCIA: ¿Estás seguro de que deseas vaciar TODOS los registros de auditoría de la Base de Datos?\n\n" +
+      "Se eliminarán de forma irreversible:\n" +
+      "• Todas las muestras de Telemetría (Señal dBm, Ping, Jitter)\n" +
+      "• Todos los eventos de Roaming (Handoffs)\n" +
+      "• El historial de fases de Latencia HTTP (Capa 7)\n" +
+      "• El historial de diagnóstico de red ICMP y Traceroute\n\n" +
+      "(Los nombres de APs, sedes/zonas y parámetros de configuración se conservarán intactos).\n\n" +
+      "¿Deseas continuar con la purga total de la base de datos?";
+
+    if (!confirm(confirmMsg)) return;
+
+    if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
+
+    if (btnClearDbStats) {
+      btnClearDbStats.disabled = true;
+      btnClearDbStats.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Limpiando...';
+    }
+
+    try {
+      const res = await fetch('/api/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'all' })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("¡Base de datos limpiada con éxito!\nSe han reiniciado los contadores y registros de auditoría.");
+        loadStatistics();
+        loadRoamingHistory();
+        loadHttpPhasesHistory();
+        loadNetDiagView();
+        fetchStatus();
+      } else {
+        alert("Error al limpiar la base de datos: " + (data.message || 'Error desconocido'));
+      }
+    } catch (err) {
+      alert("Error de conexión al limpiar la base de datos: " + err);
+    } finally {
+      if (btnClearDbStats) {
+        btnClearDbStats.disabled = false;
+        btnClearDbStats.innerHTML = '<i class="fa-solid fa-trash-can"></i> Limpiar BD';
+      }
+    }
+  }
+
+  if (btnClearDbStats) {
+    btnClearDbStats.addEventListener('click', handleClearDatabaseAudit);
+  }
+  if (btnExportOptClear) {
+    btnExportOptClear.addEventListener('click', handleClearDatabaseAudit);
   }
 
   if (btnExportOptionsToggle && exportOptionsMenu) {
