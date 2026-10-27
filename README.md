@@ -92,10 +92,20 @@ flowchart TD
         JSON_Catalog["data/sedes_zonas.json (Catálogo Maestro)"]
     end
 
-    subgraph OS_Network["Capa de Red del Sistema Operativo (Linux)"]
-        NL80211["nl80211 / iw / iwconfig (Estado Wi-Fi y Escaneo)"]
-        IPRoute["ip route (Detección de Default Gateway)"]
-        Resolv["/etc/resolv.conf (Servidores DNS del Sistema)"]
+    subgraph OS_Network["Capa de Red del Sistema Operativo (Multiplataforma)"]
+        subgraph Linux_Stack["Entorno Linux"]
+            NL80211["nl80211 / iw / iwconfig (Estado Wi-Fi & Escaneo)"]
+            IPRoute["ip route / /proc/net/route (Gateway)"]
+            Resolv["resolvectl / /etc/resolv.conf (Servidores DNS)"]
+            Linux_Diag["ping -c / traceroute -n / mtr"]
+        end
+
+        subgraph Windows_Stack["Entorno Windows Nativo"]
+            WLAN["netsh wlan show interfaces & networks"]
+            Win_Route["route print 0.0.0.0 / Get-NetRoute"]
+            Win_DNS["ipconfig /all (Filtro Adaptador Activo)"]
+            Win_Diag["ping -n / tracert -d"]
+        end
     end
 
     UI_Dash <--> REST_API
@@ -126,8 +136,13 @@ flowchart TD
     JSON_Catalog <--> SQLite
 
     State_Mgr <--> NL80211
+    State_Mgr <--> WLAN
     M_Diag <--> IPRoute
+    M_Diag <--> Win_Route
     M_Diag <--> Resolv
+    M_Diag <--> Win_DNS
+    M_Diag <--> Linux_Diag
+    M_Diag <--> Win_Diag
 ```
 
 ---
@@ -144,13 +159,26 @@ La intensidad de señal recibida (**RSSI**, *Received Signal Strength Indicator*
 - **-70 a -75 dBm:** Cobertura límite; los clientes inician escaneos agresivos para cambiar de AP.
 - **-80 dBm o menor:** Zona muerta o altamente susceptible a pérdidas de paquetes y desasociación.
 
-#### ⚙️ Cómo Funciona:
-El motor consulta la interfaz inalámbrica activa en Linux a través de `nl80211` (`iw dev <iface> link`) o herramientas de soporte (`iwconfig` / `nmcli`). Extrae en tiempo real:
-- **BSSID y SSID:** Dirección física MAC del radio del AP y nombre de red.
-- **Canal y Frecuencia Central:** Frecuencia exacta en MHz y canal asignado.
-- **Banda Operativa:** Clasificación inmediata en 2.4 GHz, 5.0 GHz o 6.0 GHz.
-- **Tasas de Transmisión (TX/RX Bitrate):** Modulación MCS, ancho de canal y número de flujos espaciales (NSS).
-- **Ping Local a Puerta de Enlace:** Mide el retardo puro de la capa inalámbrica hacia el router/switch local.
+#### ⚙️ Cómo Funciona (Multiplataforma Linux y Windows):
+El motor cuenta con abstracción nativa multiplataforma para consultar el estado del adaptador inalámbrico activo sin requerir librerías externas:
+
+- **En Linux:**
+  - Consulta el subsistema de red del kernel a través del protocolo `nl80211` ejecutando `iw dev <iface> link`.
+  - Dispone de fallback automático hacia herramientas de soporte estándar como `iwconfig` o `nmcli` en distribuciones mínimas.
+
+- **En Windows:**
+  - Consulta de forma nativa el subsistema WLAN de Windows mediante el comando `netsh wlan show interfaces` (herramienta incorporada de fábrica en Windows 10, 11 y Windows Server, sin requerir emuladores ni controladores especiales).
+  - Extrae el estado del enlace, el tipo de radio 802.11 (`802.11ax`, `802.11ac`, `802.11n`, `802.11g`), las tasas de recepción y transmisión en Mbps (`Receive rate` / `Transmit rate`), y el método de autenticación/cifrado.
+  - **Conversión Precisa de Señal a dBm:** Dado que Windows reporta la intensidad de señal en porcentaje lineal ($0\% \text{ a } 100\%$), el motor aplica la fórmula de normalización de radiofrecuencia para obtener los decibelios reales:
+    $$\text{dBm} = \left(\frac{\text{Señal \%}}{2}\right) - 100$$
+    *(Ejemplos de equivalencia: $100\% \to -50\text{ dBm}$, $80\% \to -60\text{ dBm}$, $66\% \to -67\text{ dBm}$, $50\% \to -75\text{ dBm}$, $20\% \to -90\text{ dBm}$)*.
+
+**Métricas extraídas en tiempo real en ambos sistemas operativos:**
+- **BSSID y SSID:** Dirección física MAC del radio del AP y nombre de la red Wi-Fi (ESSID).
+- **Canal y Frecuencia Central:** Frecuencia exacta en MHz y canal asignado (2.4 GHz: canales 1 al 14; 5.0 GHz: canales 36 al 165; 6.0 GHz / Wi-Fi 6E: canales 1 al 233).
+- **Banda Operativa:** Clasificación inmediata en **2.4 GHz**, **5.0 GHz** o **6.0 GHz**.
+- **Tasas de Transmisión (TX/RX Bitrate):** Modulación MCS, ancho de canal y número de flujos espaciales (NSS) en Linux; velocidades negociadas en Mbps en Windows.
+- **Ping Local a Puerta de Enlace:** Mide el retardo puro de la capa inalámbrica hacia el router/switch local (`ping -c 1 -W 1` en Linux / `ping -n 1 -w 1000` en Windows).
 
 ---
 
@@ -212,8 +240,12 @@ La interferencia en redes Wi-Fi proviene de dos fuentes:
    [Ch 36] [Ch 40] [Ch 44] [Ch 48] ... [Ch 149] [Ch 153] [Ch 157] [Ch 161]
 ```
 
-#### ⚙️ Cómo Funciona:
-El analizador activa un escaneo de fondo periódico (`iw dev scan` o `nmcli dev wifi`) y grafica en tiempo real un **diagrama parabólico de densidad espectral**:
+#### ⚙️ Cómo Funciona (Escaneo Multiplataforma):
+El analizador activa un escaneo de fondo periódico para detectar todos los Access Points circundantes:
+- **En Linux:** Ejecuta `iw dev <iface> scan` o `nmcli dev wifi` para consultar la tabla de BSSIDs y frecuencias del kernel.
+- **En Windows:** Ejecuta de forma nativa `netsh wlan show networks mode=bssid`, parseando cada radio emisor (BSSID), SSID, tipo de señal (normalizada a dBm), canal y cifrado.
+
+A partir de esta captura, grafica en tiempo real un **diagrama parabólico de densidad espectral**:
 - **Curvas de campana parabólica:** La altura de cada campana representa la intensidad RSSI en dBm; el ancho de la campana representa el ancho de canal (20, 40, 80 o 160 MHz).
 - **Filtro Multi-Banda:** Selector para alternar instantáneamente entre **Todas las Bandas**, **2.4 GHz**, **5.0 GHz**, **6.0 GHz (Wi-Fi 6E)** y **7.0 GHz (Wi-Fi 7)**.
 - **Resaltado del AP Conectado:** El radio activo se resalta con borde de alta luminosidad y etiquetas distintivas.
@@ -274,10 +306,20 @@ flowchart LR
 ```
 
 #### ⚙️ Cómo Funciona ([core/net_diag.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/net_diag.py)):
-- **Detección Automática de Gateway:** Analiza las tablas de enrutamiento (`ip route show default` o `route -n`) de forma no intrusiva.
-- **Detección de Servidores DNS Locales:** Extrae los resolvers primarios y secundarios de `/etc/resolv.conf`.
-- **Multi-Ping Concurrente:** Envía ráfagas sincronizadas al Gateway, a los servidores DNS locales y al Host objetivo de la aplicación.
-- **Traceroute Integrado:** Diagnostica hasta 30 saltos con detección de nombres DNS inversos y retardo individual.
+- **Detección Automática de Gateway:**
+  - *En Linux:* Lee directamente `/proc/net/route` en Python sin lanzar subprocesos, con fallback transparente a `ip route show default` o `route -n`.
+  - *En Windows:* Consulta la tabla de enrutamiento activa de forma ultrarrápida mediante el comando binario `route print 0.0.0.0` o mediante `(Get-NetRoute -DestinationPrefix '0.0.0.0/0').NextHop` en PowerShell.
+- **Detección de Servidores DNS Locales:**
+  - *En Linux:* Consulta `resolvectl dns` y analiza `/etc/resolv.conf`, filtrando IPs de loopback local (`127.0.0.1`) para identificar los resolvers reales asignados por DHCP.
+  - *En Windows:* Ejecuta `ipconfig /all` mediante un parser inteligente que asocia los servidores DNS **exclusivamente al adaptador de red que posee la Puerta de Enlace activa**, descartando automáticamente adaptadores virtuales (Hyper-V, WSL, VMware, VirtualBox o túneles VPN secundarios).
+- **Multi-Ping Concurrente:**
+  - Envía ráfagas sincronizadas en paralelo hacia el Gateway, los servidores DNS locales y el Host objetivo de la aplicación.
+  - *En Linux:* Ejecuta `ping -c 4 -W 2 <target>` y parsea las estadísticas de `rtt min/avg/max/mdev`.
+  - *En Windows:* Ejecuta `ping -n 4 -w 2000 <target>` con soporte bilingüe (español `Mínimo / Máximo / Media` e inglés `Minimum / Maximum / Average`) y decodificación protegida contra páginas de códigos OEM (`CP850`, `CP1252` y `UTF-8`) para evitar excepciones Unicode.
+- **Traceroute Integrado:**
+  - Diagnostica salto por salto hasta el destino con detección de IP, pérdida porcentual y RTT por nodo.
+  - *En Linux:* Utiliza de forma adaptativa `mtr -r -c 1 -n`, `tracepath -n` o `traceroute -n`.
+  - *En Windows:* Utiliza el comando binario nativo `tracert -d -h 15 -w 2000 <target>` presente en todas las instalaciones de Windows.
 
 ---
 
@@ -427,7 +469,9 @@ Para evaluar con fidelidad la latencia y disponibilidad real que experimenta un 
 La pestaña **Configuración** consolida en un único panel de control todas las variables de operación del sistema:
 
 1. **Card 1: Selección de Interfaz de Red Wi-Fi:**
-   - Detecta automáticamente todas las interfaces inalámbricas activas en Linux (`wlan0`, `wlan1`, `wlp3s0`).
+   - **Detección Automática Multiplataforma:** Identifica de inmediato todas las interfaces inalámbricas disponibles según el sistema operativo:
+     - *En Linux:* Mediante `iw dev` e `iwconfig` (`wlan0`, `wlan1`, `wlp3s0`, etc.).
+     - *En Windows:* Mediante `netsh wlan show interfaces` (`Wi-Fi`, `Wi-Fi 2`, etc.).
    - Permite conmutar la interfaz monitoreada en caliente sin necesidad de reiniciar el servicio ni interrumpir la captura.
 2. **Card 2: Parámetros del Motor de Telemetría:**
    - *Intervalo de Muestreo:* Frecuencia de escaneo y consulta de radiofrecuencia (por defecto 5 segundos).
@@ -495,39 +539,82 @@ wifi-roaming-analyzer/
 
 ## 🚀 Instalación y Puesta en Marcha
 
-### Prerrequisitos del Sistema (Linux / Debian / Ubuntu / Raspberry Pi OS):
+El analizador está construido bajo el principio **Zero External Pip Dependencies** (utiliza exclusivamente la biblioteca estándar de Python) y opera de forma 100% nativa tanto en **Microsoft Windows** como en **GNU/Linux**.
+
+---
+
+### 🪟 Despliegue en Microsoft Windows (Windows 10, 11 y Windows Server)
+
+En Windows no se requieren privilegios administrativos especiales, emuladores (WSL/Cygwin) ni instalación de paquetes de terceros. El motor interactúa directamente con los comandos binarios nativos del sistema operativo (`netsh.exe`, `route.exe`, `tracert.exe`, `ping.exe` e `ipconfig.exe`).
+
+#### 1. Prerrequisitos:
+- Instalar **Python 3.8 o superior** desde [python.org](https://www.python.org/downloads/) o desde la **Microsoft Store**.
+  > [!TIP]
+  > Durante el asistente de instalación de Python, asegúrate de marcar la casilla **"Add python.exe to PATH"**.
+
+#### 2. Iniciar el Servidor:
+Puedes iniciar el analizador con cualquiera de los lanzadores nativos incluidos en la raíz del proyecto:
+- **Opción A (Recomendada - Doble Clic):** Haz doble clic sobre el archivo [run.bat](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/run.bat).
+- **Opción B (PowerShell):** Abre una consola PowerShell y ejecuta:
+  ```powershell
+  .\run.ps1
+  ```
+- **Opción C (Símbolo del Sistema / CMD):**
+  ```cmd
+  run.bat
+  ```
+
+#### 3. Detener el Servidor:
+- Presiona `Ctrl + C` en la ventana de consola activa, o
+- Haz doble clic sobre [stop.bat](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/stop.bat) para terminar el proceso y liberar de inmediato el puerto `8050`.
+
+---
+
+### 🐧 Despliegue en GNU/Linux (Debian, Ubuntu, Raspberry Pi OS, Fedora, RHEL)
+
+#### 1. Prerrequisitos del Sistema:
+Instala las herramientas inalámbricas del sistema operativo y el runtime de Python:
 ```bash
-# Actualizar repositorios e instalar utilidades de red
+# En distribuciones basadas en Debian / Ubuntu / Raspberry Pi OS:
 sudo apt-get update
 sudo apt-get install -y python3 iw wireless-tools iproute2 iputils-ping
+
+# En distribuciones basadas en Fedora / RHEL / Rocky Linux:
+sudo dnf install -y python3 iw wireless-tools iproute iputils
 ```
 
-### Iniciar el Servidor:
+#### 2. Iniciar el Servidor:
 ```bash
-# Otorgar permisos de ejecución (primera vez)
+# Otorgar permisos de ejecución (únicamente la primera vez)
 chmod +x run.sh stop.sh
 
 # Iniciar el analizador
 ./run.sh
 ```
 
-El servidor iniciará automáticamente en `http://localhost:8050`. Abre cualquier navegador web (Chrome, Firefox, Edge) para interactuar con la plataforma.
-
-### Opciones de Inicio Avanzadas:
-```bash
-# Iniciar en un puerto específico
-./run.sh --port 9000
-
-# Especificar la interfaz inalámbrica de forma manual
-./run.sh -i wlan0
-
-# Listar interfaces Wi-Fi detectadas por el sistema
-python3 server.py --list
-```
-
-### Detener el Servidor:
+#### 3. Detener el Servidor:
 ```bash
 ./stop.sh
+```
+
+---
+
+### 🌐 Acceso a la Plataforma Web
+Una vez iniciado el servidor (sea en Windows o en Linux), abre tu navegador web preferido (Google Chrome, Microsoft Edge, Mozilla Firefox) e ingresa a:
+$$\mathbf{http://localhost:8050}$$
+
+### ⚙️ Parámetros de Ejecución Avanzados (CLI):
+Tanto `server.py` como los lanzadores (`run.sh` / `run.bat` / `run.ps1`) aceptan argumentos de línea de comandos:
+```bash
+# Iniciar en un puerto TCP alternativo (por defecto 8050)
+python server.py --port 9000
+
+# Especificar manualmente la interfaz inalámbrica
+python server.py -i "Wi-Fi"       # Sintaxis en Windows
+python server.py -i wlan0         # Sintaxis en Linux
+
+# Listar las interfaces de red inalámbricas detectadas
+python server.py --list
 ```
 
 ---
