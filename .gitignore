@@ -91,3 +91,6 @@ Temporary Items
 *.orig
 *#
 .*.swp
+
+# Carpeta de generación de Informes.
+reports/
