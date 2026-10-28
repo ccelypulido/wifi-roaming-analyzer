@@ -34,11 +34,6 @@
       </div>
       
       <div class="status-badges">
-        <button type="button" id="btn-toggle-capture" class="badge badge-live badge-btn" title="Captura de telemetría activa (Clic para pausar). El monitoreo de roaming se mantiene siempre activo.">
-          <div id="capture-status-dot" class="badge-dot"></div>
-          <span id="capture-status-label">EN VIVO</span>
-          <i id="capture-status-icon" class="fa-solid fa-pause" style="margin-left: 4px; font-size: 0.72rem; opacity: 0.85;"></i>
-        </button>
         <div class="badge" title="SSID de la red conectada">
           <i class="fa-solid fa-network-wired"></i>
           <span id="header-ssid">Conectando...</span>
@@ -69,10 +64,10 @@
     <!-- Multipurpose Control Toolbar -->
     <div class="toolbar-card">
       <div class="toolbar-row">
-        <!-- Preset Selector -->
-        <div class="toolbar-item">
+        <!-- Preset Selector & Capture Control -->
+        <div class="toolbar-item" style="flex: 0 0 auto;">
           <label class="toolbar-label"><i class="fa-solid fa-sliders"></i> Perfil de Entorno:</label>
-          <div class="preset-buttons">
+          <div class="preset-buttons" style="align-items: center; flex-wrap: nowrap;">
             <button class="preset-btn active" data-preset="store" title="Tiendas / Cajas POS">
               <i class="fa-solid fa-shop"></i> Tienda / POS
             </button>
@@ -84,6 +79,14 @@
             </button>
             <button class="preset-btn" data-preset="custom" title="Diagnóstico Libre / Personalizado">
               <i class="fa-solid fa-gear"></i> Personalizado
+            </button>
+
+            <span class="toolbar-divider" style="display: inline-block; width: 1px; height: 22px; background: var(--border-color); margin: 0 0.25rem;"></span>
+
+            <button type="button" id="btn-toggle-capture" class="badge badge-live badge-btn toolbar-capture-btn" title="Captura de telemetría activa (Clic para pausar). El monitoreo de roaming se mantiene siempre activo.">
+              <div id="capture-status-dot" class="badge-dot"></div>
+              <span id="capture-status-label">EN VIVO</span>
+              <i id="capture-status-icon" class="fa-solid fa-pause" style="margin-left: 4px; font-size: 0.72rem; opacity: 0.85;"></i>
             </button>
           </div>
         </div>
