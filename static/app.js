@@ -509,6 +509,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // URL Hash / Query Parameter direct tab navigation
+  function checkUrlTab() {
+    const hash = window.location.hash.replace('#', '');
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab') || hash;
+    if (tabParam) {
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabParam}"]`);
+      if (targetBtn) {
+        targetBtn.click();
+      }
+    }
+  }
+  checkUrlTab();
+  window.addEventListener('hashchange', checkUrlTab);
+
   // --- Presets Handling ---
   async function loadPresets() {
     try {

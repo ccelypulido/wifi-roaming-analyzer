@@ -705,23 +705,40 @@ python3 scripts/update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab"
 
 ---
 
-## 📘 Manual de Usuario para Soporte Nivel 1 (PDF)
+## 📘 Manuales de Usuario y Documentación Operativa (PDF)
 
-El proyecto incluye un manual completo de 5 páginas en formato PDF especialmente redactado en lenguaje sencillo y amigable para el equipo de **Mesa de Ayuda, Helpdesk y Técnicos de Soporte Nivel 1**:
+El proyecto cuenta con dos manuales oficiales redactados para diferentes niveles de operación:
 
-- **Ruta del archivo local:** [Manual_Usuario_Soporte_Nivel_1.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_Usuario_Soporte_Nivel_1.pdf)
-- **Acceso web en vivo:** En la cabecera del dashboard mediante el botón `Manual PDF` o navegando a `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
-- **Plantilla de maquetación HTML:** [docs/manual_soporte_nivel1.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_soporte_nivel1.html)
+### 1. 📖 Manual Oficial Completo e Ilustrado (17 Páginas):
+Guía visual y técnica exhaustiva con capturas de pantalla de alta resolución de **todas las secciones de la plataforma**, explicando a fondo el modo de operación de cada módulo, parámetros de control, alertas semafóricas y metodología para recorridos de campo (walk-tests):
 
-### Contenido del Manual:
-1. **¿Qué es la herramienta y para qué sirve?** Diferenciación rápida de fallas (Wi-Fi vs Router vs Servidor/Aplicación).
-2. **Cómo iniciar y seleccionar la Sede/Zona** en la interfaz web.
-3. **El Semáforo de Señal Wi-Fi:** Tabla comparativa de valores dBm (-30 a -90) y latencia de Ping en ms.
-4. **Pruebas de Movimiento (Walk-Test / Roaming):** Cómo detectar clientes pegajosos (*Sticky Clients*) y evaluar saltos entre antenas.
-5. **¿Por qué la aplicación está lenta?** Guía para interpretar las fases HTTP (DNS, TCP, TLS, TTFB) y saber con exactitud a quién escalar.
-6. **Generar Evidencia y Limpiar la Base de Datos:** Pasos para exportar el paquete `.ZIP` y vaciar registros con el botón `Limpiar BD`.
-7. **Configuración Rápida:** Conmutar antenas Wi-Fi y probar credenciales en 1 clic.
-8. **Guía de Solución Rápida (Cheat-Sheet):** Matriz de síntomas reportados por el usuario vs causa real y glosario técnico esencial para Nivel 1.
+- **Archivo PDF compilado:** [Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf)
+- **Plantilla HTML con imágenes:** [docs/manual_usuario_completo.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_usuario_completo.html)
+- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf`
+- **Contenido del Manual Completo:**
+  1. *Introducción y Modos de Puesta en Marcha (Windows y Linux).*
+  2. *Cabecera y Badges de Estado en Tiempo Real (SSID, BSSID, Ping, HTTP, Auth).*
+  3. *Barra de Control Persistente (Sticky Toolbar):* Perfiles de entorno, botón de pausa/reanudación, selectores territoriales y prueba de URL.
+  4. *Panel de Métricas Principales:* Velocímetro Gauge (Score 0-100), Tarjeta de AP conectado e Indicadores de salud de aplicación HTTP.
+  5. *Diagnóstico de Roaming y Telemetría Sincrónica:* Muestras multieje en vivo (Señal dBm, Ping Gateway y Latencia HTTP).
+  6. *Analizador de Canales y Espectro Wi-Fi (RF Spectrum):* Curvas parabólicas, filtros 2.4/5/6/7 GHz y tooltips.
+  7. *Pestaña 1 - Historial de Roaming:* Detección de handoffs, cálculo de $\Delta\text{ dBm}$ y veredictos de calidad.
+  8. *Pestaña 2 - Escáner de APs Vecinos:* Tabla de ocupación de espectro, intensidad y fabricantes IEEE OUI.
+  9. *Pestaña 3 - Fases de Latencia HTTP:* Desglose de 5 fases (DNS, TCP, TLS, TTFB, Transfer) y Conexión en Frío vs Reutilizada.
+  10. *Pestaña 4 - Diagnóstico de Red y Traceroute:* Pruebas multinodo concurrentes y trazabilidad salto a salto.
+  11. *Pestaña 5 - Gestión de Sedes y Zonas:* Catálogo maestro, chips de zonas interactivas, importación y recarga limpia.
+  12. *Pestaña 6 - Estadísticas, Percentiles y Paquete ZIP:* Filtros temporales, percentiles ($P_{50}, P_{95}, P_{99}$), exportación consolidada y limpieza de BD.
+  13. *Pestaña 7 - Configuración Centralizada:* Conmutación de antenas Wi-Fi, OUI IEEE, inventario de APs y autenticación NTLM/Basic/Bearer.
+  14. *Metodología Oficial de Recorridos (Walk-Tests):* Protocolo previo, durante y posterior a las pruebas en sitio.
+
+---
+
+### 2. ⚡ Guía Rápida de Campo para Soporte Nivel 1 (5 Páginas):
+Manual condensado y práctico redactado en lenguaje sencillo para operadores de Helpdesk y técnicos en sitio:
+
+- **Archivo PDF compilado:** [Manual_Usuario_Soporte_Nivel_1.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_Usuario_Soporte_Nivel_1.pdf)
+- **Plantilla HTML:** [docs/manual_soporte_nivel1.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_soporte_nivel1.html)
+- **Acceso web en vivo:** En la cabecera mediante el botón `Manual PDF` o en `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
 
 ---
 
