@@ -505,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
         if (btn.dataset.tab === 'tab-stats') loadStatistics();
         if (btn.dataset.tab === 'tab-config') loadConfigView();
+        if (btn.dataset.tab === 'tab-help') initHelpView();
       }
     });
   });
@@ -523,6 +524,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   checkUrlTab();
   window.addEventListener('hashchange', checkUrlTab);
+
+  // Header Help button listener
+  const btnHeaderHelp = document.getElementById('btn-header-help');
+  if (btnHeaderHelp) {
+    btnHeaderHelp.addEventListener('click', () => {
+      const tabHelpBtn = document.getElementById('tab-btn-help');
+      if (tabHelpBtn) {
+        tabHelpBtn.click();
+        const helpContainer = document.getElementById('tab-help');
+        if (helpContainer) {
+          helpContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  }
 
   // --- Presets Handling ---
   async function loadPresets() {
@@ -2774,6 +2790,185 @@ document.addEventListener('DOMContentLoaded', () => {
       btnTestRoaming.disabled = false;
     }
   });
+
+  // =========================================================================
+  // Help Center & Manual Viewer Controller (Tab: tab-help)
+  // =========================================================================
+  let helpCurrentManual = 'completo'; // 'completo' | 'l1'
+  let helpCurrentFormat = 'html';     // 'html' | 'pdf'
+  let helpInitialized = false;
+
+  const MANUAL_DATA = {
+    completo: {
+      title: 'Manual de Operación y Arquitectura del Sistema (Completo & Ilustrado)',
+      subtitle: 'Manual Completo Oficial • 14 Capítulos • 17 Páginas • 13 Ilustraciones HD',
+      iconClass: 'fa-solid fa-book-open',
+      iconColor: 'var(--accent-cyan)',
+      htmlUrl: '/docs/manual_usuario_completo.html',
+      pdfUrl: '/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf',
+      downloadFilename: 'Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf'
+    },
+    l1: {
+      title: 'Guía de Campo para Soporte Técnico Nivel 1',
+      subtitle: 'Guía Rápida de Campo • 5 Páginas • Checklist & Semáforos de Diagnóstico',
+      iconClass: 'fa-solid fa-screwdriver-wrench',
+      iconColor: 'var(--accent-emerald)',
+      htmlUrl: '/docs/manual_soporte_nivel1.html',
+      pdfUrl: '/Manual_Usuario_Soporte_Nivel_1.pdf',
+      downloadFilename: 'Manual_Usuario_Soporte_Nivel_1.pdf'
+    }
+  };
+
+  function updateHelpViewer() {
+    const data = MANUAL_DATA[helpCurrentManual];
+    if (!data) return;
+
+    const titleEl = document.getElementById('viewer-doc-title');
+    const metaEl = document.getElementById('viewer-doc-meta');
+    const badgeIconEl = document.getElementById('viewer-badge-icon');
+    const iframeEl = document.getElementById('help-doc-iframe');
+    const downloadBtn = document.getElementById('btn-viewer-download');
+    const formatBtnHtml = document.getElementById('btn-format-html');
+    const formatBtnPdf = document.getElementById('btn-format-pdf');
+    const loadingOverlay = document.getElementById('viewer-loading');
+
+    if (titleEl) titleEl.textContent = data.title;
+    if (metaEl) {
+      const formatLabel = helpCurrentFormat === 'html' ? 'Versión Web HTML interactiva' : 'Versión PDF original';
+      metaEl.textContent = `Visualizando: ${formatLabel} • ${data.subtitle}`;
+    }
+    if (badgeIconEl) {
+      badgeIconEl.innerHTML = `<i class="${data.iconClass}" style="color: ${data.iconColor};"></i>`;
+    }
+    if (downloadBtn) {
+      downloadBtn.href = data.pdfUrl;
+      downloadBtn.setAttribute('download', data.downloadFilename);
+    }
+
+    if (formatBtnHtml && formatBtnPdf) {
+      if (helpCurrentFormat === 'html') {
+        formatBtnHtml.classList.add('active');
+        formatBtnPdf.classList.remove('active');
+      } else {
+        formatBtnPdf.classList.add('active');
+        formatBtnHtml.classList.remove('active');
+      }
+    }
+
+    // Update active state in cards
+    document.querySelectorAll('.manual-card').forEach(card => {
+      if (card.dataset.manual === helpCurrentManual) {
+        card.classList.add('active');
+      } else {
+        card.classList.remove('active');
+      }
+    });
+
+    // Update iframe source
+    const targetUrl = helpCurrentFormat === 'html' ? data.htmlUrl : data.pdfUrl;
+    if (iframeEl) {
+      const currentSrc = iframeEl.getAttribute('src');
+      if (currentSrc !== targetUrl) {
+        if (loadingOverlay) loadingOverlay.style.display = 'flex';
+        iframeEl.src = targetUrl;
+        iframeEl.onload = () => {
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
+        };
+      }
+    }
+  }
+
+  function initHelpView() {
+    if (!helpInitialized) {
+      helpInitialized = true;
+
+      // Card selection buttons
+      document.querySelectorAll('.btn-select-manual').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const target = btn.dataset.target;
+          if (target && MANUAL_DATA[target]) {
+            helpCurrentManual = target;
+            updateHelpViewer();
+            const viewer = document.getElementById('help-viewer-container');
+            if (viewer) {
+              viewer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }
+        });
+      });
+
+      // Card click
+      document.querySelectorAll('.manual-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('a') || e.target.closest('button')) return;
+          const target = card.dataset.manual;
+          if (target && MANUAL_DATA[target]) {
+            helpCurrentManual = target;
+            updateHelpViewer();
+          }
+        });
+      });
+
+      // Format switch buttons
+      const btnFormatHtml = document.getElementById('btn-format-html');
+      const btnFormatPdf = document.getElementById('btn-format-pdf');
+
+      if (btnFormatHtml) {
+        btnFormatHtml.addEventListener('click', () => {
+          helpCurrentFormat = 'html';
+          updateHelpViewer();
+        });
+      }
+
+      if (btnFormatPdf) {
+        btnFormatPdf.addEventListener('click', () => {
+          helpCurrentFormat = 'pdf';
+          updateHelpViewer();
+        });
+      }
+
+      // Reload button
+      const btnReload = document.getElementById('btn-viewer-reload');
+      if (btnReload) {
+        btnReload.addEventListener('click', () => {
+          const iframeEl = document.getElementById('help-doc-iframe');
+          if (iframeEl) {
+            const loadingOverlay = document.getElementById('viewer-loading');
+            if (loadingOverlay) loadingOverlay.style.display = 'flex';
+            iframeEl.src = iframeEl.src;
+          }
+        });
+      }
+
+      // New tab button
+      const btnNewtab = document.getElementById('btn-viewer-newtab');
+      if (btnNewtab) {
+        btnNewtab.addEventListener('click', () => {
+          const data = MANUAL_DATA[helpCurrentManual];
+          const targetUrl = helpCurrentFormat === 'html' ? data.htmlUrl : data.pdfUrl;
+          window.open(targetUrl, '_blank');
+        });
+      }
+
+      // Fullscreen button
+      const btnFullscreen = document.getElementById('btn-viewer-fullscreen');
+      const viewerContainer = document.getElementById('help-viewer-container');
+      const iconFullscreen = document.getElementById('icon-viewer-fullscreen');
+
+      if (btnFullscreen && viewerContainer) {
+        btnFullscreen.addEventListener('click', () => {
+          viewerContainer.classList.toggle('is-fullscreen');
+          const isFs = viewerContainer.classList.contains('is-fullscreen');
+          if (iconFullscreen) {
+            iconFullscreen.className = isFs ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+          }
+        });
+      }
+    }
+
+    updateHelpViewer();
+  }
 
   // --- Initialization ---
   async function init() {

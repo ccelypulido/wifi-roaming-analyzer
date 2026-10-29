@@ -16,7 +16,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
   
-  <link rel="stylesheet" href="styles.css?v=3.6.0">
+  <link rel="stylesheet" href="styles.css?v=4.0.0">
 </head>
 <body>
   <div class="dashboard-container">
@@ -54,10 +54,10 @@
           <i class="fa-solid fa-shield-halved"></i>
           <span id="header-auth-status">Auth: Inactiva</span>
         </div>
-        <a href="Manual_Usuario_Soporte_Nivel_1.pdf" target="_blank" class="badge" style="background: rgba(79, 70, 229, 0.12); color: var(--accent-cyan); text-decoration: none; font-weight: 600;" title="Abrir y descargar el Manual de Usuario para Soporte Nivel 1 en formato PDF">
-          <i class="fa-solid fa-file-pdf"></i>
-          <span>Manual PDF</span>
-        </a>
+        <button type="button" id="btn-header-help" class="badge badge-btn" style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.16), rgba(14, 165, 233, 0.16)); color: var(--accent-cyan); border: 1px solid rgba(79, 70, 229, 0.35); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;" title="Abrir Centro de Ayuda y Manuales (Manual Oficial y Guía Soporte Nivel 1)">
+          <i class="fa-solid fa-circle-question" style="font-size: 0.95rem;"></i>
+          <span>Ayuda & Manuales</span>
+        </button>
       </div>
     </header>
 
@@ -368,6 +368,9 @@
         </button>
         <button class="tab-btn" data-tab="tab-config">
           <i class="fa-solid fa-gears"></i> Configuración
+        </button>
+        <button class="tab-btn" data-tab="tab-help" id="tab-btn-help">
+          <i class="fa-solid fa-circle-question"></i> Ayuda & Manuales
         </button>
       </div>
 
@@ -1112,10 +1115,229 @@
         </div>
       </div>
 
+      <!-- Tab 8: Centro de Ayuda & Manuales -->
+      <div id="tab-help" class="tab-content">
+        <!-- Hero Banner -->
+        <div class="help-hero-banner">
+          <div class="help-hero-content">
+            <div class="help-hero-badge">
+              <i class="fa-solid fa-graduation-cap"></i> CENTRO DE DOCUMENTACIÓN & SOPORTE TÉCNICO
+            </div>
+            <h2>Manuales de Usuario y Guías Operativas</h2>
+            <p>
+              Consulta en tiempo real la documentación técnica oficial de la aplicación sin salir de la plataforma. Alterna entre la vista web interactiva y el visor PDF, o descarga las copias oficiales para trabajo fuera de línea en campo.
+            </p>
+          </div>
+          <div class="help-hero-stats">
+            <div class="help-stat-item">
+              <span class="help-stat-num">2</span>
+              <span class="help-stat-lbl">Manuales Oficiales</span>
+            </div>
+            <div class="help-stat-item">
+              <span class="help-stat-num">17</span>
+              <span class="help-stat-lbl">Páginas Ilustradas</span>
+            </div>
+            <div class="help-stat-item">
+              <span class="help-stat-num">13</span>
+              <span class="help-stat-lbl">Capturas de Pantalla</span>
+            </div>
+            <div class="help-stat-item">
+              <span class="help-stat-num">100%</span>
+              <span class="help-stat-lbl">Disponible Offline</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manuals Selection Grid -->
+        <div class="manuals-grid">
+          <!-- Card 1: Manual Oficial de Operación (Completo & Ilustrado) -->
+          <div class="manual-card active" id="manual-card-completo" data-manual="completo">
+            <div class="manual-card-header">
+              <div class="manual-icon-box bg-indigo">
+                <i class="fa-solid fa-book-open-reader"></i>
+              </div>
+              <div class="manual-tags">
+                <span class="manual-tag tag-primary"><i class="fa-solid fa-star"></i> Manual Completo Oficial</span>
+                <span class="manual-tag tag-muted">14 Capítulos • 17 Páginas • 13 Ilustraciones HD</span>
+              </div>
+            </div>
+            <h3 class="manual-title">Manual de Operación y Arquitectura del Sistema</h3>
+            <p class="manual-desc">
+              Manual técnico exhaustivo dirigido a ingenieros de redes, arquitectos Wi-Fi y administradores de infraestructura. Explica en profundidad cada componente de la interfaz, fórmulas de roaming, analizador espectral, diagnóstico concurrente, inventario OUI IEEE y calibración de perfiles de entorno.
+            </p>
+            <div class="manual-features-chips">
+              <span class="feature-chip"><i class="fa-solid fa-wifi"></i> Métricas RF & Gauge 0-100</span>
+              <span class="feature-chip"><i class="fa-solid fa-arrows-split-up-and-left"></i> Diagnóstico Roaming & Malla</span>
+              <span class="feature-chip"><i class="fa-solid fa-chart-area"></i> Espectro 2.4 / 5 / 6 GHz</span>
+              <span class="feature-chip"><i class="fa-solid fa-stopwatch"></i> Telemetría HTTP 5 Fases</span>
+              <span class="feature-chip"><i class="fa-solid fa-route"></i> Traceroute Salto a Salto</span>
+              <span class="feature-chip"><i class="fa-solid fa-sliders"></i> Perfiles Tienda / Oficina / Bodega</span>
+            </div>
+            <div class="manual-actions">
+              <button type="button" class="btn-primary btn-select-manual" data-target="completo">
+                <i class="fa-solid fa-display"></i> Ver en Visor Integrado
+              </button>
+              <a href="/docs/manual_usuario_completo.html" target="_blank" class="btn-secondary" title="Abrir versión web HTML en nueva pestaña">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Web HTML
+              </a>
+              <a href="/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf" target="_blank" class="btn-secondary btn-pdf" title="Descargar PDF Oficial Completo (2 MB)">
+                <i class="fa-solid fa-file-pdf"></i> PDF (2 MB)
+              </a>
+            </div>
+          </div>
+
+          <!-- Card 2: Guía de Campo para Soporte Nivel 1 -->
+          <div class="manual-card" id="manual-card-l1" data-manual="l1">
+            <div class="manual-card-header">
+              <div class="manual-icon-box bg-emerald">
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+              </div>
+              <div class="manual-tags">
+                <span class="manual-tag tag-emerald"><i class="fa-solid fa-check"></i> Soporte Nivel 1</span>
+                <span class="manual-tag tag-muted">5 Páginas • Guía de Campo • Checklist & Semáforos</span>
+              </div>
+            </div>
+            <h3 class="manual-title">Guía de Campo para Soporte Técnico Nivel 1</h3>
+            <p class="manual-desc">
+              Manual operativo y directo diseñado para técnicos en sitio, personal de soporte en tiendas y mesa de ayuda. Redactado en lenguaje sencillo y práctico, detalla paso a paso cómo atender tickets de quejas Wi-Fi, interpretar semáforos de diagnóstico, realizar recorridos de campo y validar antes de escalar.
+            </p>
+            <div class="manual-features-chips">
+              <span class="feature-chip"><i class="fa-solid fa-traffic-light"></i> Semáforo Visual de Alertas</span>
+              <span class="feature-chip"><i class="fa-solid fa-walkie-talkie"></i> Checklist de Atención de Tickets</span>
+              <span class="feature-chip"><i class="fa-solid fa-pause"></i> Guía del Botón de Pausa</span>
+              <span class="feature-chip"><i class="fa-solid fa-building-circle-check"></i> Registro de Sede y Zona</span>
+              <span class="feature-chip"><i class="fa-solid fa-triangle-exclamation"></i> Diagnóstico de AP Pegajoso</span>
+              <span class="feature-chip"><i class="fa-solid fa-file-zipper"></i> Exportación de Auditoría</span>
+            </div>
+            <div class="manual-actions">
+              <button type="button" class="btn-primary btn-select-manual" data-target="l1">
+                <i class="fa-solid fa-display"></i> Ver en Visor Integrado
+              </button>
+              <a href="/docs/manual_soporte_nivel1.html" target="_blank" class="btn-secondary" title="Abrir versión web HTML en nueva pestaña">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Web HTML
+              </a>
+              <a href="/Manual_Usuario_Soporte_Nivel_1.pdf" target="_blank" class="btn-secondary btn-pdf" title="Descargar PDF Oficial Nivel 1 (314 KB)">
+                <i class="fa-solid fa-file-pdf"></i> PDF (314 KB)
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- In-App Document Viewer -->
+        <div class="help-viewer-card" id="help-viewer-container">
+          <div class="help-viewer-toolbar">
+            <div class="viewer-doc-info">
+              <div class="viewer-badge-icon" id="viewer-badge-icon">
+                <i class="fa-solid fa-book-open"></i>
+              </div>
+              <div>
+                <div class="viewer-doc-title" id="viewer-doc-title">Manual de Operación y Arquitectura del Sistema (Completo & Ilustrado)</div>
+                <div class="viewer-doc-meta" id="viewer-doc-meta">Visualizando versión Web HTML interactiva • 14 Capítulos</div>
+              </div>
+            </div>
+
+            <div class="viewer-controls">
+              <!-- Formats Toggle -->
+              <div class="viewer-format-group">
+                <button type="button" class="viewer-format-btn active" id="btn-format-html" title="Ver versión Web HTML interactiva">
+                  <i class="fa-solid fa-code"></i> Vista Web HTML
+                </button>
+                <button type="button" class="viewer-format-btn" id="btn-format-pdf" title="Ver versión PDF original compilada">
+                  <i class="fa-solid fa-file-pdf"></i> Vista PDF Nativo
+                </button>
+              </div>
+
+              <div class="viewer-actions-group">
+                <button type="button" class="btn-icon-subtle" id="btn-viewer-reload" title="Recargar documento">
+                  <i class="fa-solid fa-arrow-rotate-right"></i>
+                </button>
+                <button type="button" class="btn-icon-subtle" id="btn-viewer-newtab" title="Abrir en ventana o pestaña completa">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </button>
+                <button type="button" class="btn-icon-subtle" id="btn-viewer-fullscreen" title="Modo Pantalla Completa">
+                  <i class="fa-solid fa-expand" id="icon-viewer-fullscreen"></i>
+                </button>
+                <a id="btn-viewer-download" href="/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf" download class="btn-icon-subtle" title="Descargar archivo oficial">
+                  <i class="fa-solid fa-download"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div class="viewer-iframe-wrapper">
+            <div class="viewer-loading-overlay" id="viewer-loading" style="display: none;">
+              <i class="fa-solid fa-spinner fa-spin"></i>
+              <span>Cargando documento...</span>
+            </div>
+            <iframe id="help-doc-iframe" src="/docs/manual_usuario_completo.html" frameborder="0" class="help-iframe" title="Visor de Manuales"></iframe>
+          </div>
+        </div>
+
+        <!-- Quick Reference Cheatsheet -->
+        <div class="help-cheatsheet-section">
+          <div class="help-section-title">
+            <i class="fa-solid fa-lightbulb"></i> Referencia Rápida para Técnicos y Analistas
+          </div>
+          <div class="cheatsheet-grid">
+            <!-- Col 1: Semáforo de Calidad RF -->
+            <div class="cheatsheet-card">
+              <div class="cheatsheet-card-title text-indigo">
+                <i class="fa-solid fa-signal"></i> Umbrales de Calidad de Señal Wi-Fi
+              </div>
+              <table class="cheatsheet-table">
+                <tr>
+                  <td><span class="badge-dot" style="background: #10b981; display: inline-block;"></span> <strong>&gt; -60 dBm (&gt; 65%)</strong></td>
+                  <td><span class="badge-status-chip badge-optimo">Excelente</span> Señal óptima para voz sobre Wi-Fi y streaming sin caídas.</td>
+                </tr>
+                <tr>
+                  <td><span class="badge-dot" style="background: #0284c7; display: inline-block;"></span> <strong>-60 a -70 dBm (50-65%)</strong></td>
+                  <td><span class="badge-status-chip badge-bueno">Bueno</span> Cobertura normal en áreas de trabajo.</td>
+                </tr>
+                <tr>
+                  <td><span class="badge-dot" style="background: #f59e0b; display: inline-block;"></span> <strong>-70 a -75 dBm (40-50%)</strong></td>
+                  <td><span class="badge-status-chip badge-alerta">Límite Roaming</span> El dispositivo debe buscar un AP más cercano.</td>
+                </tr>
+                <tr>
+                  <td><span class="badge-dot" style="background: #ef4444; display: inline-block;"></span> <strong>&lt; -75 dBm (&lt; 40%)</strong></td>
+                  <td><span class="badge-status-chip badge-critico">Crítico</span> Pérdida de paquetes y congelamiento en apps POS/WMS.</td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Col 2: Protocolo de Walk-Test -->
+            <div class="cheatsheet-card">
+              <div class="cheatsheet-card-title text-emerald">
+                <i class="fa-solid fa-person-walking"></i> Protocolo para Recorridos de Campo
+              </div>
+              <ol class="cheatsheet-list">
+                <li><strong>1. Configurar Sede y Zona:</strong> En la barra superior, fija la ubicación exacta antes de comenzar a caminar.</li>
+                <li><strong>2. Ajustar el Perfil de Entorno:</strong> Selecciona <em>Tienda</em>, <em>Oficina</em> o <em>Bodega</em> según el tipo de obstáculos.</li>
+                <li><strong>3. Usar el Botón de Pausa:</strong> Pon en <strong>PAUSA</strong> al subir ascensores o escaleras para evitar falsos positivos.</li>
+                <li><strong>4. Exportar y Limpiar:</strong> Al terminar, ve a <em>Estadísticas & Auditoría</em>, descarga el ZIP y pulsa <em>Limpiar BD</em>.</li>
+              </ol>
+            </div>
+
+            <!-- Col 3: Interpretación de Métricas -->
+            <div class="cheatsheet-card">
+              <div class="cheatsheet-card-title text-sky">
+                <i class="fa-solid fa-stopwatch"></i> Telemetría HTTP y Diagnóstico
+              </div>
+              <ul class="cheatsheet-bullets">
+                <li><strong>DNS (&lt; 30 ms):</strong> Tiempos altos indican saturación o falla en resolvers corporativos.</li>
+                <li><strong>TCP + TLS (&lt; 100 ms):</strong> Handshake de red y negociación de certificados seguros.</li>
+                <li><strong>TTFB (&lt; 250 ms):</strong> Tiempo hasta recibir el primer byte del servidor web de la aplicación.</li>
+                <li><strong>Sticky Client:</strong> Si la señal actual baja a -78 dBm y el escáner muestra un AP vecino a -58 dBm en el mismo SSID, el dispositivo no está haciendo roaming adecuado.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
 
   </div>
 
-  <script src="app.js?v=3.9.1"></script>
+  <script src="app.js?v=4.0.0"></script>
 </body>
 </html>

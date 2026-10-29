@@ -92,5 +92,8 @@ Temporary Items
 *#
 .*.swp
 
+# Documentación estática redundante (servida directamente desde docs/)
+static/docs/
+
 # Carpeta de generación de Informes.
 reports/

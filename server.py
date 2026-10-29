@@ -14,12 +14,14 @@ import io
 import csv
 import datetime
 import zipfile
+import mimetypes
 from urllib.parse import parse_qs, urlparse
 
 IS_WINDOWS = sys.platform == 'win32'
 PORT = 8050
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(PROJECT_DIR, 'static')
+DOCS_DIR = os.path.join(PROJECT_DIR, 'docs')
 
 from core.oui_manager import oui_manager
 from core.ap_manager import ap_manager
@@ -1110,6 +1112,31 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Length', str(len(content)))
             self.end_headers()
             self.wfile.write(content)
+        elif parsed.path.startswith('/docs/'):
+            rel_file = parsed.path[len('/docs/'):].split('?')[0].split('#')[0]
+            # Buscar primero en static/docs, luego en docs/
+            target_file = os.path.join(STATIC_DIR, 'docs', rel_file)
+            if not os.path.exists(target_file) or not os.path.isfile(target_file):
+                target_file = os.path.join(DOCS_DIR, rel_file)
+            
+            if os.path.exists(target_file) and os.path.isfile(target_file):
+                ctype, _ = mimetypes.guess_type(target_file)
+                if not ctype:
+                    ctype = 'application/octet-stream'
+                try:
+                    with open(target_file, 'rb') as f:
+                        file_data = f.read()
+                    self.send_response(200)
+                    self.send_header('Content-Type', ctype)
+                    self.send_header('Content-Length', str(len(file_data)))
+                    self.end_headers()
+                    self.wfile.write(file_data)
+                    return
+                except Exception as e:
+                    self.send_error(500, f"Error leyendo documento: {e}")
+                    return
+            self.send_error(404, f"Documento no encontrado: {parsed.path}")
+            return
         else:
             if parsed.path == '/':
                 self.path = '/index.html'
