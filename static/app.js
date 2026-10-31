@@ -489,7 +489,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Tab Navigation ---
+  // --- Tab & Sidebar Navigation ---
+  const viewTitles = {
+    'tab-dashboard': 'Dashboard en Vivo',
+    'tab-roaming-log': 'Historial de Roaming',
+    'tab-ap-scanner': 'Escáner de APs & Espectro RF',
+    'tab-http-phases': 'Fases de Latencia HTTP',
+    'tab-net-diag': 'Diagnóstico de Red (Traceroute)',
+    'tab-sedes-zonas': 'Gestión de Sedes y Zonas',
+    'tab-stats': 'Estadísticas & Auditoría',
+    'tab-config': 'Configuración del Sistema',
+    'tab-help': 'Centro de Ayuda & Manuales'
+  };
+
+  const topbarCurrentView = document.getElementById('topbar-current-view');
+  const appSidebar = document.getElementById('app-sidebar');
+  const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
+  const btnMobileSidebar = document.getElementById('btn-mobile-sidebar');
+  const sidebarOverlay = document.getElementById('sidebar-overlay');
+
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       tabBtns.forEach(b => b.classList.remove('active'));
@@ -498,8 +516,31 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = document.getElementById(btn.dataset.tab);
       if (target) {
         target.classList.add('active');
+
+        // Update Topbar Breadcrumb
+        if (topbarCurrentView && viewTitles[btn.dataset.tab]) {
+          topbarCurrentView.textContent = viewTitles[btn.dataset.tab];
+        }
+
+        // Close mobile drawer if open
+        if (window.innerWidth <= 992 && appSidebar) {
+          appSidebar.classList.remove('mobile-open');
+          if (sidebarOverlay) sidebarOverlay.classList.remove('active');
+        }
+
+        // Trigger view-specific data refresh & chart resizing
+        if (btn.dataset.tab === 'tab-dashboard') {
+          if (typeof telemetryChart !== 'undefined' && telemetryChart) {
+            setTimeout(() => telemetryChart.resize(), 60);
+          }
+        }
         if (btn.dataset.tab === 'tab-roaming-log') loadRoamingHistory();
-        if (btn.dataset.tab === 'tab-ap-scanner') loadApScanner();
+        if (btn.dataset.tab === 'tab-ap-scanner') {
+          loadApScanner();
+          setTimeout(() => {
+            if (typeof drawWifiSpectrum === 'function') drawWifiSpectrum();
+          }, 60);
+        }
         if (btn.dataset.tab === 'tab-http-phases') loadHttpPhasesHistory();
         if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
         if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
@@ -509,6 +550,42 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
+  // Sidebar Collapse / Expand Toggle
+  if (btnToggleSidebar && appSidebar) {
+    btnToggleSidebar.addEventListener('click', () => {
+      appSidebar.classList.toggle('collapsed');
+      const isCollapsed = appSidebar.classList.contains('collapsed');
+      try {
+        localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0');
+      } catch (e) {}
+      setTimeout(() => {
+        if (typeof telemetryChart !== 'undefined' && telemetryChart) telemetryChart.resize();
+        if (typeof drawWifiSpectrum === 'function') drawWifiSpectrum();
+      }, 260);
+    });
+
+    try {
+      if (localStorage.getItem('sidebar_collapsed') === '1') {
+        appSidebar.classList.add('collapsed');
+      }
+    } catch (e) {}
+  }
+
+  // Mobile Drawer Toggle
+  if (btnMobileSidebar && appSidebar) {
+    btnMobileSidebar.addEventListener('click', () => {
+      appSidebar.classList.toggle('mobile-open');
+      if (sidebarOverlay) sidebarOverlay.classList.toggle('active');
+    });
+  }
+
+  if (sidebarOverlay && appSidebar) {
+    sidebarOverlay.addEventListener('click', () => {
+      appSidebar.classList.remove('mobile-open');
+      sidebarOverlay.classList.remove('active');
+    });
+  }
 
   // URL Hash / Query Parameter direct tab navigation
   function checkUrlTab() {
