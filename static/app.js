@@ -2877,13 +2877,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const MANUAL_DATA = {
     completo: {
-      title: 'Manual de Operación y Arquitectura del Sistema (Completo & Ilustrado)',
-      subtitle: 'Manual Completo Oficial • 14 Capítulos • 17 Páginas • 13 Ilustraciones HD',
+      title: 'Manual de Operación y Arquitectura del Sistema (Oficial Release 4.0)',
+      subtitle: 'Manual Maestro Oficial • Release 4.0 • Vistas Modulares con Barra Lateral Vertical',
       iconClass: 'fa-solid fa-book-open',
       iconColor: 'var(--accent-cyan)',
-      htmlUrl: '/docs/manual_usuario_completo.html',
-      pdfUrl: '/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf',
-      downloadFilename: 'Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf'
+      htmlUrl: '/docs/manual_operacion_y_arquitectura.html',
+      pdfUrl: '/Manual_de_Operacion_y_Arquitectura.pdf',
+      downloadFilename: 'Manual_de_Operacion_y_Arquitectura.pdf'
     },
     l1: {
       title: 'Guía de Campo para Soporte Técnico Nivel 1',

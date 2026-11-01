@@ -1,0 +1,865 @@
+#!/usr/bin/env python3
+"""
+Generador y Compilador Oficial del Manual de Operación y Arquitectura del Sistema
+Wi-Fi & Enterprise Application Telemetry Analyzer.
+Genera docs/manual_operacion_y_arquitectura.html y compila a PDF vía Chrome Headless.
+"""
+
+import os
+import subprocess
+import shutil
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS_DIR = os.path.join(BASE_DIR, "docs")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+HTML_OUT = os.path.join(DOCS_DIR, "manual_operacion_y_arquitectura.html")
+PDF_NAME = "Manual_de_Operacion_y_Arquitectura.pdf"
+PDF_DOCS = os.path.join(DOCS_DIR, PDF_NAME)
+PDF_STATIC = os.path.join(STATIC_DIR, PDF_NAME)
+PDF_ROOT = os.path.join(BASE_DIR, PDF_NAME)
+
+HTML_CONTENT = """<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual de Operación y Arquitectura del Sistema | Wi-Fi Roaming & Enterprise Analyzer</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 15mm 16mm 15mm 16mm;
+      @bottom-right {
+        content: "Página " counter(page);
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #64748b;
+      }
+      @bottom-left {
+        content: "Wi-Fi & Enterprise Telemetry Analyzer • Manual de Operación y Arquitectura";
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      font-size: 9.2pt;
+      line-height: 1.45;
+      color: #1e293b;
+      background: #ffffff;
+    }
+
+    /* Portada */
+    .cover-page {
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 92vh;
+      padding: 2rem 0.5rem 1rem 0.5rem;
+      border-bottom: 5px solid #2563eb;
+    }
+
+    .cover-badge {
+      display: inline-block;
+      padding: 0.35rem 0.95rem;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 700;
+      font-size: 8.5pt;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.5rem;
+      border: 1px solid #bfdbfe;
+    }
+
+    .cover-title {
+      font-size: 26pt;
+      font-weight: 800;
+      line-height: 1.15;
+      color: #0f172a;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+
+    .cover-subtitle {
+      font-size: 13pt;
+      font-weight: 400;
+      color: #475569;
+      line-height: 1.35;
+      margin-bottom: 2rem;
+    }
+
+    .cover-box {
+      background: #f8fafc;
+      border-left: 4px solid #2563eb;
+      border-radius: 0 8px 8px 0;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    .cover-box p {
+      font-size: 9.6pt;
+      color: #334155;
+      line-height: 1.5;
+      text-align: justify;
+    }
+
+    .cover-box strong {
+      color: #1d4ed8;
+    }
+
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 1.5rem;
+    }
+
+    .meta-item span {
+      display: block;
+      color: #64748b;
+      font-size: 7.8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.2rem;
+    }
+
+    .meta-item strong {
+      color: #0f172a;
+      font-size: 9.5pt;
+    }
+
+    /* Títulos y Tipografía */
+    h1 {
+      font-size: 16pt;
+      font-weight: 800;
+      color: #0f172a;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 0.4rem;
+      margin-top: 1.6rem;
+      margin-bottom: 0.75rem;
+      page-break-after: avoid;
+    }
+
+    h2 {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-top: 1.15rem;
+      margin-bottom: 0.5rem;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 0.85rem;
+      margin-bottom: 0.35rem;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin-bottom: 0.65rem;
+      text-align: justify;
+    }
+
+    ul, ol {
+      margin: 0.5rem 0 0.85rem 1.4rem;
+    }
+
+    li {
+      margin-bottom: 0.35rem;
+    }
+
+    /* Cajas Informativas */
+    .callout {
+      border-radius: 6px;
+      padding: 0.85rem 1.1rem;
+      margin: 0.85rem 0;
+      page-break-inside: avoid;
+      font-size: 9pt;
+      line-height: 1.45;
+    }
+
+    .callout-info {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+    }
+
+    .callout-tip {
+      background: #f0fdf4;
+      border-left: 4px solid #10b981;
+      color: #065f46;
+    }
+
+    .callout-warning {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .callout-title {
+      font-weight: 700;
+      font-size: 9.3pt;
+      margin-bottom: 0.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    /* Tablas */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.85rem 0;
+      font-size: 8.5pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 0.45rem 0.6rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+      font-size: 7.6pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-amber  { background: #fef3c7; color: #92400e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-purple { background: #f3e8ff; color: #6b21a8; }
+    .badge-gray   { background: #f1f5f9; color: #475569; }
+
+    /* Imágenes con marco institucional */
+    .img-container {
+      margin: 0.85rem 0;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    .img-container img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .img-caption {
+      font-size: 8pt;
+      color: #64748b;
+      margin-top: 0.35rem;
+      font-style: italic;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
+      margin: 0.85rem 0;
+      page-break-inside: avoid;
+    }
+
+    .mini-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 0.75rem 0.95rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+
+    .mini-card strong {
+      display: block;
+      color: #0f172a;
+      font-size: 9.1pt;
+      margin-bottom: 0.2rem;
+    }
+
+    .mini-card p {
+      font-size: 8.3pt;
+      color: #475569;
+      margin: 0;
+      text-align: left;
+    }
+
+    .code-block {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 8.2pt;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      margin: 0.75rem 0;
+      overflow-x: auto;
+      line-height: 1.4;
+      page-break-inside: avoid;
+    }
+
+    .code-inline {
+      font-family: Consolas, 'Courier New', monospace;
+      font-size: 8.4pt;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PORTADA ==================== -->
+  <div class="cover-page">
+    <div class="cover-top">
+      <span class="cover-badge">Documento Oficial de Ingeniería &amp; Operación</span>
+      <h1 class="cover-title">Manual de Operación y Arquitectura del Sistema</h1>
+      <p class="cover-subtitle">
+        Wi-Fi &amp; Enterprise Application Telemetry Analyzer<br>
+        <em>Observabilidad L1-L7, Telemetría Correlacionada y Navegación Modular Vertical</em>
+      </p>
+
+      <div class="cover-box">
+        <p>
+          <strong>Propósito del Documento:</strong><br>
+          Esta guía técnica constituye la referencia maestra de ingeniería, arquitectura de software y modo de operación para el personal de TI, ingenieros de redes y analistas de soporte. Detalla la estructura del sistema, el flujo de datos sincrónico y la operación práctica de los <strong>9 módulos funcionales</strong> organizados bajo la nueva <strong>interfaz de barra vertical izquierda (Release 4.0)</strong>.
+        </p>
+      </div>
+
+      <div class="card-grid">
+        <div class="mini-card" style="border-left: 3px solid #2563eb;">
+          <strong>🏛️ Arquitectura de Software</strong>
+          <p>Motor nativo Python estándar (Zero Pip Dependencies), persistencia SQLite WAL y soporte multiplataforma Windows y Linux.</p>
+        </div>
+        <div class="mini-card" style="border-left: 3px solid #10b981;">
+          <strong>🧭 Interfaz Modular Vertical</strong>
+          <p>Barra lateral izquierda agrupada en Operación, Gestión y Sistema, con topbar contextual, migas de pan y colapso rápido.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-meta">
+      <div class="meta-item">
+        <span>Edición / Plataforma</span>
+        <strong>Release 4.0 Enterprise</strong>
+      </div>
+      <div class="meta-item">
+        <span>Audiencia Principal</span>
+        <strong>Ingenieros de Redes, Arquitectos TI y Soporte Nivel 1/2/3</strong>
+      </div>
+      <div class="meta-item">
+        <span>Acceso Web de la Plataforma</span>
+        <strong>http://localhost:8050</strong>
+      </div>
+      <div class="meta-item">
+        <span>Fecha de Publicación</span>
+        <strong>Noviembre 2026</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CAPÍTULO 1 ==================== -->
+  <h1>1. Fundamentos y Propósito de la Plataforma</h1>
+  <p>
+    En las operaciones empresariales contemporáneas (centros logísticos con WMS Manhattan/SAP, tiendas de retail con terminales POS móviles, plantas industriales y complejos hospitalarios), el personal depende de dispositivos móviles de radiofrecuencia (pistolas PDA, lectores de código de barras, carretillas elevadoras y tablets).
+  </p>
+  <p>
+    Cuando el usuario experimenta lentitud o congelamiento de pantalla, típicamente reporta: <em>"Se cayó el Wi-Fi"</em>. Sin embargo, en redes corporativas la falla puede originarse en tres capas totalmente independientes:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 22%;">Capa del Modelo</th>
+        <th style="width: 48%;">Causa Real del Problema</th>
+        <th style="width: 30%;">Responsable de Resolución</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Capa 1/2: Wi-Fi RF &amp; Roaming</strong></td>
+        <td>Potencia de señal baja (-80 dBm), antena apagada, cliente pegajoso (sticky client) o handoff lento entre Access Points.</td>
+        <td><span class="badge badge-amber">Infraestructura / Redes</span></td>
+      </tr>
+      <tr>
+        <td><strong>Capa 3/4: Red Local &amp; Transporte</strong></td>
+        <td>Buena señal Wi-Fi, pero el router principal (Gateway), switch de distribución o enlace WAN sufre saturación o pérdida de paquetes (Ping alto).</td>
+        <td><span class="badge badge-amber">Infraestructura / Redes</span></td>
+      </tr>
+      <tr>
+        <td><strong>Capa 7: Servidor &amp; Aplicación</strong></td>
+        <td>La red física responde en 3 ms, pero el servidor web o motor de base de datos tarda más de 4 segundos en entregar el primer byte (TTFB elevado).</td>
+        <td><span class="badge badge-blue">Equipo de Aplicaciones / DB</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-tip">
+    <div class="callout-title">💡 Principio de Telemetría Simultánea y Correlacionada</div>
+    El analizador mide al mismo instante de tiempo la <strong>potencia de radiofrecuencia (dBm)</strong>, el <strong>RTT de red al router (ms)</strong> y la <strong>latencia HTTP desglosada en 5 fases (ms)</strong>. Al graficar estas tres variables en un mismo eje temporal, es imposible culpar al Wi-Fi de una lentitud del servidor o viceversa.
+  </div>
+
+  <!-- ==================== CAPÍTULO 2 ==================== -->
+  <div class="page-break"></div>
+  <h1>2. Arquitectura Técnica del Sistema y Componentes Core</h1>
+
+  <p>
+    El sistema está diseñado bajo el principio fundamental de <strong>Zero External Pip Dependencies</strong>: opera enteramente con las bibliotecas estándar incluidas de fábrica en Python 3.8+ y no requiere conectividad a Internet para su funcionamiento (arquitectura 100% <em>Air-Gapped</em>).
+  </p>
+
+  <div class="card-grid">
+    <div class="mini-card">
+      <strong>1. Servidor Central (server.py)</strong>
+      <p>Servidor HTTP multihilo basado en <code>http.server.ThreadingHTTPServer</code>, exponiendo una API REST completa y despachando la SPA estática en el puerto 8050.</p>
+    </div>
+    <div class="mini-card">
+      <strong>2. Sonda HTTP de Alta Precisión (core/probe.py)</strong>
+      <p>Mide con precisión de microsegundos las 5 fases de conexión (DNS, TCP, TLS, TTFB y Transferencia) mediante sockets crudos con reuso de conexiones Keep-Alive.</p>
+    </div>
+    <div class="mini-card">
+      <strong>3. Diagnóstico de Red (core/net_diag.py)</strong>
+      <p>Detección automática de Gateway, servidores DNS locales, ping concurrente multinodo y trazabilidad salto a salto (traceroute/tracert).</p>
+    </div>
+    <div class="mini-card">
+      <strong>4. Persistencia Relacional (database/database.py)</strong>
+      <p>Base de datos SQLite con modo WAL (Write-Ahead Logging) para soportar lecturas y escrituras simultáneas sin bloqueos de concurrencia.</p>
+    </div>
+    <div class="mini-card">
+      <strong>5. Motor IEEE OUI (core/oui_manager.py)</strong>
+      <p>Resolución offline inmediata de más de 40,300 fabricantes de hardware MAC, con soporte de prefijos personalizados y sincronización oficial en 1 clic.</p>
+    </div>
+    <div class="mini-card">
+      <strong>6. Inventario de APs (core/ap_manager.py)</strong>
+      <p>Asociación de direcciones BSSID físicas a nombres amigables de controladoras (ej. Cisco Catalyst, Aruba ClearPass, Ubiquiti UniFi).</p>
+    </div>
+  </div>
+
+  <h2>Flujo de Concurrencia y Sincronización</h2>
+  <p>
+    El estado dinámico del sistema está gobernado por el objeto central <code class="code-inline">WiFiState</code>, protegido por mecanismos de bloqueo por hilo (<code class="code-inline">threading.Lock</code>). Un hilo independiente ejecuta el ciclo continuo de telemetría (por defecto cada 5 segundos), consulta la capa de red del sistema operativo, ejecuta la sonda HTTP y persiste la muestra en la tabla <code class="code-inline">telemetry_samples</code>.
+  </p>
+
+  <div class="code-block">
+Estructura de Directorios del Proyecto:
+├── server.py                    # Entrypoint principal y servidor HTTP/REST
+├── core/                        # Motores de medición independientes
+│   ├── probe.py                 # Sonda HTTP de 5 fases (DNS, TCP, TLS, TTFB, Transfer)
+│   ├── net_diag.py              # Diagnóstico multinodo, Gateway y Traceroute
+│   ├── ntlm_auth.py             # Motor criptográfico NTLMv1/v2 nativo
+│   ├── oui_manager.py           # Resolución offline de fabricantes IEEE OUI
+│   └── ap_manager.py            # Mapeo BSSID a nombres de Access Points
+├── database/                    # Capa de almacenamiento SQLite WAL
+│   ├── database.py              # Consultas, agregación de percentiles y persistencia
+│   └── telemetry.db             # Archivo SQLite de base de datos activa
+├── data/                        # Catálogos maestros y datos precargados
+│   ├── sedes_zonas.json         # Catálogo jerárquico de Sedes y Zonas
+│   ├── oui_vendors.json         # Base de datos IEEE de 40,300+ fabricantes
+│   └── ap_names.json            # Inventario activo de alias de APs
+├── docs/                        # Documentación técnica y manuales oficiales
+│   ├── img/                     # Capturas de pantalla en alta resolución
+│   ├── manual_operacion_y_arquitectura.html # Plantilla de este manual
+│   └── Manual_de_Operacion_y_Arquitectura.pdf # PDF compilado oficial
+└── static/                      # Frontend SPA Vanilla (HTML5 / CSS3 / JS)
+    ├── index.html               # Estructura SPA con Barra Lateral Vertical
+    ├── app.js                   # Lógica modular de vistas, gráficos y eventos
+    └── styles.css               # Diseño moderno, sidebar responsive y tokens CSS
+  </div>
+
+  <!-- ==================== CAPÍTULO 3 ==================== -->
+  <div class="page-break"></div>
+  <h1>3. Nueva Arquitectura de Interfaz de Usuario (Release 4.0)</h1>
+
+  <p>
+    A partir de la versión <strong>Release 4.0</strong>, la interfaz de usuario migró de pestañas horizontales inferiores a un modelo moderno de <strong>Barra Lateral Izquierda Vertical Persistente</strong> y <strong>Barra Superior Contextual</strong>.
+  </p>
+
+  <div class="img-container">
+    <img src="img/01_dashboard_general.png" alt="Vista General de la Interfaz con Barra Lateral">
+    <div class="img-caption">Figura 1: Vista general del sistema con la Barra Lateral Izquierda (Sidebar), Barra Superior (Topbar) y el Módulo Activo en pantalla completa.</div>
+  </div>
+
+  <h2>Estructura y Organización de la Barra Lateral (.app-sidebar)</h2>
+  <p>
+    La barra lateral fija organiza los módulos de trabajo en tres dominios conceptuales claramente diferenciados:
+  </p>
+
+  <div class="card-grid">
+    <div class="mini-card" style="border-left: 3px solid #6366f1;">
+      <strong>1. Operación &amp; Telemetría</strong>
+      <p>• <strong>Dashboard en Vivo:</strong> Vista general de salud, señal RF y gráfica multieje.<br>
+         • <strong>Historial de Roaming:</strong> Saltos entre antenas y calidad del handoff.<br>
+         • <strong>Escáner &amp; Espectro:</strong> Curvas de canales 2.4/5/6 GHz y tabla de APs.<br>
+         • <strong>Fases Latencia HTTP:</strong> Desglose en 5 fases hacia el servidor empresarial.<br>
+         • <strong>Diagnóstico de Red:</strong> Ping a Gateway, DNS, Intranet y Traceroute.</p>
+    </div>
+    <div class="mini-card" style="border-left: 3px solid #10b981;">
+      <strong>2. Gestión &amp; Auditoría</strong>
+      <p>• <strong>Sedes y Zonas:</strong> Catálogo maestro territorial y chips de selección rápida.<br>
+         • <strong>Estadísticas &amp; Auditoría:</strong> Percentiles P50/P95/P99, filtros por fecha y descarga del paquete forense ZIP.</p>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="mini-card" style="border-left: 3px solid #64748b;">
+      <strong>3. Sistema</strong>
+      <p>• <strong>Configuración:</strong> Conmutación de antenas Wi-Fi en caliente, sincronización IEEE OUI, alias de APs y credenciales de autenticación.<br>
+         • <strong>Ayuda &amp; Manuales:</strong> Centro de documentación integrada, visor interactivo y descarga de manuales PDF.</p>
+    </div>
+    <div class="mini-card" style="border-left: 3px solid #f59e0b;">
+      <strong>Modo Compacto y Responsive</strong>
+      <p>El botón de colapso superior <strong>[«]</strong> contrae la barra a un ancho de <strong>76 píxeles</strong> mostrando únicamente los iconos con <em>tooltips flotantes</em>. En pantallas móviles, se convierte en un cajón flotante con overlay oscuro.</p>
+    </div>
+  </div>
+
+  <div class="img-container">
+    <img src="img/01_sidebar_navegacion.png" alt="Primer Plano de la Barra Lateral Izquierda" style="max-width: 55%;">
+    <div class="img-caption">Figura 2: Primer plano de la Barra Lateral Izquierda con agrupación funcional, botón de colapso, estado del motor y versión.</div>
+  </div>
+
+  <!-- ==================== CAPÍTULO 4 ==================== -->
+  <div class="page-break"></div>
+  <h1>4. Guía de Operación Módulo por Módulo</h1>
+
+  <h2>Módulo 1: Dashboard en Vivo y Telemetría Sincronizada</h2>
+  <p>
+    Constituye el panel principal de supervisión operativa. En la parte superior contiene la <strong>Barra de Control</strong> para fijar el perfil de entorno (Tienda, Oficina, Bodega), pausar/reanudar el motor, alternar la <strong>Sede y Zona activa</strong> y probar URLs HTTP en demanda.
+  </p>
+
+  <div class="img-container">
+    <img src="img/02_barra_control_perfiles.png" alt="Barra de Control de Perfiles y Ubicación">
+    <div class="img-caption">Figura 3: Barra de control contextual con selector de perfiles, botón En Vivo, selectores de Sede y Zona y probador de URL.</div>
+  </div>
+
+  <p>
+    Inmediatamente debajo se presenta la cuadrícula de <strong>Tres Tarjetas de Salud Operativa</strong>:
+  </p>
+  <ul>
+    <li><strong>Calidad de Señal Wi-Fi:</strong> Velocímetro visual con puntuación de salud (Score 0-100), lectura en dBm y porcentaje.</li>
+    <li><strong>Punto de Acceso (AP):</strong> Información física de la antena conectada: SSID, BSSID (MAC), Fabricante de radio (IEEE OUI), Canal, Frecuencia, Banda, Tasas de modulación TX/RX y direcciones IP/Gateway.</li>
+    <li><strong>Salud de Aplicación HTTP:</strong> Latencia operativa activa, código de respuesta HTTP (ej. 200 OK, 302), desglose preliminar y tiempo de conexión en frío.</li>
+  </ul>
+
+  <div class="img-container">
+    <img src="img/03_tarjetas_metricas_rf.png" alt="Cuadrícula de Métricas RF y Salud de Aplicación">
+    <div class="img-caption">Figura 4: Cuadrícula con Score de Calidad Wi-Fi, tarjeta detallada del AP asociado y salud de aplicación HTTP.</div>
+  </div>
+
+  <p>
+    La mitad inferior del Dashboard presenta el <strong>Gráfico Sincronizado en Tiempo Real (Chart.js)</strong>, que traza en un solo lienzo cronológico la curva de potencia Wi-Fi (dBm en escala invertida), la latencia de aplicación HTTP (ms) y el tiempo de respuesta al Gateway (ms).
+  </p>
+
+  <div class="img-container">
+    <img src="img/04_diagnostico_roaming_malla.png" alt="Gráfica Sincronizada de Telemetría Multieje">
+    <div class="img-caption">Figura 5: Gráfica multieje correlacionando potencia RF (dBm), latencia HTTP (ms) y ping al Gateway (ms).</div>
+  </div>
+
+  <!-- ==================== ROAMING Y ESPECTRO ==================== -->
+  <div class="page-break"></div>
+  <h2>Módulo 2: Historial de Roaming y Auditoría de Handoffs</h2>
+  <p>
+    Registra automáticamente cada transición de antena (handoff) cuando el dispositivo se desplaza. Cada salto calcula la variación matemática de señal <strong>Δ dBm = Señal Nueva - Señal Anterior</strong> y emite un veredicto de calidad:
+  </p>
+  <ul>
+    <li><span class="badge badge-green">Excelente Mejora (&ge; +10 dBm):</span> Salto idóneo hacia un AP mucho más potente.</li>
+    <li><span class="badge badge-blue">Mejora Aceptable (+3 a +9 dBm):</span> Transición exitosa y saludable.</li>
+    <li><span class="badge badge-amber">Roaming Lateral (-2 a +2 dBm):</span> Conmutación entre antenas simétricas.</li>
+    <li><span class="badge badge-red">Roaming Degradado (&le; -3 dBm):</span> Salto defectuoso hacia un AP más lejano (evidencia desbalance de Tx Power en la controladora).</li>
+  </ul>
+
+  <div class="img-container">
+    <img src="img/06_tab_historial_roaming.png" alt="Módulo de Historial de Roaming">
+    <div class="img-caption">Figura 6: Módulo de Historial de Roaming mostrando la tabla cronológica de saltos, cálculo de Δ dBm y botón de descarga CSV.</div>
+  </div>
+
+  <h2>Módulo 3: Escáner de APs y Analizador de Espectro RF</h2>
+  <p>
+    Combina en una única vista un <strong>analizador de espectro visual</strong> con curvas parabólicas de distribución de canales en las bandas de 2.4 GHz, 5 GHz y 6 GHz, y una <strong>tabla detallada de APs vecinos</strong> detectados en el aire, resolviendo el fabricante IEEE OUI y nivel de señal en tiempo real.
+  </p>
+
+  <div class="img-container">
+    <img src="img/05_analizador_espectro_wifi.png" alt="Analizador de Espectro Wi-Fi">
+    <div class="img-caption">Figura 7: Analizador de espectro RF con curvas de ocupación de canal y selector de bandas operativas.</div>
+  </div>
+
+  <div class="img-container">
+    <img src="img/07_tab_escaner_aps.png" alt="Tabla de APs Vecinos Escaneados">
+    <div class="img-caption">Figura 8: Tabla de Access Points detectados en el área con SSID, BSSID, fabricante OUI, canal, banda y potencia dBm.</div>
+  </div>
+
+  <!-- ==================== HTTP Y RED ==================== -->
+  <div class="page-break"></div>
+  <h2>Módulo 4: Sonda de Latencia HTTP de Alta Precisión</h2>
+  <p>
+    Desglosa quirúrgicamente la conexión contra la aplicación web corporativa (ej. Manhattan SCALE, SAP, Intranet) en <strong>5 fases lógicas</strong> para identificar exactamente en qué componente radica la demora:
+  </p>
+  <ul>
+    <li><strong>1. DNS (Resolución de Nombre):</strong> Tiempo en milisegundos para traducir el FQDN a dirección IP.</li>
+    <li><strong>2. TCP (Handshake de Red Físico):</strong> Tiempo del saludo SYN / SYN-ACK del socket. Si es &lt; 15 ms, <strong>la red física es inocente</strong>.</li>
+    <li><strong>3. TLS (Negociación Criptográfica):</strong> Handshake SSL/TLS y validación de certificados de seguridad.</li>
+    <li><strong>4. TTFB (Time to First Byte):</strong> Tiempo de procesamiento interno del servidor web y base de datos antes de enviar el primer byte. <em>¡Representa el 90% de las demoras en aplicaciones lentas!</em></li>
+    <li><strong>5. Transfer (Descarga):</strong> Tiempo en transferir el cuerpo completo de la respuesta HTTP.</li>
+  </ul>
+
+  <div class="img-container">
+    <img src="img/08_tab_fases_latencia_http.png" alt="Módulo de Fases de Latencia HTTP">
+    <div class="img-caption">Figura 9: Módulo de Latencia HTTP con tarjetas de las 5 fases, gráfico proporcional de barras y tabla histórica.</div>
+  </div>
+
+  <h2>Módulo 5: Diagnóstico de Red y Traceroute Multi-Salto</h2>
+  <p>
+    Ejecuta diagnósticos concurrentes hacia cuatro destinos de red fundamentales (Gateway Local, Servidor DNS Corporativo, Servidor de Aplicación Intranet y Servidor Público Internet), y permite ejecutar trazabilidad salto a salto (Traceroute) para identificar qué router o switch de piso intermedio descarta paquetes.
+  </p>
+
+  <div class="img-container">
+    <img src="img/09_tab_diagnostico_red_traceroute.png" alt="Módulo de Diagnóstico de Red y Traceroute">
+    <div class="img-caption">Figura 10: Módulo de Diagnóstico de Red con tarjetas de nodos clave, latencia ICMP y consola de Traceroute.</div>
+  </div>
+
+  <!-- ==================== GESTIÓN, AUDITORÍA Y CONFIG ==================== -->
+  <div class="page-break"></div>
+  <h2>Módulo 6: Gestión Jerárquica de Sedes y Zonas</h2>
+  <p>
+    Permite administrar el catálogo territorial para etiquetar cada medición en campo. Es compatible con el archivo maestro <code class="code-inline">data/sedes_zonas.json</code> y permite crear sedes, agregar zonas operativas y recargar el catálogo en caliente de manera limpia.
+  </p>
+
+  <div class="img-container">
+    <img src="img/10_tab_sedes_zonas.png" alt="Módulo de Gestión de Sedes y Zonas">
+    <div class="img-caption">Figura 11: Catálogo territorial con administración jerárquica de Sedes, chips interactivos de Zonas e importación/exportación.</div>
+  </div>
+
+  <h2>Módulo 7: Estadísticas, Percentiles y Paquete Forense ZIP</h2>
+  <p>
+    En redes corporativas, el promedio aritmético oculta incidentes graves. Este módulo calcula los percentiles estadísticos reales:
+  </p>
+  <ul>
+    <li><strong>P50 (Mediana):</strong> Experiencia del 50% de las transacciones habituales.</li>
+    <li><strong>P95 / P99:</strong> El peor 5% y 1% de las transacciones; captura con precisión matemática los congelamientos esporádicos y bloqueos de terminales.</li>
+  </ul>
+  <p>
+    El botón <span class="badge badge-purple">📦 Exportar Todo (.ZIP)</span> genera en 1 clic un archivo comprimido con 4 informes CSV completos (Telemetría, Roaming, HTTP, ICMP) y una ficha ejecutiva de texto para adjuntar al ticket de soporte.
+  </p>
+
+  <div class="img-container">
+    <img src="img/11_tab_estadisticas_auditoria.png" alt="Módulo de Estadísticas y Auditoría">
+    <div class="img-caption">Figura 12: Módulo de Auditoría con filtros por fecha y sede, percentiles P50/P95/P99 y botón de exportación ZIP forense.</div>
+  </div>
+
+  <!-- ==================== CONFIGURACIÓN Y AYUDA ==================== -->
+  <div class="page-break"></div>
+  <h2>Módulo 8: Configuración Centralizada del Sistema</h2>
+  <p>
+    Consolida todos los parámetros de operación del sistema: selección de antena Wi-Fi activa, frecuencia de muestreo, validación de certificados SSL, base de datos de fabricantes IEEE OUI, inventario de nombres de APs y credenciales de dominio (NTLM, Basic, Bearer).
+  </p>
+
+  <div class="img-container">
+    <img src="img/12_tab_configuracion_sistema.png" alt="Módulo de Configuración del Sistema">
+    <div class="img-caption">Figura 13: Módulo de Configuración con selector de interfaz Wi-Fi, gestión IEEE OUI e inventario de nombres amigables de APs.</div>
+  </div>
+
+  <h2>Módulo 9: Centro de Ayuda, Visor de Documentación y Glosario</h2>
+  <p>
+    Proporciona acceso directo en pantalla a los manuales oficiales del sistema en formato PDF, guías operativas resumidas para Helpdesk y un glosario técnico exhaustivo de telecomunicaciones y radiofrecuencia (dBm, RSSI, BSSID, TTFB, Roaming, Handoff).
+  </p>
+
+  <div class="img-container">
+    <img src="img/13_tab_ayuda_manuales.png" alt="Módulo de Ayuda y Manuales de Usuario">
+    <div class="img-caption">Figura 14: Centro de Ayuda con tarjetas de descarga directa de manuales PDF y glosario técnico interactivo.</div>
+  </div>
+
+  <!-- ==================== METODOLOGÍA WALK-TESTS ==================== -->
+  <div class="page-break"></div>
+  <h1>5. Metodología Oficial de Recorridos en Campo (Walk-Tests)</h1>
+
+  <p>
+    Para diagnosticar con precisión fallas intermitentes en almacenes o tiendas, se debe ejecutar el siguiente protocolo oficial en tres fases:
+  </p>
+
+  <div class="card-grid">
+    <div class="mini-card" style="border-left: 3px solid #3b82f6;">
+      <strong>Fase 1: Preparación Previa</strong>
+      <p>1. Iniciar el servicio en la laptop o terminal de prueba (<code class="code-inline">run.bat</code> o <code class="code-inline">./run.sh</code>).<br>
+         2. Abrir el navegador en <code class="code-inline">http://localhost:8050</code>.<br>
+         3. En la barra superior, fijar la <strong>Sede</strong> (ej. <em>Bodega CLEN</em>) y <strong>Zona</strong> inicial.<br>
+         4. Pulsar el botón <strong>Limpiar BD</strong> en Estadísticas si se desea una prueba aislada.</p>
+    </div>
+    <div class="mini-card" style="border-left: 3px solid #10b981;">
+      <strong>Fase 2: Ejecución del Recorrido</strong>
+      <p>1. Seleccionar el módulo <strong>Historial de Roaming</strong> en la barra lateral.<br>
+         2. Caminar a velocidad constante atravesando los pasillos o racks críticos.<br>
+         3. Observar si la señal cae por debajo de <strong>-75 dBm</strong> sin cambiar de AP (síndrome de cliente pegajoso).<br>
+         4. Si hay salto, verificar que el veredicto sea Verde (+10 dBm) o Azul (+5 dBm).</p>
+    </div>
+  </div>
+
+  <div class="callout callout-warning">
+    <div class="callout-title">⚠️ Cómo Interpretar un Roaming Degradado (Rojo)</div>
+    Si durante el recorrido el sistema registra un evento con veredicto <strong>Rojo (-4 dBm o peor)</strong>, significa que el cliente se desasoció de una antena con buena señal para conectarse a otra más débil. Esto no es falla del cliente: evidencia que la potencia de transmisión (Tx Power) de los APs vecinos en la controladora de red está desbalanceada o solapada indebidamente.
+  </div>
+
+  <div class="card-grid">
+    <div class="mini-card" style="border-left: 3px solid #8b5cf6;">
+      <strong>Fase 3: Cierre y Exportación Forense</strong>
+      <p>1. Ir al módulo <strong>Estadísticas &amp; Auditoría</strong> en la barra lateral.<br>
+         2. Filtrar por la fecha de la prueba (ej. <em>Hoy</em>).<br>
+         3. Verificar los percentiles <strong>P95 y P99</strong>.<br>
+         4. Hacer clic en <span class="badge badge-purple">📦 Exportar Todo (.ZIP)</span>.<br>
+         5. Adjuntar el archivo ZIP al ticket de soporte como evidencia irrefutable.</p>
+    </div>
+    <div class="mini-card" style="border-left: 3px solid #ef4444;">
+      <strong>Regla de Escalamiento Inequívoco</strong>
+      <p>• Si <strong>TCP Handshake &lt; 15 ms</strong> pero <strong>TTFB &gt; 3000 ms</strong>: Escalar a <strong>Equipo de Aplicaciones / Base de Datos</strong>.<br>
+         • Si <strong>Wi-Fi &lt; -76 dBm</strong> o hay <strong>Pérdida en Gateway</strong>: Escalar a <strong>Equipo de Redes / Infraestructura</strong>.</p>
+    </div>
+  </div>
+
+  <!-- ==================== REFERENCIA API REST ==================== -->
+  <h1>6. Referencia de la API REST del Sistema</h1>
+  <p>
+    El analizador expone una interfaz REST completa en formato JSON para integración con sistemas de monitoreo empresarial externos o scripts de automatización:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Endpoint</th>
+        <th style="width: 12%;">Método</th>
+        <th style="width: 35%;">Descripción</th>
+        <th style="width: 28%;">Parámetros / Query</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>/api/status</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Telemetría completa consolidada en tiempo real (RF, AP, Ping, HTTP).</td>
+        <td>Ninguno.</td>
+      </tr>
+      <tr>
+        <td><code>/api/roaming-history</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Listado cronológico de eventos de handoff y saltos de AP.</td>
+        <td><code>location</code>, <code>zone</code>, <code>limit</code></td>
+      </tr>
+      <tr>
+        <td><code>/api/scan</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Lista de Access Points detectados en el aire con fabricante OUI.</td>
+        <td>Ninguno.</td>
+      </tr>
+      <tr>
+        <td><code>/api/http-history</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Historial de pruebas de latencia HTTP de 5 fases.</td>
+        <td><code>location</code>, <code>zone</code>, <code>limit</code></td>
+      </tr>
+      <tr>
+        <td><code>/api/net-diag</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Diagnóstico de red activo hacia Gateway, DNS, Intranet e Internet.</td>
+        <td>Ninguno.</td>
+      </tr>
+      <tr>
+        <td><code>/api/stats</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Resumen estadístico con percentiles P50, P90, P95, P99 y conteos.</td>
+        <td><code>start_date</code>, <code>end_date</code>, <code>location</code>, <code>zone</code></td>
+      </tr>
+      <tr>
+        <td><code>/api/export</code></td>
+        <td><span class="badge badge-blue">GET</span></td>
+        <td>Descarga de archivos CSV individuales o paquete completo ZIP.</td>
+        <td><code>type=zip|roaming|http|icmp</code>, <code>start_date</code>, <code>end_date</code></td>
+      </tr>
+      <tr>
+        <td><code>/api/config</code></td>
+        <td><span class="badge badge-blue">GET</span> / <span class="badge badge-green">POST</span></td>
+        <td>Consulta o modificación de parámetros de configuración central.</td>
+        <td>Cuerpo JSON con llaves a actualizar.</td>
+      </tr>
+      <tr>
+        <td><code>/api/clear-database</code></td>
+        <td><span class="badge badge-red">POST</span></td>
+        <td>Vaciado de muestras históricas de telemetría (mantiene configuración).</td>
+        <td>Ninguno.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 2rem; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 0.85rem; color: #64748b; font-size: 8.2pt;">
+    Wi-Fi &amp; Enterprise Application Telemetry Analyzer • Manual de Operación y Arquitectura del Sistema (Release 4.0) • Confidencial Interno
+  </div>
+
+</body>
+</html>
+"""
+
+def main():
+    print("=== 1. GENERANDO HTML DEL MANUAL DE OPERACIÓN Y ARQUITECTURA ===")
+    os.makedirs(DOCS_DIR, exist_ok=True)
+    os.makedirs(STATIC_DIR, exist_ok=True)
+
+    with open(HTML_OUT, "w", encoding="utf-8") as f:
+        f.write(HTML_CONTENT)
+    print(f"Archivo HTML guardado en: {HTML_OUT}")
+
+    print("\n=== 2. COMPILANDO A PDF MEDIANTE GOOGLE CHROME HEADLESS ===")
+    cmd = [
+        "google-chrome",
+        "--headless=new",
+        "--disable-gpu",
+        "--no-pdf-header-footer",
+        f"--print-to-pdf={PDF_DOCS}",
+        f"file://{HTML_OUT}"
+    ]
+    subprocess.run(cmd, check=True)
+    print(f"PDF generado exitosamente en: {PDF_DOCS}")
+
+    print("\n=== 3. REPLICANDO PDF EN STATIC/ Y RAÍZ DEL PROYECTO ===")
+    shutil.copy2(PDF_DOCS, PDF_STATIC)
+    shutil.copy2(PDF_DOCS, PDF_ROOT)
+    print(f"  • Replicado en: {PDF_STATIC}")
+    print(f"  • Replicado en: {PDF_ROOT}")
+
+    # Verificar tamaño del PDF
+    size_kb = os.path.getsize(PDF_DOCS) // 1024
+    print(f"\nTamaño final del PDF: {size_kb} KB")
+    print("\n¡Manual de Operación y Arquitectura del Sistema compilado y publicado con éxito!")
+
+if __name__ == "__main__":
+    main()

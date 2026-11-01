@@ -34,6 +34,7 @@ def capture_tab(tab_id, output_filename):
         "--headless=new",
         "--disable-gpu",
         "--window-size=1600,1050",
+        "--virtual-time-budget=2000",
         f"--screenshot={out_path}",
         url
     ]
@@ -48,37 +49,39 @@ def main():
         captured[tab_id] = capture_tab(tab_id, fname)
         time.sleep(0.4)
 
-    print("\n=== 2. PROCESANDO Y RECORTANDO SECCIONES MODULARES ===")
+    print("\n=== 2. PROCESANDO Y RECORTANDO SECCIONES MODULARES CON BARRA LATERAL ===")
     
     crops = [
-        # Vista General Panorámica
-        ("tab-dashboard", "01_dashboard_general.png", (0, 0, 1600, 1050)),
+        # Vista General Panorámica (Módulo Dashboard)
+        ("tab-dashboard", "01_dashboard_general.png", (0, 0, 1600, 1000)),
+        # Barra Lateral Izquierda (Sidebar Vertical)
+        ("tab-dashboard", "01_sidebar_navegacion.png", (0, 0, 260, 800)),
         # Cabecera Topbar con Migas de Pan y Badges
         ("tab-dashboard", "01_cabecera_badges.png", (0, 0, 1600, 68)),
-        # Barra Lateral Izquierda (Sidebar)
-        ("tab-dashboard", "01_sidebar_navegacion.png", (0, 0, 260, 720)),
         # Barra de Control de Perfiles y Ubicación
-        ("tab-dashboard", "02_barra_control_perfiles.png", (270, 75, 1590, 175)),
-        # Cuadrícula de 4 Tarjetas de Métricas RF
-        ("tab-dashboard", "03_tarjetas_metricas_rf.png", (270, 185, 1590, 620)),
-        # Gráfica Sincronizada en Tiempo Real (Chart.js)
-        ("tab-dashboard", "04_diagnostico_roaming_malla.png", (270, 625, 1590, 1040)),
-        # Analizador de Espectro RF (2.4 / 5 / 6 GHz)
-        ("tab-ap-scanner", "05_analizador_espectro_wifi.png", (270, 75, 1590, 495)),
-        # Módulo 2: Historial y Auditoría de Roaming
-        ("tab-roaming-log", "06_tab_historial_roaming.png", (270, 75, 1590, 650)),
-        # Módulo 3: Escáner de APs Vecinos
-        ("tab-ap-scanner", "07_tab_escaner_aps.png", (270, 505, 1590, 1040)),
-        # Módulo 4: Fases de Latencia HTTP
-        ("tab-http-phases", "08_tab_fases_latencia_http.png", (270, 75, 1590, 780)),
-        # Módulo 5: Diagnóstico de Red y Traceroute
-        ("tab-net-diag", "09_tab_diagnostico_red_traceroute.png", (270, 75, 1590, 720)),
-        # Módulo 6: Sedes y Zonas
-        ("tab-sedes-zonas", "10_tab_sedes_zonas.png", (270, 75, 1590, 680)),
-        # Módulo 7: Estadísticas & Auditoría
-        ("tab-stats", "11_tab_estadisticas_auditoria.png", (270, 75, 1590, 850)),
-        # Módulo 8: Configuración del Sistema
-        ("tab-config", "12_tab_configuracion_sistema.png", (270, 75, 1590, 920)),
+        ("tab-dashboard", "02_barra_control_perfiles.png", (0, 0, 1600, 240)),
+        # Cuadrícula de Tarjetas de Métricas RF y Estado AP
+        ("tab-dashboard", "03_tarjetas_metricas_rf.png", (0, 0, 1600, 640)),
+        # Diagnóstico de Roaming y Gráfica Sincronizada en Tiempo Real
+        ("tab-dashboard", "04_diagnostico_roaming_malla.png", (0, 320, 1600, 1000)),
+        # Módulo 3: Analizador de Espectro RF (2.4 / 5 / 6 GHz) con Sidebar
+        ("tab-ap-scanner", "05_analizador_espectro_wifi.png", (0, 0, 1600, 600)),
+        # Módulo 2: Historial y Auditoría de Roaming con Sidebar
+        ("tab-roaming-log", "06_tab_historial_roaming.png", (0, 0, 1600, 650)),
+        # Módulo 3: Escáner de APs Vecinos con Sidebar
+        ("tab-ap-scanner", "07_tab_escaner_aps.png", (0, 0, 1600, 1000)),
+        # Módulo 4: Fases de Latencia HTTP con Sidebar
+        ("tab-http-phases", "08_tab_fases_latencia_http.png", (0, 0, 1600, 850)),
+        # Módulo 5: Diagnóstico de Red y Traceroute con Sidebar
+        ("tab-net-diag", "09_tab_diagnostico_red_traceroute.png", (0, 0, 1600, 850)),
+        # Módulo 6: Sedes y Zonas con Sidebar
+        ("tab-sedes-zonas", "10_tab_sedes_zonas.png", (0, 0, 1600, 800)),
+        # Módulo 7: Estadísticas & Auditoría con Sidebar
+        ("tab-stats", "11_tab_estadisticas_auditoria.png", (0, 0, 1600, 900)),
+        # Módulo 8: Configuración del Sistema con Sidebar
+        ("tab-config", "12_tab_configuracion_sistema.png", (0, 0, 1600, 950)),
+        # Módulo 9: Ayuda, Guía & Manuales con Sidebar
+        ("tab-help", "13_tab_ayuda_manuales.png", (0, 0, 1600, 850)),
     ]
 
     for tab_id, crop_name, box in crops:

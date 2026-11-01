@@ -717,36 +717,38 @@ python3 scripts/update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab"
 
 ## 📘 Manuales de Usuario y Documentación Operativa (PDF)
 
-El proyecto cuenta con dos manuales oficiales redactados para diferentes niveles de operación:
+El proyecto cuenta con manuales oficiales redactados para diferentes perfiles técnicos y operativos:
 
-### 1. 📖 Manual Oficial Completo e Ilustrado (15 Páginas):
-Guía visual y técnica exhaustiva con capturas de pantalla de alta resolución de **todos los módulos de la plataforma**, explicando a fondo el modo de operación de cada sección, navegación lateral, parámetros de control, alertas semafóricas y metodología para recorridos de campo (walk-tests):
+### 1. 🏛️ Manual Oficial de Operación y Arquitectura del Sistema:
+Guía técnica y de ingeniería exhaustiva con capturas de pantalla completas en alta resolución de **todos los módulos de la plataforma con la barra lateral izquierda activa**, detallando la arquitectura de componentes, flujo de datos sincrónico, metodología de recorridos de campo (walk-tests) y referencia de la API REST:
 
-- **Archivo PDF compilado:** [Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf)
-- **Plantilla HTML con imágenes:** [docs/manual_usuario_completo.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_usuario_completo.html)
-- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf` o en el módulo *Guía & Manuales*
-- **Contenido del Manual Completo:**
-  1. *Introducción y Puesta en Marcha (Windows run.bat y Linux run.sh).*
-  2. *Arquitectura de Interfaz:* Barra Lateral Izquierda (Grupos *Operación*, *Gestión*, *Sistema*, colapso `«`), Barra Superior con Breadcrumbs y Selector Territorial.
-  3. *Módulo 1 - Dashboard General:* Velocímetro Gauge (Score de Salud 0-100), Tarjeta de AP conectado, Telemetría multieje (RF dBm, Ping, HTTP) e Indicadores L1/L2/L3/L7.
-  4. *Módulo 2 - Historial de Roaming:* Detección automática de handoffs, variación de señal ($\Delta\text{ dBm}$) y veredictos de calidad (*Excelente*, *Aceptable*, *Lateral*, *Degradado*).
-  5. *Módulo 3 - Escáner de APs y Espectro RF:* Curvas parabólicas de densidad espectral (2.4, 5, 6 y 7 GHz) y tabla de APs vecinos con resolución IEEE OUI.
-  6. *Módulo 4 - Fases de Latencia HTTP:* Desglose de 5 fases (DNS, TCP, TLS, TTFB, Transfer) y Conexión en Frío vs Reutilizada (Keep-Alive).
-  7. *Módulo 5 - Diagnóstico de Red y Traceroute:* Pruebas multinodo concurrentes (Gateway, DNS, Intranet, Internet) y trazabilidad salto a salto.
-  8. *Módulo 6 - Sedes y Zonas Territoriales:* Catálogo jerárquico maestro, chips interactivos, importación y recarga limpia.
-  9. *Módulo 7 - Estadísticas, Percentiles y Paquete ZIP:* Filtros temporales, percentiles ($P_{50}, P_{95}, P_{99}$), exportación consolidada y limpieza de BD.
-  10. *Módulo 8 - Configuración Centralizada:* Conmutación de tarjetas Wi-Fi en caliente, sincronización IEEE OUI, inventario de APs y autenticación NTLM/Basic/Bearer.
-  11. *Módulo 9 - Centro de Ayuda & Glosario:* Documentación integrada, acceso a manuales PDF y glosario técnico de telecomunicaciones.
-  12. *Metodología Oficial de Recorridos (Walk-Tests):* Protocolo previo, durante y posterior a las mediciones en campo.
+- **Archivo PDF compilado:** [Manual_de_Operacion_y_Arquitectura.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_de_Operacion_y_Arquitectura.pdf)
+- **Plantilla HTML con imágenes:** [docs/manual_operacion_y_arquitectura.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_operacion_y_arquitectura.html)
+- **Script generador:** [scripts/build_operation_architecture_manual.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/scripts/build_operation_architecture_manual.py)
+- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Operacion_y_Arquitectura.pdf` o en el módulo lateral *Ayuda & Manuales*
+- **Contenido del Manual:**
+  1. *Fundamentos y Propósito Estratégico (Correlación L1/L2 vs L3/L4 vs L7).*
+  2. *Arquitectura Técnica del Sistema (Componentes core, concurrencia multi-hilo y persistencia SQLite WAL).*
+  3. *Nueva Arquitectura de Interfaz Modular (Barra lateral izquierda agrupada en Operación, Gestión y Sistema, modo compacto y topbar contextual).*
+  4. *Operación Módulo por Módulo con Capturas HD (Dashboard, Roaming, Espectro APs, Latencia HTTP, Diagnóstico Red, Sedes & Zonas, Estadísticas, Configuración y Ayuda).*
+  5. *Metodología Oficial de Recorridos en Campo (Walk-Tests: preparación, ejecución, veredictos Δ dBm y paquete forense ZIP).*
+  6. *Especificación Completa de la API REST (Endpoints, métodos, filtros y esquemas JSON).*
 
 ---
 
-### 2. ⚡ Guía Rápida de Campo para Soporte Nivel 1 (5 Páginas):
+### 2. 📖 Manual de Usuario General Ilustrado:
+- **Archivo PDF compilado:** [Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf)
+- **Plantilla HTML:** [docs/manual_usuario_completo.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_usuario_completo.html)
+- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf`
+
+---
+
+### 3. ⚡ Guía Rápida de Campo para Soporte Nivel 1 (5 Páginas):
 Manual condensado y práctico redactado en lenguaje sencillo para operadores de Helpdesk y técnicos en sitio:
 
 - **Archivo PDF compilado:** [Manual_Usuario_Soporte_Nivel_1.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_Usuario_Soporte_Nivel_1.pdf)
 - **Plantilla HTML:** [docs/manual_soporte_nivel1.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_soporte_nivel1.html)
-- **Acceso web en vivo:** En la barra lateral mediante el módulo `Guía & Manuales` o directamente en `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
+- **Acceso web en vivo:** En la barra lateral mediante el módulo `Ayuda & Manuales` o directamente en `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
 
 ---
 
