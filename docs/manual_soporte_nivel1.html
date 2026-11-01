@@ -341,7 +341,7 @@
       </div>
       <div class="meta-item">
         <span>Versión de la Plataforma</span>
-        <strong>Release 3.9 (Edición Empresarial)</strong>
+        <strong>Release 4.0 (Arquitectura Barra Lateral)</strong>
       </div>
       <div class="meta-item">
         <span>Acceso Web Local</span>
@@ -349,7 +349,7 @@
       </div>
       <div class="meta-item">
         <span>Fecha de Publicación</span>
-        <strong>Octubre 2026</strong>
+        <strong>Noviembre 2026</strong>
       </div>
     </div>
   </div>
@@ -395,10 +395,10 @@
     Con esta aplicación no necesitas adivinar. Miras la pantalla y en <strong>un solo vistazo</strong> sabes con pruebas y números irrefutables en cuál de los 3 sitios está la falla.
   </div>
 
-  <h1>2. Cómo Iniciar y Conocer la Pantalla Principal</h1>
+  <h1>2. Cómo Iniciar y Navegar en la Nueva Interfaz Modular</h1>
   
   <p>
-    El analizador corre como un servicio liviano en la computadora de diagnóstico. No requiere instalar programas pesados ni tener conexión a internet.
+    El analizador corre como un servicio liviano en la computadora de diagnóstico. No requiere instalar programas pesados ni tener conexión a internet. A partir del <strong>Release 4.0</strong>, la aplicación cuenta con una <strong>Barra Lateral Izquierda persistente</strong> organizada en 3 grupos funcionales y una <strong>Barra Superior</strong> con migas de pan (breadcrumb) y estado en tiempo real.
   </p>
 
   <h3>Paso a Paso para Abrir la Aplicación:</h3>
@@ -407,6 +407,17 @@
     <li>Abre tu navegador web de preferencia (Google Chrome, Microsoft Edge o Mozilla Firefox).</li>
     <li>En la barra de direcciones escribe: <span class="code-snippet">http://localhost:8050</span> y presiona <strong>Enter</strong>.</li>
   </ol>
+
+  <div class="card-grid" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+    <div class="mini-card" style="border-left: 3px solid #6366f1;">
+      <strong>Barra Lateral Izquierda (Menú Modular)</strong>
+      <p>Organizada en 3 secciones: <em>Operación &amp; Telemetría</em> (Dashboard, Roaming, Espectro APs, Latencia HTTP, Diagnóstico Red), <em>Gestión &amp; Auditoría</em> (Sedes &amp; Zonas, Estadísticas), y <em>Sistema</em> (Configuración, Ayuda). Incluye botón de colapso rápido <strong>[«]</strong>.</p>
+    </div>
+    <div class="mini-card" style="border-left: 3px solid #10b981;">
+      <strong>Barra Superior &amp; Selectores Territoriales</strong>
+      <p>Muestra el título del módulo activo, indicador en vivo del motor de captura (<em>ACTIVO / PAUSADO</em>), y los selectores obligatorios de <strong>Sede</strong> y <strong>Zona</strong> para contextualizar las mediciones.</p>
+    </div>
+  </div>
 
   <div class="callout callout-info">
     <div class="callout-title">🧭 El Selector Superior de Sede y Zona</div>
@@ -481,7 +492,7 @@
   <h3>Cómo hacer una Prueba de Recorrido (Walk-Test):</h3>
   <ol class="step-list">
     <li>En la barra superior, fija la <strong>Sede</strong> donde te encuentras.</li>
-    <li>Abre la pestaña <strong>Historial de Roaming</strong> (Pestaña 1).</li>
+    <li>En la barra lateral izquierda, selecciona <strong>Historial de Roaming</strong> (sección <em>Operación &amp; Telemetría</em>).</li>
     <li>Camina a paso normal atravesando los pasillos o racks críticos.</li>
     <li>Observa la tabla de eventos: cada salto mostrará su veredicto:
       <br>• 🟢 <strong>Excelente Mejora (+10 dBm o más):</strong> El salto fue perfecto.
@@ -492,9 +503,9 @@
 
   <!-- ==================== PÁGINA 4 ==================== -->
   <div class="page-break"></div>
-  <h1>5. ¿Por qué la Aplicación está Lenta? (Pestaña HTTP)</h1>
+  <h1>5. ¿Por qué la Aplicación está Lenta? (Módulo HTTP)</h1>
   <p>
-    En la pestaña <strong>Fases de Latencia HTTP</strong> (Pestaña 3), la aplicación simula la solicitud real que hace el navegador o la aplicación de la pistola contra el servidor empresarial (ej. SAP, Manhattan WMS, Intranet).
+    En la barra lateral izquierda, al abrir <strong>Fases Latencia HTTP</strong> (sección <em>Operación &amp; Telemetría</em>), la aplicación simula la solicitud real que hace el navegador o la aplicación de la pistola contra el servidor empresarial (ej. SAP, Manhattan WMS, Intranet).
   </p>
   <p>
     Desglosa la conexión en <strong>4 fases lógicas</strong> para saber con exactitud en qué punto se produce la demora:
@@ -521,7 +532,7 @@
 
   <div class="callout callout-danger">
     <div class="callout-title">🎯 Cómo Responder con Autoridad al Usuario</div>
-    Si el usuario dice: <em>"El Wi-Fi está lentísimo"</em>, abres esta pestaña y observas:<br>
+    Si el usuario dice: <em>"El Wi-Fi está lentísimo"</em>, abres este módulo y observas:<br>
     • <strong>TCP:</strong> 4 ms (La red Wi-Fi y el cable responden al instante).<br>
     • <strong>TTFB:</strong> 4,200 ms (El servidor de base de datos se quedó pensando 4.2 segundos).<br>
     👉 <strong>Diagnóstico de Nivel 1:</strong> <em>"Estimado usuario, la señal Wi-Fi y la red local están respondiendo en 4 milisegundos. La demora está en la consulta interna del servidor de aplicaciones. Escalamos el caso al equipo de sistemas/base de datos."</em>
@@ -534,7 +545,7 @@
 
   <h3>Pasos para Exportar el Informe en 1 Clic:</h3>
   <ol class="step-list">
-    <li>Haz clic en la pestaña <strong>Estadísticas &amp; Auditoría</strong> (Pestaña 6).</li>
+    <li>En la barra lateral izquierda, haz clic en <strong>Estadísticas &amp; Auditoría</strong> (sección <em>Gestión &amp; Auditoría</em>).</li>
     <li>En el filtro de fechas, elige <strong>Hoy</strong> (o selecciona los días de la prueba).</li>
     <li>Revisa los percentiles: <strong>P50</strong> (velocidad normal) y <strong>P95 / P99</strong> (los peores congelamientos).</li>
     <li>Haz clic en el botón morado: <span class="badge badge-purple">📦 Exportar Todo (.ZIP)</span>.</li>
@@ -548,9 +559,9 @@
 
   <!-- ==================== PÁGINA 5 ==================== -->
   <div class="page-break"></div>
-  <h1>7. Configuración Rápida (Pestaña 7)</h1>
+  <h1>7. Configuración Rápida (Módulo de Configuración)</h1>
   <p>
-    En la pestaña <strong>Configuración</strong> puedes ajustar los parámetros esenciales si cambias de equipo:
+    En la barra lateral izquierda, selecciona <strong>Configuración</strong> (sección <em>Sistema</em>) para ajustar los parámetros esenciales si cambias de equipo:
   </p>
 
   <div class="card-grid">

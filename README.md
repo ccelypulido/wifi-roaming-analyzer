@@ -57,15 +57,18 @@ El sistema está diseñado bajo un modelo modular de **Zero Pip Dependencies** (
 
 ```mermaid
 flowchart TD
-    subgraph Frontend["Frontend SPA (HTML5 / Vanilla JS / CSS3)"]
-        UI_Dash["Dashboard Telemetría Sincronizada (RF dBm, Ping, HTTP)"]
-        UI_Roam["Tab 1: Historial de Roaming & Handoffs"]
-        UI_Spec["Tab 2: Escáner de APs y Espectro (2.4/5/6/7 GHz)"]
-        UI_HTTP["Tab 3: Fases de Latencia HTTP (DNS, TCP, TLS, TTFB)"]
-        UI_Diag["Tab 4: Diagnóstico de Red (Traceroute & Multi-Ping)"]
-        UI_Sedes["Tab 5: Sedes y Zonas (Catálogo Jerárquico)"]
-        UI_Audit["Tab 6: Estadísticas & Auditoría (Percentiles & ZIP)"]
-        UI_Config["Tab 7: Configuración, IEEE OUI & Nombres APs"]
+    subgraph Frontend["Frontend SPA Modular (HTML5 / Vanilla JS / CSS3)"]
+        UI_Sidebar["Barra Lateral Izquierda (.app-sidebar): Operación, Gestión, Sistema"]
+        UI_Topbar["Barra Superior (.app-topbar): Migas de Pan, Estado Motor, Sede/Zona"]
+        UI_Dash["Módulo 1: Dashboard General & Telemetría RF / Ping / HTTP"]
+        UI_Roam["Módulo 2: Historial de Roaming & Saltos de AP"]
+        UI_Spec["Módulo 3: Escáner de APs y Espectro RF (2.4/5/6/7 GHz)"]
+        UI_HTTP["Módulo 4: Fases de Latencia HTTP (DNS, TCP, TLS, TTFB)"]
+        UI_Diag["Módulo 5: Diagnóstico de Red (Traceroute & Multi-Ping)"]
+        UI_Sedes["Módulo 6: Sedes y Zonas (Catálogo Jerárquico)"]
+        UI_Audit["Módulo 7: Estadísticas & Auditoría (Percentiles & ZIP)"]
+        UI_Config["Módulo 8: Configuración del Sistema, IEEE OUI & Nombres APs"]
+        UI_Help["Módulo 9: Ayuda, Glosario & Descarga de Manuales PDF"]
     end
 
     subgraph Backend["Servidor Central (server.py)"]
@@ -333,7 +336,7 @@ Las pruebas de rendimiento inalámbrico se dividen operativamente en dos metodol
 #### ⚙️ Cómo Funciona:
 - **Catálogo Maestro JSON ([data/sedes_zonas.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/sedes_zonas.json)):** Estructura jerárquica de sedes físicas (`Tienda_Principal`, `Bodega_CLEN`, `Oficina_Av68`) con sus respectivas zonas operativas.
 - **Sincronización Limpia (`Recargar sedes_zonas.json`):** Al recargar, el sistema reemplaza fielmente el catálogo activo desde el archivo en disco, evitando que zonas antiguas o renombradas se mezclen con el catálogo nuevo.
-- **Gestión Directa en la Interfaz (Pestaña 5):**
+- **Gestión Directa en la Interfaz (Módulo Sedes & Zonas en Barra Lateral):**
   - Creación de nuevas sedes y zonas.
   - Contador visual en vivo de zonas asignadas (ej. `25 zonas`).
   - Eliminación individual de zonas mediante botón interactivo `×`.
@@ -352,7 +355,7 @@ Los **percentiles** revelan la experiencia real del usuario:
 
 ```mermaid
 flowchart TD
-    subgraph Filtro["Panel de Auditoría y Filtros (Pestaña 6)"]
+    subgraph Filtro["Panel de Auditoría y Filtros (Módulo Estadísticas & Auditoría)"]
         F_Dates["Rango de Fechas: Desde / Hasta (Hoy, 7d, Todo)"]
         F_Sede["Sede: Todas las Sedes o Sede Específica"]
         F_Zona["Alcance: Todas las Zonas (Recorrido) o Zona Estática"]
@@ -444,7 +447,7 @@ En entornos de auditoría y troubleshooting de radiofrecuencia, la resolución O
 #### ⚙️ Cómo Funciona ([core/oui_manager.py](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/core/oui_manager.py)):
 - **Base de Datos Local Offline:** Incluye un archivo precompilado en [data/oui_vendors.json](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/data/oui_vendors.json) con **más de 40,395 fabricantes registrados** por el IEEE, operando al 100% en entornos air-gapped o sin acceso a Internet.
 - **Normalización de Formatos MAC:** Acepta indistintamente delimitadores de dos puntos (`00:1A:2B`), guiones (`00-1A-2B`), puntos tipo Cisco (`001A.2B`) o cadenas continuas (`001A2B`).
-- **Gestión Visual Centralizada (Pestaña 7 - "Configuración"):**
+- **Gestión Visual Centralizada (Módulo de Configuración en Barra Lateral):**
   - **Métricas Visuales en Vivo:** Tarjetas resumen de *Total Fabricantes*, *Personalizados* y *Fecha de Última Sincronización*.
   - **Sincronización en 1 Clic con el IEEE (`Actualizar desde IEEE`):** Descarga en segundo plano el registro oficial MA-L (`standards-oui.ieee.org`), procesa el archivo CSV e incorpora las nuevas asignaciones sin reiniciar el servidor.
   - **Banner Dinámico de Progreso:** Alerta visual en tiempo real que reporta los estados de avance (`Conectando`, `Descargando`, `Procesando`, `Completado`).
@@ -465,8 +468,8 @@ Para evaluar con fidelidad la latencia y disponibilidad real que experimenta un 
 - **Basic Authentication (RFC 7617):** Esquema donde las credenciales de usuario y contraseña se transmiten en Base64 bajo el encabezado HTTP estándar `Authorization: Basic <credentials>`.
 - **Bearer Tokens / OAuth2 (RFC 6750):** Mecanismo utilizado por arquitecturas modernas de microservicios y APIs REST, donde la autorización se concede mediante un token criptográfico o JWT en el encabezado `Authorization: Bearer <token>`.
 
-#### ⚙️ Cómo Funciona (Pestaña 7 - "Configuración"):
-La pestaña **Configuración** consolida en un único panel de control todas las variables de operación del sistema:
+#### ⚙️ Cómo Funciona (Módulo de Configuración en Barra Lateral):
+El módulo **Configuración** consolida en un único panel de control todas las variables de operación del sistema:
 
 1. **Card 1: Selección de Interfaz de Red Wi-Fi:**
    - **Detección Automática Multiplataforma:** Identifica de inmediato todas las interfaces inalámbricas disponibles según el sistema operativo:
@@ -514,24 +517,31 @@ wifi-roaming-analyzer/
 │   ├── oui_vendors.json         # Base de datos de fabricantes IEEE OUI
 │   └── roaming_history.json     # Historial JSON de respaldo
 ├── docs/                        # Documentación operativa y manuales de usuario
-│   ├── manual_soporte_nivel1.html # Plantilla maquetada con soporte de impresión
-│   └── Manual_Usuario_Soporte_Nivel_1.pdf # Manual de usuario PDF oficial
-├── scripts/                     # Herramientas de soporte y CLI
+│   ├── img/                     # Capturas de alta definición para manuales
+│   ├── manual_usuario_completo.html # Manual ilustrado completo (Release 4.0)
+│   ├── manual_soporte_nivel1.html # Guía rápida para Soporte Nivel 1
+│   ├── Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf # PDF Manual Completo
+│   └── Manual_Usuario_Soporte_Nivel_1.pdf # PDF Soporte Nivel 1
+├── scripts/                     # Herramientas de soporte, automatización y CLI
+│   ├── build_full_user_manual.py # Generador y compilador del manual ilustrado
+│   ├── generate_manual_assets.py # Capturador headless de vistas y assets gráficos
 │   ├── manage_aps.py            # CLI para consulta y gestión de APs
 │   ├── update_oui.py            # CLI para sincronizar con el IEEE OUI Registry
 │   └── install-dependencies.sh  # Instalador de utilidades de red Linux
 ├── static/                      # Frontend SPA (100% Offline)
-│   ├── index.html               # Estructura del dashboard y pestañas
-│   ├── app.js                   # Lógica de renderizado, gráficos y eventos
-│   ├── styles.css               # Diseño moderno, contrastes e iconografía
+│   ├── index.html               # Estructura SPA con Barra Lateral y Módulos
+│   ├── app.js                   # Lógica modular de vistas, gráficos y eventos
+│   ├── styles.css               # Diseño moderno, sidebar responsive y contrastes
 │   ├── chart.umd.min.js         # Motor de gráficos Chart.js local
-│   └── Manual_Usuario_Soporte_Nivel_1.pdf # Descargable web directo
+│   ├── Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf # Descarga directa en web
+│   └── Manual_Usuario_Soporte_Nivel_1.pdf # Descarga directa en web
 ├── server.py                    # Entrypoint principal y servidor HTTP/REST
 ├── run.sh / run.bat / run.ps1   # Scripts de inicio rápido multiplataforma
 ├── stop.sh / stop.bat           # Scripts de detención limpia del servidor
 ├── requirements.txt             # Dependencias Python (0 dependencias externas)
 ├── requirements-system.txt      # Paquetes del sistema operativo (Linux)
-├── Manual_Usuario_Soporte_Nivel_1.pdf # Manual de usuario en raíz
+├── Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf # Manual de usuario completo en raíz
+├── Manual_Usuario_Soporte_Nivel_1.pdf # Manual de soporte Nivel 1 en raíz
 └── README.md                    # Documentación técnica completa
 ```
 
@@ -709,27 +719,25 @@ python3 scripts/update_oui.py --add "00:1A:1E" "Cisco Catalyst Lab"
 
 El proyecto cuenta con dos manuales oficiales redactados para diferentes niveles de operación:
 
-### 1. 📖 Manual Oficial Completo e Ilustrado (17 Páginas):
-Guía visual y técnica exhaustiva con capturas de pantalla de alta resolución de **todas las secciones de la plataforma**, explicando a fondo el modo de operación de cada módulo, parámetros de control, alertas semafóricas y metodología para recorridos de campo (walk-tests):
+### 1. 📖 Manual Oficial Completo e Ilustrado (15 Páginas):
+Guía visual y técnica exhaustiva con capturas de pantalla de alta resolución de **todos los módulos de la plataforma**, explicando a fondo el modo de operación de cada sección, navegación lateral, parámetros de control, alertas semafóricas y metodología para recorridos de campo (walk-tests):
 
 - **Archivo PDF compilado:** [Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf)
 - **Plantilla HTML con imágenes:** [docs/manual_usuario_completo.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_usuario_completo.html)
-- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf`
+- **Acceso web en vivo:** `http://localhost:8050/Manual_de_Usuario_WiFi_Roaming_Analyzer.pdf` o en el módulo *Guía & Manuales*
 - **Contenido del Manual Completo:**
-  1. *Introducción y Modos de Puesta en Marcha (Windows y Linux).*
-  2. *Cabecera y Badges de Estado en Tiempo Real (SSID, BSSID, Ping, HTTP, Auth).*
-  3. *Barra de Control Persistente (Sticky Toolbar):* Perfiles de entorno, botón de pausa/reanudación, selectores territoriales y prueba de URL.
-  4. *Panel de Métricas Principales:* Velocímetro Gauge (Score 0-100), Tarjeta de AP conectado e Indicadores de salud de aplicación HTTP.
-  5. *Diagnóstico de Roaming y Telemetría Sincrónica:* Muestras multieje en vivo (Señal dBm, Ping Gateway y Latencia HTTP).
-  6. *Analizador de Canales y Espectro Wi-Fi (RF Spectrum):* Curvas parabólicas, filtros 2.4/5/6/7 GHz y tooltips.
-  7. *Pestaña 1 - Historial de Roaming:* Detección de handoffs, cálculo de $\Delta\text{ dBm}$ y veredictos de calidad.
-  8. *Pestaña 2 - Escáner de APs Vecinos:* Tabla de ocupación de espectro, intensidad y fabricantes IEEE OUI.
-  9. *Pestaña 3 - Fases de Latencia HTTP:* Desglose de 5 fases (DNS, TCP, TLS, TTFB, Transfer) y Conexión en Frío vs Reutilizada.
-  10. *Pestaña 4 - Diagnóstico de Red y Traceroute:* Pruebas multinodo concurrentes y trazabilidad salto a salto.
-  11. *Pestaña 5 - Gestión de Sedes y Zonas:* Catálogo maestro, chips de zonas interactivas, importación y recarga limpia.
-  12. *Pestaña 6 - Estadísticas, Percentiles y Paquete ZIP:* Filtros temporales, percentiles ($P_{50}, P_{95}, P_{99}$), exportación consolidada y limpieza de BD.
-  13. *Pestaña 7 - Configuración Centralizada:* Conmutación de antenas Wi-Fi, OUI IEEE, inventario de APs y autenticación NTLM/Basic/Bearer.
-  14. *Metodología Oficial de Recorridos (Walk-Tests):* Protocolo previo, durante y posterior a las pruebas en sitio.
+  1. *Introducción y Puesta en Marcha (Windows run.bat y Linux run.sh).*
+  2. *Arquitectura de Interfaz:* Barra Lateral Izquierda (Grupos *Operación*, *Gestión*, *Sistema*, colapso `«`), Barra Superior con Breadcrumbs y Selector Territorial.
+  3. *Módulo 1 - Dashboard General:* Velocímetro Gauge (Score de Salud 0-100), Tarjeta de AP conectado, Telemetría multieje (RF dBm, Ping, HTTP) e Indicadores L1/L2/L3/L7.
+  4. *Módulo 2 - Historial de Roaming:* Detección automática de handoffs, variación de señal ($\Delta\text{ dBm}$) y veredictos de calidad (*Excelente*, *Aceptable*, *Lateral*, *Degradado*).
+  5. *Módulo 3 - Escáner de APs y Espectro RF:* Curvas parabólicas de densidad espectral (2.4, 5, 6 y 7 GHz) y tabla de APs vecinos con resolución IEEE OUI.
+  6. *Módulo 4 - Fases de Latencia HTTP:* Desglose de 5 fases (DNS, TCP, TLS, TTFB, Transfer) y Conexión en Frío vs Reutilizada (Keep-Alive).
+  7. *Módulo 5 - Diagnóstico de Red y Traceroute:* Pruebas multinodo concurrentes (Gateway, DNS, Intranet, Internet) y trazabilidad salto a salto.
+  8. *Módulo 6 - Sedes y Zonas Territoriales:* Catálogo jerárquico maestro, chips interactivos, importación y recarga limpia.
+  9. *Módulo 7 - Estadísticas, Percentiles y Paquete ZIP:* Filtros temporales, percentiles ($P_{50}, P_{95}, P_{99}$), exportación consolidada y limpieza de BD.
+  10. *Módulo 8 - Configuración Centralizada:* Conmutación de tarjetas Wi-Fi en caliente, sincronización IEEE OUI, inventario de APs y autenticación NTLM/Basic/Bearer.
+  11. *Módulo 9 - Centro de Ayuda & Glosario:* Documentación integrada, acceso a manuales PDF y glosario técnico de telecomunicaciones.
+  12. *Metodología Oficial de Recorridos (Walk-Tests):* Protocolo previo, durante y posterior a las mediciones en campo.
 
 ---
 
@@ -738,7 +746,7 @@ Manual condensado y práctico redactado en lenguaje sencillo para operadores de 
 
 - **Archivo PDF compilado:** [Manual_Usuario_Soporte_Nivel_1.pdf](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/Manual_Usuario_Soporte_Nivel_1.pdf)
 - **Plantilla HTML:** [docs/manual_soporte_nivel1.html](file:///home/cesarcely/Proyectos/wifi-roaming-analyzer/docs/manual_soporte_nivel1.html)
-- **Acceso web en vivo:** En la cabecera mediante el botón `Manual PDF` o en `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
+- **Acceso web en vivo:** En la barra lateral mediante el módulo `Guía & Manuales` o directamente en `http://localhost:8050/Manual_Usuario_Soporte_Nivel_1.pdf`.
 
 ---
 
