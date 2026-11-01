@@ -569,10 +569,36 @@ body {
   transform: translateY(1px);
 }
 
+.badge-live.badge-btn {
+  background: rgba(5, 150, 105, 0.08);
+  border-color: rgba(5, 150, 105, 0.35);
+  color: var(--accent-emerald);
+  font-weight: 700;
+  gap: 0.45rem;
+}
+
+.badge-live.badge-btn:hover {
+  background: rgba(5, 150, 105, 0.16);
+  border-color: rgba(5, 150, 105, 0.5);
+  color: var(--accent-emerald);
+}
+
 .badge-live.paused {
   border-color: rgba(217, 119, 6, 0.35);
   color: var(--accent-amber);
   background: rgba(217, 119, 6, 0.08);
+}
+
+.badge-live.paused.badge-btn {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.4);
+  color: var(--accent-amber);
+}
+
+.badge-live.paused.badge-btn:hover {
+  background: rgba(217, 119, 6, 0.18);
+  border-color: rgba(217, 119, 6, 0.55);
+  color: var(--accent-amber);
 }
 
 .badge-live.paused .badge-dot {
