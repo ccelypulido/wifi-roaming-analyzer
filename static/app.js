@@ -1114,7 +1114,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <div class="empty-state" style="padding: 2.5rem 1rem; text-align: center;">
                 <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 0.5rem; opacity: 0.5;"></i>
                 <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Aún no hay mediciones registradas en el historial.</p>
-                <small style="color: rgba(255, 255, 255, 0.4);">Presiona "Medir Ahora" arriba para registrar la primera prueba de latencia.</small>
+                <small style="color: var(--text-muted);">Presiona "Medir Ahora" arriba para registrar la primera prueba de latencia.</small>
               </div>
             </td>
           </tr>
