@@ -170,6 +170,61 @@ def init_db():
             )
         """)
 
+        # 6. Physical Environment Context Profiles per (location, zone)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS zone_context_profiles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                location TEXT NOT NULL,
+                zone TEXT NOT NULL,
+                environment_type TEXT DEFAULT '',
+                ceiling_height TEXT DEFAULT '',
+                obstacles TEXT DEFAULT '',
+                test_mode TEXT DEFAULT '',
+                client_device_type TEXT DEFAULT '',
+                interference_notes TEXT DEFAULT '',
+                expected_users TEXT DEFAULT '',
+                custom_description TEXT DEFAULT '',
+                updated_at TEXT NOT NULL,
+                UNIQUE(location, zone)
+            )
+        """)
+
+        # 7. Real-time Situational Field Annotations (User answers to AI in-loop questions)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_annotations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                location TEXT NOT NULL,
+                zone TEXT NOT NULL,
+                trigger_type TEXT DEFAULT 'manual',
+                question_text TEXT DEFAULT '',
+                user_answer TEXT NOT NULL,
+                telemetry_snapshot_json TEXT DEFAULT '{}'
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_annotations_loc ON agent_annotations(location, zone, timestamp DESC)")
+
+        # 8. AI Diagnosis & Multi-turn Conversation History
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_diagnosis_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                location TEXT DEFAULT '',
+                zone TEXT DEFAULT '',
+                model TEXT DEFAULT 'gemini-3.8-flash',
+                interaction_id TEXT DEFAULT '',
+                previous_interaction_id TEXT DEFAULT '',
+                mode TEXT DEFAULT 'chat',
+                user_prompt TEXT NOT NULL,
+                ai_response TEXT NOT NULL,
+                tools_used_json TEXT DEFAULT '[]',
+                context_summary_json TEXT DEFAULT '{}'
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_hist_time ON ai_diagnosis_history(timestamp DESC)")
+
         # Default configuration values
         default_zones = {
             "Bodega_CLEN": ["Rack:1-5", "Rack:6-10", "Rack:11-15", "Rack:16-20", "Muelles:Entrada", "Muelles:Despacho", "Mezanine", "Bunker"],
@@ -197,7 +252,9 @@ def init_db():
             "extra_ping_targets": "8.8.8.8, 1.1.1.1",
             "excluded_ping_targets": "",
             "selected_wifi_interface": "",
-            "capture_enabled": "1"
+            "capture_enabled": "1",
+            "gemini_api_key_enc": "",
+            "gemini_model": "gemini-3.8-flash"
         }
         for k, v in defaults.items():
             cursor.execute("INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)", (k, v))
@@ -1167,7 +1224,7 @@ def export_icmp_diag_csv(
     return output.getvalue()
 
 def clear_history(scope: str = 'all'):
-    """Clears history tables according to scope ('telemetry', 'roaming', 'diag', 'probes', 'all')."""
+    """Clears history tables according to scope ('telemetry', 'roaming', 'diag', 'probes', 'ai', 'all')."""
     with get_connection() as conn:
         cursor = conn.cursor()
         if scope in ('telemetry', 'all'):
@@ -1178,12 +1235,266 @@ def clear_history(scope: str = 'all'):
             cursor.execute("DELETE FROM net_diag_history")
         if scope in ('probes', 'all'):
             cursor.execute("DELETE FROM http_probe_history")
+        if scope in ('ai', 'all'):
+            cursor.execute("DELETE FROM ai_diagnosis_history")
+            cursor.execute("DELETE FROM agent_annotations")
         conn.commit()
         if scope == 'all':
             try:
                 cursor.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except Exception:
                 pass
+
+
+# ==============================================================================
+# Zone Physical Context Profiles & AI Agent History Persistence
+# ==============================================================================
+
+def get_zone_context_profile(location: Optional[str] = None, zone: Optional[str] = None) -> Dict[str, Any]:
+    """Retrieves the physical environment profile for a specific (location, zone)."""
+    cfg = get_config()
+    loc = (location or cfg.get("location_name", "Tienda_Principal")).strip()
+    zn = (zone if zone is not None else cfg.get("current_zone", "")).strip()
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM zone_context_profiles WHERE location = ? AND zone = ?",
+            (loc, zn),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {
+                "location": loc,
+                "zone": zn,
+                "configured": False,
+                "environment_type": "",
+                "ceiling_height": "",
+                "obstacles": "",
+                "test_mode": "",
+                "client_device_type": "",
+                "interference_notes": "",
+                "expected_users": "",
+                "custom_description": "",
+                "updated_at": "",
+            }
+        data = dict(row)
+        data["configured"] = bool(
+            data.get("environment_type")
+            or data.get("ceiling_height")
+            or data.get("obstacles")
+            or data.get("test_mode")
+            or data.get("client_device_type")
+            or data.get("custom_description")
+        )
+        return data
+
+
+def save_zone_context_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
+    """Saves or updates the physical environment context profile for a (location, zone)."""
+    cfg = get_config()
+    loc = (profile.get("location") or cfg.get("location_name", "Tienda_Principal")).strip()
+    zn = (profile.get("zone") if profile.get("zone") is not None else cfg.get("current_zone", "")).strip()
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    env_type = str(profile.get("environment_type", "")).strip()
+    ceiling = str(profile.get("ceiling_height", "")).strip()
+    obstacles = profile.get("obstacles", "")
+    if isinstance(obstacles, list):
+        obstacles = ", ".join(str(x).strip() for x in obstacles if str(x).strip())
+    else:
+        obstacles = str(obstacles).strip()
+    test_mode = str(profile.get("test_mode", "")).strip()
+    device_type = str(profile.get("client_device_type", "")).strip()
+    interference = profile.get("interference_notes", "")
+    if isinstance(interference, list):
+        interference = ", ".join(str(x).strip() for x in interference if str(x).strip())
+    else:
+        interference = str(interference).strip()
+    expected_users = str(profile.get("expected_users", "")).strip()
+    custom_desc = str(profile.get("custom_description", "")).strip()
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO zone_context_profiles (
+                location, zone, environment_type, ceiling_height, obstacles,
+                test_mode, client_device_type, interference_notes, expected_users,
+                custom_description, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(location, zone) DO UPDATE SET
+                environment_type = excluded.environment_type,
+                ceiling_height = excluded.ceiling_height,
+                obstacles = excluded.obstacles,
+                test_mode = excluded.test_mode,
+                client_device_type = excluded.client_device_type,
+                interference_notes = excluded.interference_notes,
+                expected_users = excluded.expected_users,
+                custom_description = excluded.custom_description,
+                updated_at = excluded.updated_at
+            """,
+            (
+                loc, zn, env_type, ceiling, obstacles,
+                test_mode, device_type, interference, expected_users,
+                custom_desc, now_iso,
+            ),
+        )
+        conn.commit()
+    return get_zone_context_profile(loc, zn)
+
+
+def get_all_zone_context_profiles(location_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Lists all configured zone physical context profiles."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        if location_filter and location_filter != "all":
+            cursor.execute(
+                "SELECT * FROM zone_context_profiles WHERE location = ? ORDER BY updated_at DESC",
+                (location_filter,),
+            )
+        else:
+            cursor.execute("SELECT * FROM zone_context_profiles ORDER BY location ASC, zone ASC")
+        return [dict(r) for r in cursor.fetchall()]
+
+
+def save_agent_annotation(annotation: Dict[str, Any]) -> Dict[str, Any]:
+    """Saves a real-time situational observation answered by the user during capture."""
+    cfg = get_config()
+    ts = annotation.get("timestamp") or datetime.datetime.now().timestamp()
+    now_iso = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
+    loc = (annotation.get("location") or cfg.get("location_name", "Tienda_Principal")).strip()
+    zn = (annotation.get("zone") if annotation.get("zone") is not None else cfg.get("current_zone", "")).strip()
+    trigger_type = str(annotation.get("trigger_type", "situational")).strip()
+    question_text = str(annotation.get("question_text", "")).strip()
+    user_answer = str(annotation.get("user_answer", "")).strip()
+    snap = annotation.get("telemetry_snapshot") or {}
+    snap_json = json.dumps(snap, ensure_ascii=False) if isinstance(snap, dict) else str(snap)
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO agent_annotations (
+                timestamp, created_at, location, zone, trigger_type,
+                question_text, user_answer, telemetry_snapshot_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ts, now_iso, loc, zn, trigger_type, question_text, user_answer, snap_json),
+        )
+        conn.commit()
+        row_id = cursor.lastrowid
+    return {
+        "id": row_id,
+        "timestamp": ts,
+        "created_at": now_iso,
+        "location": loc,
+        "zone": zn,
+        "trigger_type": trigger_type,
+        "question_text": question_text,
+        "user_answer": user_answer,
+    }
+
+
+def get_agent_annotations(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    limit: int = 30,
+) -> List[Dict[str, Any]]:
+    """Retrieves recent situational annotations for a location/zone."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM agent_annotations WHERE 1=1"
+        params: List[Any] = []
+        if location_filter and location_filter != "all":
+            query += " AND location = ?"
+            params.append(location_filter)
+        if zone_filter and zone_filter != "all":
+            query += " AND zone = ?"
+            params.append(zone_filter)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        cursor.execute(query, params)
+        rows = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            try:
+                d["telemetry_snapshot"] = json.loads(d.get("telemetry_snapshot_json") or "{}")
+            except Exception:
+                d["telemetry_snapshot"] = {}
+            rows.append(d)
+        return rows
+
+
+def save_ai_diagnosis(entry: Dict[str, Any]) -> int:
+    """Persists an AI diagnosis turn into ai_diagnosis_history."""
+    cfg = get_config()
+    ts = entry.get("timestamp") or datetime.datetime.now().timestamp()
+    now_iso = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
+    loc = (entry.get("location") or cfg.get("location_name", "Tienda_Principal")).strip()
+    zn = (entry.get("zone") if entry.get("zone") is not None else cfg.get("current_zone", "")).strip()
+    model = str(entry.get("model", "gemini-3.8-flash"))
+    interaction_id = str(entry.get("interaction_id", "") or "")
+    prev_id = str(entry.get("previous_interaction_id", "") or "")
+    mode = str(entry.get("mode", "chat"))
+    user_prompt = str(entry.get("user_prompt", ""))
+    ai_response = str(entry.get("ai_response", ""))
+    tools_used = entry.get("tools_used") or []
+    ctx_summary = entry.get("context_summary") or {}
+
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO ai_diagnosis_history (
+                timestamp, created_at, location, zone, model,
+                interaction_id, previous_interaction_id, mode,
+                user_prompt, ai_response, tools_used_json, context_summary_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                ts, now_iso, loc, zn, model,
+                interaction_id, prev_id, mode,
+                user_prompt, ai_response,
+                json.dumps(tools_used, ensure_ascii=False),
+                json.dumps(ctx_summary, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_ai_diagnosis_history(
+    location_filter: Optional[str] = None,
+    zone_filter: Optional[str] = None,
+    limit: int = 25,
+) -> List[Dict[str, Any]]:
+    """Retrieves recent AI diagnosis conversations."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        query = "SELECT * FROM ai_diagnosis_history WHERE 1=1"
+        params: List[Any] = []
+        if location_filter and location_filter != "all":
+            query += " AND location = ?"
+            params.append(location_filter)
+        if zone_filter and zone_filter != "all":
+            query += " AND zone = ?"
+            params.append(zone_filter)
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        cursor.execute(query, params)
+        result = []
+        for r in cursor.fetchall():
+            d = dict(r)
+            try:
+                d["tools_used"] = json.loads(d.get("tools_used_json") or "[]")
+            except Exception:
+                d["tools_used"] = []
+            try:
+                d["context_summary"] = json.loads(d.get("context_summary_json") or "{}")
+            except Exception:
+                d["context_summary"] = {}
+            result.append(d)
+        return result
 
 if __name__ == '__main__':
     print("Initializing SQLite database telemetry.db...")

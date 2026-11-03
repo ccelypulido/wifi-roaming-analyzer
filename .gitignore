@@ -53,11 +53,17 @@ yarn-error.log
 package-lock.json
 yarn.lock
 
-# Archivos de Configuración Local
+# Archivos de Configuración Local y Secretos (NUNCA versionar)
 config.local.json
 settings.local.py
-.env.local
-.env.*.local
+.env
+.env.*
+!.env.example
+.secrets.json
+.gemini_credentials.json
+*.secret
+*.key
+*.pem
 
 # Archivos de Base de Datos
 *.db

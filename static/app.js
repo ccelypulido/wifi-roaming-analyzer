@@ -496,6 +496,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'tab-ap-scanner': 'Escáner de APs & Espectro RF',
     'tab-http-phases': 'Fases de Latencia HTTP',
     'tab-net-diag': 'Diagnóstico de Red (Traceroute)',
+    'tab-ai-agent': 'Copiloto IA Gemini & MCP',
     'tab-sedes-zonas': 'Gestión de Sedes y Zonas',
     'tab-stats': 'Estadísticas & Auditoría',
     'tab-config': 'Configuración del Sistema',
@@ -543,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (btn.dataset.tab === 'tab-http-phases') loadHttpPhasesHistory();
         if (btn.dataset.tab === 'tab-net-diag') loadNetDiagView();
+        if (btn.dataset.tab === 'tab-ai-agent') loadAiAgentView();
         if (btn.dataset.tab === 'tab-sedes-zonas') loadSedesAndZones();
         if (btn.dataset.tab === 'tab-stats') loadStatistics();
         if (btn.dataset.tab === 'tab-config') loadConfigView();
@@ -602,7 +604,28 @@ document.addEventListener('DOMContentLoaded', () => {
   checkUrlTab();
   window.addEventListener('hashchange', checkUrlTab);
 
-  // Header Help button listener
+  // Header Help & AI Copilot buttons listeners
+  const btnHeaderAiCopilot = document.getElementById('btn-header-ai-copilot');
+  if (btnHeaderAiCopilot) {
+    btnHeaderAiCopilot.addEventListener('click', () => {
+      const tabAiBtn = document.getElementById('tab-btn-ai-agent');
+      if (tabAiBtn) tabAiBtn.click();
+    });
+  }
+  const btnOpenZoneContext = document.getElementById('btn-open-zone-context');
+  if (btnOpenZoneContext) {
+    btnOpenZoneContext.addEventListener('click', () => {
+      const tabAiBtn = document.getElementById('tab-btn-ai-agent');
+      if (tabAiBtn) {
+        tabAiBtn.click();
+        setTimeout(() => {
+          const cardCtx = document.getElementById('card-physical-context-editor');
+          if (cardCtx) cardCtx.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+      }
+    });
+  }
+
   const btnHeaderHelp = document.getElementById('btn-header-help');
   if (btnHeaderHelp) {
     btnHeaderHelp.addEventListener('click', () => {
@@ -766,6 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStatistics();
     loadRoamingHistory();
     loadHttpPhasesHistory();
+    loadZonePhysicalContext();
   });
 
   selZone.addEventListener('change', async () => {
@@ -781,6 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStatistics();
     loadRoamingHistory();
     loadHttpPhasesHistory();
+    loadZonePhysicalContext();
   });
 
   btnQuickAddZone.addEventListener('click', async () => {
@@ -2348,6 +2373,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fetchOuiInfo();
       searchOuiVendors(ouiSearchInput ? ouiSearchInput.value.trim() : '');
       checkOuiUpdateStatus();
+      loadGeminiCredentialsStatus();
     } catch (e) {
       console.error("Error cargando configuración:", e);
     }
@@ -3047,11 +3073,485 @@ document.addEventListener('DOMContentLoaded', () => {
     updateHelpViewer();
   }
 
+  // =========================================================================
+  // --- Google Gemini Copilot, MCP Credentials & Physical Context Engine ---
+  // =========================================================================
+
+  let currentAiInteractionId = null;
+
+  function renderSimpleMarkdown(mdText) {
+    if (!mdText) return '';
+    let html = escapeHtml(mdText);
+    html = html.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
+    html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    html = html.replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+    html = html.replace(/\n\n/g, '<br><br>');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
+  async function loadGeminiCredentialsStatus() {
+    try {
+      const res = await fetch('/api/agent/credentials');
+      if (!res.ok) return;
+      const cred = await res.json();
+
+      const aiCredBadge = document.getElementById('ai-cred-badge');
+      const cfgStatusPill = document.getElementById('cfg-gemini-status-pill');
+      const cfgSourceBox = document.getElementById('cfg-gemini-source-box');
+      const cfgModelSel = document.getElementById('cfg-gemini-model');
+      const aiModelSel = document.getElementById('ai-model-selector');
+
+      if (cred.model) {
+        if (cfgModelSel) cfgModelSel.value = cred.model;
+        if (aiModelSel) aiModelSel.value = cred.model;
+      }
+
+      if (cred.has_api_key) {
+        const label = `Conectado (${cred.masked_key}) • ${cred.source.toUpperCase()}`;
+        if (aiCredBadge) {
+          aiCredBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${escapeHtml(label)}`;
+          aiCredBadge.style.background = 'rgba(16, 185, 129, 0.14)';
+          aiCredBadge.style.color = '#059669';
+        }
+        if (cfgStatusPill) {
+          cfgStatusPill.textContent = `Clave Activa (${cred.masked_key})`;
+          cfgStatusPill.style.background = 'rgba(16, 185, 129, 0.14)';
+          cfgStatusPill.style.color = '#059669';
+        }
+        if (cfgSourceBox) {
+          cfgSourceBox.innerHTML = `✅ <strong>Clave activa:</strong> <code>${escapeHtml(cred.masked_key)}</code><br>🔒 <strong>Origen seguro:</strong> ${escapeHtml(cred.source_label)}`;
+        }
+      } else {
+        if (aiCredBadge) {
+          aiCredBadge.innerHTML = `<i class="fa-solid fa-plug"></i> Modo MCP / Heurístico Local (Configurar API Key en Sistema)`;
+          aiCredBadge.style.background = 'rgba(245, 158, 11, 0.14)';
+          aiCredBadge.style.color = '#b45309';
+        }
+        if (cfgStatusPill) {
+          cfgStatusPill.textContent = 'Sin API Key (Modo MCP Externo)';
+          cfgStatusPill.style.background = 'rgba(245, 158, 11, 0.14)';
+          cfgStatusPill.style.color = '#b45309';
+        }
+        if (cfgSourceBox) {
+          cfgSourceBox.innerHTML = `ℹ️ <strong>Estado:</strong> ${escapeHtml(cred.source_label)}`;
+        }
+      }
+    } catch (e) {
+      console.warn('Error verificando credenciales Gemini:', e);
+    }
+  }
+
+  async function loadZonePhysicalContext() {
+    try {
+      const loc = selLocation ? selLocation.value : '';
+      const zone = selZone ? selZone.value : '';
+      const q = new URLSearchParams({ location: loc, zone: zone }).toString();
+      const [resCtx, resQuestions] = await Promise.all([
+        fetch(`/api/zone-context?${q}`),
+        fetch('/api/agent/context-questions')
+      ]);
+      const ctxData = await resCtx.json();
+      const qData = await resQuestions.json();
+
+      const profile = ctxData.profile || {};
+      const locZoneEl = document.getElementById('ai-ctx-loc-zone');
+      const summaryPillsEl = document.getElementById('ai-ctx-summary-pills');
+      const savedBadge = document.getElementById('ai-profile-saved-badge');
+      const lblZoneCtxStatus = document.getElementById('lbl-zone-ctx-status');
+
+      if (locZoneEl) {
+        locZoneEl.textContent = `${profile.location || loc} ➔ ${profile.zone || zone}`;
+      }
+
+      // Populate form fields
+      const envEl = document.getElementById('ctx-env-type');
+      const ceilEl = document.getElementById('ctx-ceiling-height');
+      const obsEl = document.getElementById('ctx-obstacles');
+      const modeEl = document.getElementById('ctx-test-mode');
+      const devEl = document.getElementById('ctx-device-type');
+      const intfEl = document.getElementById('ctx-interference');
+      const descEl = document.getElementById('ctx-custom-desc');
+
+      if (envEl) envEl.value = profile.environment_type || '';
+      if (ceilEl) ceilEl.value = profile.ceiling_height || '';
+      if (obsEl) obsEl.value = profile.obstacles || '';
+      if (modeEl) modeEl.value = profile.test_mode || '';
+      if (devEl) devEl.value = profile.client_device_type || '';
+      if (intfEl) intfEl.value = profile.interference_notes || '';
+      if (descEl) descEl.value = profile.custom_description || '';
+
+      if (profile.configured) {
+        const parts = [
+          profile.environment_type,
+          profile.ceiling_height ? `APs: ${profile.ceiling_height}` : '',
+          profile.obstacles ? `Obstáculos: ${profile.obstacles}` : '',
+          profile.test_mode ? `Modo: ${profile.test_mode}` : '',
+          profile.client_device_type ? `Terminal: ${profile.client_device_type}` : ''
+        ].filter(Boolean);
+        if (summaryPillsEl) {
+          summaryPillsEl.innerHTML = parts.map(p => `<span class="badge" style="margin-right:0.35rem; background:#ffffff; border:1px solid #cbd5e1;">${escapeHtml(p)}</span>`).join('');
+        }
+        if (savedBadge) {
+          savedBadge.textContent = 'Perfil Configurado ✓';
+          savedBadge.style.background = 'rgba(16, 185, 129, 0.14)';
+          savedBadge.style.color = '#059669';
+        }
+        if (lblZoneCtxStatus) {
+          lblZoneCtxStatus.textContent = 'Contexto OK ✓';
+        }
+      } else {
+        if (summaryPillsEl) {
+          summaryPillsEl.innerHTML = '<span style="color:#b45309; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Sin perfil físico registrado para esta zona. Completa las preguntas de la izquierda para mejorar la precisión del modelo.</span>';
+        }
+        if (savedBadge) {
+          savedBadge.textContent = 'Pendiente';
+          savedBadge.style.background = 'rgba(245, 158, 11, 0.14)';
+          savedBadge.style.color = '#b45309';
+        }
+        if (lblZoneCtxStatus) {
+          lblZoneCtxStatus.textContent = 'Contexto Físico';
+        }
+      }
+
+      renderSituationalQuestions(qData.questions || []);
+    } catch (e) {
+      console.warn('Error cargando contexto físico de zona:', e);
+    }
+  }
+
+  function renderSituationalQuestions(questions) {
+    const listEl = document.getElementById('ai-situational-questions-list');
+    const countEl = document.getElementById('ai-questions-count');
+    if (!listEl) return;
+
+    if (countEl) {
+      countEl.textContent = `${questions.length} ${questions.length === 1 ? 'activa' : 'activas'}`;
+    }
+
+    if (!questions || questions.length === 0) {
+      listEl.innerHTML = `
+        <div style="padding: 0.9rem; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; font-size: 0.8rem; color: var(--text-secondary);">
+          <i class="fa-solid fa-circle-check" style="color: var(--accent-emerald);"></i>
+          No se detectan ambigüedades críticas en este instante. Puedes lanzar una auditoría directa o consultar al agente en el chat.
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = questions.map(q => {
+      const sevClass = q.severity === 'danger' ? 'sev-danger' : (q.severity === 'warning' ? 'sev-warning' : '');
+      const optsHtml = (q.quick_options || []).map(opt => `
+        <button type="button" class="ai-q-opt-btn" data-qtitle="${escapeHtml(q.title)}" data-qtext="${escapeHtml(q.question)}" data-tigger="${escapeHtml(q.trigger_type)}" data-ans="${escapeHtml(opt)}">
+          ${escapeHtml(opt)}
+        </button>
+      `).join('');
+      return `
+        <div class="ai-question-card ${sevClass}">
+          <div class="ai-q-title"><i class="fa-solid fa-bolt"></i> ${escapeHtml(q.title)}</div>
+          <div class="ai-q-text">${escapeHtml(q.question)}</div>
+          <div class="ai-q-options">${optsHtml}</div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.ai-q-opt-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const qText = btn.dataset.qtext || '';
+        const ans = btn.dataset.ans || '';
+        const trig = btn.dataset.tigger || 'situational';
+        btn.disabled = true;
+        btn.textContent = '✓ Registrando y consultando...';
+        try {
+          await fetch('/api/agent/annotate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              trigger_type: trig,
+              question_text: qText,
+              user_answer: ans
+            })
+          });
+          await sendAiPrompt(`Observación física en campo confirmada sobre "${qText}": **${ans}**. Con base en este contexto físico y la telemetría actual, ¿cuál es tu diagnóstico y recomendación?`, 'situational_answer');
+        } catch (err) {
+          console.error(err);
+        }
+      });
+    });
+  }
+
+  function appendAiMessage(role, headerLabel, bodyHtml, toolsUsed = []) {
+    const container = document.getElementById('ai-chat-messages');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = `ai-msg ${role === 'user' ? 'ai-msg-user' : 'ai-msg-assistant'}`;
+    const toolsBadge = (toolsUsed && toolsUsed.length > 0)
+      ? `<span style="font-size:0.7rem; color:#6d28d9; background:rgba(139,92,246,0.1); padding:0.1rem 0.45rem; border-radius:4px;">Tools MCP: ${escapeHtml(toolsUsed.join(', '))}</span>`
+      : `<span>${new Date().toLocaleTimeString([], { hour12: false })}</span>`;
+    div.innerHTML = `
+      <div class="ai-msg-header">
+        <strong>${role === 'user' ? '<i class="fa-solid fa-user-Astronaut"></i> Operador / Ingeniero' : '<i class="fa-solid fa-robot"></i> ' + escapeHtml(headerLabel)}</strong>
+        ${toolsBadge}
+      </div>
+      <div class="ai-msg-body">${bodyHtml}</div>
+    `;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+  }
+
+  async function sendAiPrompt(promptText, mode = 'chat') {
+    const sendBtn = document.getElementById('btn-ai-send-chat');
+    const auditBtn = document.getElementById('btn-ai-quick-audit');
+    const modelSel = document.getElementById('ai-model-selector');
+    const chosenModel = modelSel ? modelSel.value : 'gemini-3.8-flash';
+
+    appendAiMessage('user', 'Consulta Técnica', renderSimpleMarkdown(promptText));
+    const loadingCard = appendAiMessage(
+      'assistant',
+      `Analizando con ${chosenModel}...`,
+      `<i class="fa-solid fa-spinner fa-spin" style="color:#7c3aed;"></i> Consultando telemetría en vivo (RF, Roaming, Espectro, Fases HTTP) y cruzando con el contexto físico de la zona...`
+    );
+
+    if (sendBtn) sendBtn.disabled = true;
+    if (auditBtn) auditBtn.disabled = true;
+
+    try {
+      const res = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: promptText,
+          mode: mode,
+          model: chosenModel,
+          previous_interaction_id: currentAiInteractionId
+        })
+      });
+      const data = await res.json();
+      if (loadingCard) loadingCard.remove();
+
+      if (data.status === 'error') {
+        appendAiMessage('assistant', 'Aviso del Agente', `<span style="color:#ef4444; font-weight:600;">Error: ${escapeHtml(data.message)}</span>`);
+      } else {
+        if (data.interaction_id) {
+          currentAiInteractionId = data.interaction_id;
+        }
+        appendAiMessage(
+          'assistant',
+          `Agente CWNE (${data.model || chosenModel})`,
+          renderSimpleMarkdown(data.response_markdown || ''),
+          data.tools_used || []
+        );
+        if (Array.isArray(data.situational_questions)) {
+          renderSituationalQuestions(data.situational_questions);
+        }
+      }
+    } catch (e) {
+      if (loadingCard) loadingCard.remove();
+      appendAiMessage('assistant', 'Error de Conexión', `<span style="color:#ef4444;">No se pudo completar la consulta: ${escapeHtml(String(e))}</span>`);
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+      if (auditBtn) auditBtn.disabled = false;
+    }
+  }
+
+  async function saveZonePhysicalContextForm(andAudit = false) {
+    const loc = selLocation ? selLocation.value : '';
+    const zone = selZone ? selZone.value : '';
+    const payload = {
+      location: loc,
+      zone: zone,
+      environment_type: (document.getElementById('ctx-env-type') || {}).value || '',
+      ceiling_height: (document.getElementById('ctx-ceiling-height') || {}).value || '',
+      obstacles: (document.getElementById('ctx-obstacles') || {}).value || '',
+      test_mode: (document.getElementById('ctx-test-mode') || {}).value || '',
+      client_device_type: (document.getElementById('ctx-device-type') || {}).value || '',
+      interference_notes: (document.getElementById('ctx-interference') || {}).value || '',
+      custom_description: (document.getElementById('ctx-custom-desc') || {}).value || ''
+    };
+
+    const res = await fetch('/api/zone-context', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    await loadZonePhysicalContext();
+
+    if (andAudit) {
+      await sendAiPrompt(
+        `He actualizado la ficha física de la zona "${loc} / ${zone}". Con este contexto físico y la telemetría en tiempo real que se está capturando ahora mismo, realiza un diagnóstico completo y dime qué está afectando o qué optimizar.`,
+        'context_calibrated_audit'
+      );
+    } else if (data.status === 'success') {
+      const savedBadge = document.getElementById('ai-profile-saved-badge');
+      if (savedBadge) {
+        savedBadge.textContent = '¡Guardado!';
+      }
+    }
+  }
+
+  function initAiAgentEvents() {
+    // Quick obstacle chips
+    document.querySelectorAll('.chip-option').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const inputEl = document.getElementById('ctx-obstacles');
+        if (!inputEl) return;
+        const val = chip.dataset.val || '';
+        const current = inputEl.value.trim();
+        if (!current) {
+          inputEl.value = val;
+        } else if (!current.toLowerCase().includes(val.toLowerCase())) {
+          inputEl.value = `${current}, ${val}`;
+        }
+      });
+    });
+
+    const btnSaveCtx = document.getElementById('btn-save-zone-context');
+    if (btnSaveCtx) {
+      btnSaveCtx.addEventListener('click', () => saveZonePhysicalContextForm(false));
+    }
+
+    const btnSaveAuditCtx = document.getElementById('btn-save-and-audit-context');
+    if (btnSaveAuditCtx) {
+      btnSaveAuditCtx.addEventListener('click', () => saveZonePhysicalContextForm(true));
+    }
+
+    const btnQuickAudit = document.getElementById('btn-ai-quick-audit');
+    if (btnQuickAudit) {
+      btnQuickAudit.addEventListener('click', () => {
+        sendAiPrompt(
+          'Realiza una auditoría integral en tiempo real de la captura actual en esta Sede y Zona. Evalúa Capa 1/2 (Señal RF, Roaming, Espectro de canales), Capa 3/4 (Gateway, DNS) y Capa 7 (Fases HTTP/TTFB), tomando en cuenta el contexto físico del sitio.',
+          'quick_audit'
+        );
+      });
+    }
+
+    const btnEditCtx = document.getElementById('btn-ai-edit-context');
+    if (btnEditCtx) {
+      btnEditCtx.addEventListener('click', () => {
+        const card = document.getElementById('card-physical-context-editor');
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    const btnRefreshQ = document.getElementById('btn-ai-refresh-questions');
+    if (btnRefreshQ) {
+      btnRefreshQ.addEventListener('click', () => loadZonePhysicalContext());
+    }
+
+    const btnResetSession = document.getElementById('btn-ai-reset-session');
+    if (btnResetSession) {
+      btnResetSession.addEventListener('click', () => {
+        currentAiInteractionId = null;
+        const container = document.getElementById('ai-chat-messages');
+        if (container) {
+          container.innerHTML = '';
+          appendAiMessage(
+            'assistant',
+            'Agente CWNE Gemini',
+            'Sesión reiniciada. El contexto físico de la Sede/Zona y la telemetría en tiempo real están listos para tu próxima consulta.'
+          );
+        }
+      });
+    }
+
+    const btnSendChat = document.getElementById('btn-ai-send-chat');
+    const chatInput = document.getElementById('ai-chat-input');
+    if (btnSendChat && chatInput) {
+      btnSendChat.addEventListener('click', () => {
+        const txt = chatInput.value.trim();
+        if (!txt) return;
+        chatInput.value = '';
+        sendAiPrompt(txt, 'chat');
+      });
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          btnSendChat.click();
+        }
+      });
+    }
+
+    document.querySelectorAll('.ai-prompt-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const p = chip.dataset.prompt;
+        if (p) sendAiPrompt(p, 'preset_prompt');
+      });
+    });
+
+    // Credentials save & clear in Configuration tab
+    const btnSaveGeminiCreds = document.getElementById('btn-save-gemini-creds');
+    if (btnSaveGeminiCreds) {
+      btnSaveGeminiCreds.addEventListener('click', async () => {
+        const keyInput = document.getElementById('cfg-gemini-api-key');
+        const storageSel = document.getElementById('cfg-gemini-storage');
+        const modelSel = document.getElementById('cfg-gemini-model');
+        const apiKey = keyInput ? keyInput.value.trim() : '';
+        const storage = storageSel ? storageSel.value : 'dotenv';
+        const model = modelSel ? modelSel.value : 'gemini-3.8-flash';
+
+        try {
+          const res = await fetch('/api/agent/credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'save',
+              api_key: apiKey,
+              storage: storage,
+              model: model
+            })
+          });
+          const data = await res.json();
+          if (keyInput) keyInput.value = '';
+          await loadGeminiCredentialsStatus();
+          alert(data.message || 'Credenciales guardadas de forma segura.');
+        } catch (err) {
+          alert('Error guardando credenciales Gemini: ' + err);
+        }
+      });
+    }
+
+    const btnClearGeminiCreds = document.getElementById('btn-clear-gemini-creds');
+    if (btnClearGeminiCreds) {
+      btnClearGeminiCreds.addEventListener('click', async () => {
+        if (!confirm('¿Deseas eliminar la clave de API de Gemini almacenada localmente (.env y SQLite)?')) return;
+        try {
+          const res = await fetch('/api/agent/credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'clear' })
+          });
+          const data = await res.json();
+          await loadGeminiCredentialsStatus();
+          alert(data.message || 'Clave local eliminada.');
+        } catch (err) {
+          alert('Error eliminando clave: ' + err);
+        }
+      });
+    }
+  }
+
+  async function loadAiAgentView() {
+    await Promise.all([
+      loadGeminiCredentialsStatus(),
+      loadZonePhysicalContext()
+    ]);
+  }
+
   // --- Initialization ---
   async function init() {
+    initAiAgentEvents();
     await loadPresets();
     await loadLocationsAndZones();
     await fetchStatus();
+    loadGeminiCredentialsStatus();
+    loadZonePhysicalContext();
     loadRoamingHistory();
     loadHttpPhasesHistory();
     loadApScanner();

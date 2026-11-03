@@ -67,6 +67,13 @@
           <span>Diagnóstico de Red</span>
         </button>
 
+        <div class="nav-group-title">Inteligencia Artificial</div>
+
+        <button type="button" class="tab-btn sidebar-nav-item" data-tab="tab-ai-agent" id="tab-btn-ai-agent" title="Copiloto de Diagnóstico con Google Gemini & MCP">
+          <i class="fa-solid fa-robot" style="color: #8b5cf6;"></i>
+          <span>Copiloto IA Gemini</span>
+        </button>
+
         <div class="nav-group-title">Gestión & Auditoría</div>
 
         <button type="button" class="tab-btn sidebar-nav-item" data-tab="tab-sedes-zonas" title="Administración de Sedes y Zonas Físicas">
@@ -145,6 +152,10 @@
             <i class="fa-solid fa-shield-halved"></i>
             <span id="header-auth-status">Auth: Inactiva</span>
           </div>
+          <button type="button" id="btn-header-ai-copilot" class="badge badge-btn" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(79, 70, 229, 0.18)); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.4); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;" title="Abrir Copiloto de Diagnóstico IA con Google Gemini & MCP">
+            <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 0.9rem;"></i>
+            <span>Copiloto IA</span>
+          </button>
           <button type="button" id="btn-header-help" class="badge badge-btn" style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.16), rgba(14, 165, 233, 0.16)); color: var(--accent-cyan); border: 1px solid rgba(79, 70, 229, 0.35); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;" title="Abrir Centro de Ayuda y Manuales (Manual Oficial y Guía Soporte Nivel 1)">
             <i class="fa-solid fa-circle-question" style="font-size: 0.95rem;"></i>
             <span>Ayuda & Manuales</span>
@@ -180,12 +191,16 @@
         </div>
 
         <!-- Sede & Zona Selectors -->
-        <div class="toolbar-item" style="flex: 1.2;">
-          <label class="toolbar-label"><i class="fa-solid fa-map-location-dot"></i> Ubicación Activa:</label>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div class="toolbar-item" style="flex: 1.35;">
+          <label class="toolbar-label"><i class="fa-solid fa-map-location-dot"></i> Ubicación Activa & Contexto Físico:</label>
+          <div style="display: flex; gap: 0.45rem; align-items: center;">
             <select id="sel-location" class="toolbar-select" title="Selecciona la Sede actual"></select>
             <select id="sel-zone" class="toolbar-select" title="Selecciona la Zona física dentro de la Sede"></select>
             <button id="btn-quick-add-zone" class="btn-icon" title="Añadir nueva zona rápida"><i class="fa-solid fa-plus"></i></button>
+            <button id="btn-open-zone-context" type="button" class="btn-secondary" style="white-space: nowrap; padding: 0.45rem 0.7rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 0.35rem; border-color: rgba(139, 92, 246, 0.4); color: #6d28d9;" title="Describir espacio físico de esta zona (Altura APs, Racks, Muros, Terminal) para enriquecer el análisis con Gemini">
+              <i class="fa-solid fa-building-user"></i>
+              <span id="lbl-zone-ctx-status">Contexto Físico</span>
+            </button>
           </div>
         </div>
 
@@ -866,6 +881,233 @@
         </div>
       </section>
 
+      <!-- View 7.5: Copiloto IA Gemini & MCP -->
+      <section id="tab-ai-agent" class="tab-content">
+        <!-- Hero & Context Calibration Bar -->
+        <div class="card" style="margin-bottom: 1.25rem; border-left: 4px solid #8b5cf6;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+            <div style="flex: 1; min-width: 280px;">
+              <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem;">
+                <span class="badge" style="background: rgba(139, 92, 246, 0.14); color: #6d28d9; font-weight: 700;">
+                  <i class="fa-solid fa-robot"></i> GOOGLE GEMINI INTERACTIONS API + MCP
+                </span>
+                <span id="ai-cred-badge" class="badge" style="background: rgba(16, 185, 129, 0.12); color: #059669; font-weight: 600;">
+                  Verificando cuenta...
+                </span>
+              </div>
+              <h2 style="font-size: 1.22rem; font-weight: 700; color: var(--text-primary); margin: 0 0 0.3rem 0;">
+                Copiloto de Diagnóstico Wi-Fi & Aplicaciones en Tiempo Real
+              </h2>
+              <p style="font-size: 0.84rem; color: var(--text-secondary); margin: 0; line-height: 1.45;">
+                Interpreta las métricas capturadas en vivo (RF, Roaming, Espectro, Fases HTTP y Traceroute) cruzándolas con las <strong>condiciones físicas del recinto</strong> (altura de APs, racks metálicos, muros y tipo de terminal) para determinar con exactitud la causa raíz.
+              </p>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+              <select id="ai-model-selector" class="toolbar-select" style="min-width: 225px; font-weight: 600;">
+                <option value="gemini-3.8-flash">⚡ Gemini 3.8 Flash (Tiempo Real & Ágil)</option>
+                <option value="gemini-4-argon">🧠 Gemini 4 Argon (Auditoría Profunda)</option>
+                <option value="gemini-3.5-flash-lite">🚀 Gemini 3.5 Flash-Lite (Ultra Rápido)</option>
+              </select>
+              <button type="button" id="btn-ai-edit-context" class="btn-secondary" style="font-size: 0.82rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-building-Wheat"></i>
+                <i class="fa-solid fa-sliders"></i> Describir Espacio Físico
+              </button>
+              <button type="button" id="btn-ai-quick-audit" class="btn-primary" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); font-size: 0.84rem; display: inline-flex; align-items: center; gap: 0.45rem;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Auditar Captura Actual
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Physical Context Summary Strip -->
+          <div id="ai-zone-context-strip" style="margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 8px; background: #f8fafc; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; font-size: 0.82rem;">
+              <span style="font-weight: 700; color: #4f46e5;">
+                <i class="fa-solid fa-location-dot"></i> <span id="ai-ctx-loc-zone">Sede / Zona</span>:
+              </span>
+              <span id="ai-ctx-summary-pills" style="color: var(--text-secondary);">
+                Cargando perfil físico del sitio...
+              </span>
+            </div>
+            <button type="button" id="btn-ai-refresh-questions" class="btn-secondary" style="font-size: 0.76rem; padding: 0.3rem 0.65rem;">
+              <i class="fa-solid fa-rotate"></i> Evaluar Anomalías en Vivo
+            </button>
+          </div>
+        </div>
+
+        <!-- Two-Column Workspace: Left = Situational Questions & Physical Context Form, Right = Multi-turn AI Console -->
+        <div style="display: grid; grid-template-columns: minmax(320px, 1fr) minmax(420px, 1.65fr); gap: 1.25rem; align-items: start;">
+          
+          <!-- Left Column: Interactive Context Enrichment & Situational Questions -->
+          <div style="display: flex; flex-direction: column; gap: 1.15rem;">
+            
+            <!-- Situational In-Loop Questions Card -->
+            <div class="card">
+              <div class="card-header" style="margin-bottom: 0.75rem;">
+                <div class="card-title">
+                  <i class="fa-solid fa-clipboard-question" style="color: #8b5cf6;"></i>
+                  <span>Preguntas Situacionales del Agente</span>
+                </div>
+                <span id="ai-questions-count" class="badge">0 activas</span>
+              </div>
+              <p style="font-size: 0.79rem; color: var(--text-muted); margin-top: 0; margin-bottom: 0.85rem;">
+                El agente analiza las anomalías en tiempo real y te formula preguntas clave sobre lo que ocurre a tu alrededor para descartar falsos positivos y precisar el diagnóstico:
+              </p>
+              <div id="ai-situational-questions-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Dynamic situational question cards -->
+              </div>
+            </div>
+
+            <!-- Collapsible Physical Space Questionnaire Card -->
+            <div class="card" id="card-physical-context-editor">
+              <div class="card-header" style="margin-bottom: 0.75rem;">
+                <div class="card-title">
+                  <i class="fa-solid fa-warehouse" style="color: var(--accent-cyan);"></i>
+                  <span>Ficha del Espacio Físico (Zona Actual)</span>
+                </div>
+                <span id="ai-profile-saved-badge" class="badge" style="font-size: 0.7rem;">Sin configurar</span>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">1. Tipo de Recinto Físico:</label>
+                  <select id="ctx-env-type" class="toolbar-select" style="width: 100%; font-size: 0.82rem;">
+                    <option value="">-- Seleccionar tipo de espacio --</option>
+                    <option value="Bodega / Centro de Distribución (Estanterías altas)">🏭 Bodega / Centro de Distribución (Estanterías altas)</option>
+                    <option value="Piso de Venta / Tienda Retail">🏬 Piso de Venta / Tienda Retail</option>
+                    <option value="Oficina Abierta / Corporativo">🏢 Oficina Abierta / Corporativo</option>
+                    <option value="Área Cerrada / Cuartos Fríos / Bunker">❄️ Área Cerrada / Cuartos Fríos / Bunker</option>
+                    <option value="Zona Exterior / Muelles de Carga">🚚 Zona Exterior / Muelles de Carga</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">2. Altura y Montaje de los APs:</label>
+                  <select id="ctx-ceiling-height" class="toolbar-select" style="width: 100%; font-size: 0.82rem;">
+                    <option value="">-- Seleccionar altura aproximada --</option>
+                    <option value="Techo bajo (< 3.5 m) - Omnidireccional">Techo bajo (&lt; 3.5 m) - Omnidireccional</option>
+                    <option value="Altura media comercial (4 a 6 m)">Altura media comercial (4 a 6 m)</option>
+                    <option value="Gran altura industrial (7 a 12 m) - Techo/Cercha">Gran altura industrial (7 a 12 m) - Techo/Cercha</option>
+                    <option value="Montaje en pared / columna lateral">Montaje en pared / columna lateral</option>
+                    <option value="Desconocido / No visibles">Desconocido / No visibles</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">3. Obstáculos y Atenuación RF (separados por coma o clic rápido):</label>
+                  <input type="text" id="ctx-obstacles" class="toolbar-input" placeholder="Ej: Racks metálicos llenos, Muros de concreto..." style="width: 100%; font-size: 0.82rem;">
+                  <div class="ctx-quick-chips" data-target="ctx-obstacles" style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem;">
+                    <button type="button" class="chip-option" data-val="Racks metálicos llenos">+ Racks llenos</button>
+                    <button type="button" class="chip-option" data-val="Estantería vacía">+ Racks vacíos</button>
+                    <button type="button" class="chip-option" data-val="Muros de concreto">+ Concreto</button>
+                    <button type="button" class="chip-option" data-val="Puerta cortafuego">+ Puerta metálica</button>
+                    <button type="button" class="chip-option" data-val="Líquidos/Frio">+ Líquidos/Frío</button>
+                    <button type="button" class="chip-option" data-val="Vista despejada">+ Despejado</button>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">4. Dinámica de la Prueba:</label>
+                  <select id="ctx-test-mode" class="toolbar-select" style="width: 100%; font-size: 0.82rem;">
+                    <option value="">-- ¿Cómo se realiza la captura? --</option>
+                    <option value="Estático en un punto fijo (sin moverse)">📍 Estático en un punto fijo (sin moverse)</option>
+                    <option value="Caminando a paso normal (Walk-Test por pasillos)">🚶 Caminando a paso normal (Walk-Test)</option>
+                    <option value="Desplazamiento rápido (Montacargas / Estibadora eléctrica)">🚜 En Montacargas / Vehículo eléctrico</option>
+                    <option value="Movimiento intermitente (Deteniéndose en cada estación/caja)">⏸️ Movimiento intermitente por estaciones</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">5. Dispositivo / Terminal Crítica:</label>
+                  <select id="ctx-device-type" class="toolbar-select" style="width: 100%; font-size: 0.82rem;">
+                    <option value="">-- Seleccionar tipo de cliente --</option>
+                    <option value="Terminal Portátil PDA / Pistola RF (Zebra / Honeywell - WMS)">🔫 Terminal PDA / Pistola RF (WMS Manhattan/SAP)</option>
+                    <option value="Caja Registradora POS / Datáfono Inalámbrico">💳 Caja POS / Datáfono Retail</option>
+                    <option value="Laptop Corporativa (ERP / Videollamadas / Office)">💻 Laptop Corporativa (VoIP / ERP)</option>
+                    <option value="Tablet / Escáner Móvil de Inventario">📱 Tablet / Carrito Móvil</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">6. Fuentes de Interferencia / Concurrencia:</label>
+                  <input type="text" id="ctx-interference" class="toolbar-input" placeholder="Ej: Alta densidad de pistolas RF, motores eléctricos..." style="width: 100%; font-size: 0.82rem;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label" style="font-size: 0.78rem; font-weight: 600;">7. Descripción Breve Adicional del Sitio y Síntoma Observado:</label>
+                  <textarea id="ctx-custom-desc" class="toolbar-input" rows="3" placeholder="Ej: En el fondo del pasillo 4 junto al muelle de despacho las pistolas RF pierden sesión cada vez que pasan los montacargas..." style="width: 100%; font-size: 0.82rem; resize: vertical;"></textarea>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                  <button type="button" id="btn-save-zone-context" class="btn-primary" style="flex: 1; font-size: 0.82rem;">
+                    <i class="fa-solid fa-floppy-disk"></i> Guardar Contexto de Zona
+                  </button>
+                  <button type="button" id="btn-save-and-audit-context" class="btn-secondary" style="font-size: 0.82rem; border-color: rgba(139, 92, 246, 0.4); color: #6d28d9;" title="Guardar perfil físico y lanzar auditoría con Gemini">
+                    <i class="fa-solid fa-bolt"></i> Guardar y Analizar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Interactive Diagnosis & Multi-Turn Chat with Gemini -->
+          <div class="card" style="display: flex; flex-direction: column; min-height: 660px;">
+            <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+              <div class="card-title">
+                <i class="fa-solid fa-comments" style="color: #8b5cf6;"></i>
+                <span>Consola Interactiva del Agente (Multi-Turno & Function Calling)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.45rem;">
+                <button type="button" id="btn-ai-reset-session" class="btn-secondary" style="font-size: 0.75rem; padding: 0.3rem 0.65rem;" title="Reiniciar contexto de conversación actual">
+                  <i class="fa-solid fa-broom"></i> Nueva Sesión
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Prompt Chips -->
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.85rem;">
+              <button type="button" class="ai-prompt-chip" data-prompt="¿La lentitud o caída actual es culpa de la señal Wi-Fi (Capa 1/2), de la red local (Capa 3) o del servidor de la aplicación (Capa 7)?">
+                🔍 ¿Wi-Fi vs Red vs Servidor App?
+              </button>
+              <button type="button" class="ai-prompt-chip" data-prompt="Analiza los eventos de Roaming recientes y el escáner de espectro RF. ¿Hay comportamiento de Sticky Client, Ping-Pong Roaming o solapamiento de canales?">
+                📡 Auditar Roaming y Sticky Client
+              </button>
+              <button type="button" class="ai-prompt-chip" data-prompt="Tomando en cuenta la descripción física de esta zona y las lecturas actuales en dBm y ms, ¿qué ajustes de potencia, canales o ubicación de APs recomiendas?">
+                🏗️ Recomendación RF según Espacio Físico
+              </button>
+              <button type="button" class="ai-prompt-chip" data-prompt="Genera un dictamen técnico ejecutivo listo para compartir con el proveedor de red y el equipo de sistemas resumiendo los percentiles P50/P95/P99 y hallazgos.">
+                📋 Generar Dictamen Técnico Ejecutivo
+              </button>
+            </div>
+
+            <!-- Conversation Messages Stream -->
+            <div id="ai-chat-messages" style="flex: 1; overflow-y: auto; max-height: 500px; padding: 0.75rem; background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; gap: 0.85rem;">
+              <div class="ai-msg ai-msg-assistant">
+                <div class="ai-msg-header">
+                  <strong><i class="fa-solid fa-robot"></i> Agente CWNE Gemini</strong>
+                  <span>Listo para auditar en tiempo real</span>
+                </div>
+                <div class="ai-msg-body">
+                  Hola. Estoy conectado a los motores de telemetría en vivo (<strong>Wi-Fi RF, Roaming, Espectro de Canales, Sonda HTTP de 5 Fases y Traceroute</strong>).
+                  <br><br>
+                  💡 <strong>Consejo para mayor precisión:</strong> Completa a la izquierda la <em>Ficha del Espacio Físico</em> o responde las <em>Preguntas Situacionales</em> (altura de APs, estanterías metálicas, tipo de terminal PDA/POS) y luego haz clic en <strong>"Auditar Captura Actual"</strong> o escribe tu consulta abajo.
+                </div>
+              </div>
+            </div>
+
+            <!-- Input Box -->
+            <div style="margin-top: 0.85rem; display: flex; gap: 0.6rem; align-items: flex-end;">
+              <textarea id="ai-chat-input" class="toolbar-input" rows="2" placeholder="Escribe tu pregunta o describe qué ocurre en el sitio (ej: 'Estoy frente al rack 12 y la pistola se queda congelada al confirmar picking')..." style="flex: 1; resize: vertical; font-size: 0.86rem;"></textarea>
+              <button type="button" id="btn-ai-send-chat" class="btn-primary" style="height: 52px; padding: 0 1.2rem; background: linear-gradient(135deg, #7c3aed, #4f46e5); white-space: nowrap;">
+                <i class="fa-solid fa-paper-plane"></i> Enviar
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- View 8: Configuration & AP Names -->
       <section id="tab-config" class="tab-content">
         <div class="config-grid">
@@ -994,6 +1236,91 @@
                 <button type="button" id="btn-save-auth" class="btn-primary" style="font-size: 0.82rem;">
                   <i class="fa-solid fa-floppy-disk"></i> Guardar
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2.5: Google Gemini AI & MCP Server Credentials (Zero Secret Exposure) -->
+          <div class="card" style="grid-column: 1 / -1; border-left: 4px solid #8b5cf6;">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+              <div class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-robot" style="color: #8b5cf6;"></i>
+                <span style="font-weight: 700;">Agente Google Gemini & Servidor MCP (Protección de Credenciales Local)</span>
+                <span id="cfg-gemini-status-pill" class="badge" style="background: rgba(139, 92, 246, 0.12); color: #6d28d9; font-weight: 700;">Verificando...</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span class="badge" style="background: rgba(16, 185, 129, 0.12); color: #059669; font-size: 0.74rem;">
+                  <i class="fa-solid fa-lock"></i> Protegido en .gitignore (.env chmod 600 + PBKDF2-SHA256)
+                </span>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem;">
+              <!-- Left: Secure API Key & Model Setup -->
+              <div>
+                <p style="font-size: 0.81rem; color: var(--text-secondary); margin-top: 0; margin-bottom: 0.85rem;">
+                  Tu clave de conexión a Google Gemini (<code>GEMINI_API_KEY</code>) <strong>jamás se expone en el repositorio Git ni en exportaciones ZIP</strong>. Se almacena únicamente en tu máquina local (en <code>.env</code> ignorado por Git y cifrada en SQLite local) y la API solo devuelve una máscara segura.
+                </p>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                  <label class="form-label" style="font-weight: 600;">Estado Actual de Credencial:</label>
+                  <div id="cfg-gemini-source-box" style="padding: 0.55rem 0.8rem; border-radius: 6px; background: #f8fafc; border: 1px solid var(--border-color); font-size: 0.82rem; font-family: monospace;">
+                    Cargando estado de seguridad...
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                  <label class="form-label" style="font-weight: 600;">API Key de Google AI Studio / Gemini:</label>
+                  <div style="display: flex; gap: 0.5rem;">
+                    <input type="password" id="cfg-gemini-api-key" class="toolbar-input" placeholder="Pega tu nueva GEMINI_API_KEY aquí (AIzaSy...)" style="flex: 1;" autocomplete="off">
+                    <select id="cfg-gemini-storage" class="toolbar-select" style="width: 195px; font-size: 0.8rem;" title="Dónde guardar localmente la clave">
+                      <option value="dotenv">Guardar en .env (chmod 600)</option>
+                      <option value="db">Solo SQLite Cifrado Local</option>
+                    </select>
+                  </div>
+                  <small style="color: var(--text-muted); font-size: 0.74rem; display: block; margin-top: 0.25rem;">
+                    Obtén tu clave en <a href="https://aistudio.google.com/app/api-keys" target="_blank" rel="noopener" style="color: #6d28d9; font-weight: 600;">Google AI Studio (aistudio.google.com/app/api-keys)</a> o expórtala en tu terminal: <code>export GEMINI_API_KEY="tu_clave"</code>.
+                  </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0.85rem;">
+                  <label class="form-label" style="font-weight: 600;">Modelo Gemini Predeterminado:</label>
+                  <select id="cfg-gemini-model" class="toolbar-select" style="width: 100%;">
+                    <option value="gemini-3.8-flash">gemini-3.8-flash (Recomendado - Rápido para telemetría en vivo)</option>
+                    <option value="gemini-4-argon">gemini-4-argon (Máximo razonamiento para auditoría forense)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (Ligero y económico)</option>
+                  </select>
+                </div>
+
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
+                  <button type="button" id="btn-save-gemini-creds" class="btn-primary" style="background: linear-gradient(135deg, #7c3aed, #4f46e5); font-size: 0.82rem;">
+                    <i class="fa-solid fa-shield-halved"></i> Guardar Clave Protegida
+                  </button>
+                  <button type="button" id="btn-clear-gemini-creds" class="btn-secondary" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.35); font-size: 0.82rem;">
+                    <i class="fa-solid fa-trash-can"></i> Borrar Clave Local
+                  </button>
+                </div>
+              </div>
+
+              <!-- Right: Local MCP Server Connection Info -->
+              <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                <div style="font-weight: 700; font-size: 0.86rem; color: var(--text-primary); margin-bottom: 0.5rem;">
+                  <i class="fa-solid fa-plug-circle-bolt" style="color: #8b5cf6;"></i> Conexión Directa vía MCP (Sin API Key en la App)
+                </div>
+                <p style="font-size: 0.79rem; color: var(--text-secondary); margin-top: 0; margin-bottom: 0.65rem; line-height: 1.45;">
+                  Este proyecto incluye el servidor MCP estándar <code>mcp_telemetry_server.py</code>. Puedes conectarlo directamente a tu sesión de <strong>Google Antigravity IDE</strong>, <strong>Gemini CLI</strong> o <strong>Google Antigravity SDK</strong> usando tu cuenta activa de Google:
+                </p>
+                <pre style="background: #0f172a; color: #e2e8f0; padding: 0.75rem; border-radius: 6px; font-size: 0.74rem; overflow-x: auto; margin: 0 0 0.65rem 0; line-height: 1.4;"><code>{
+  "mcpServers": {
+    "wifi-telemetry": {
+      "command": "python3",
+      "args": ["mcp_telemetry_server.py"]
+    }
+  }
+}</code></pre>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                  <strong>Tools MCP expuestas:</strong> <code>get_live_telemetry_snapshot</code>, <code>get_roaming_events_analysis</code>, <code>get_rf_spectrum_scan</code>, <code>get_http_phases_breakdown</code>, <code>get_network_diagnostics_summary</code>, <code>get_physical_environment_context</code>, <code>update_physical_environment_context</code>.
+                </div>
               </div>
             </div>
           </div>

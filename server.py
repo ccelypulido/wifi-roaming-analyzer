@@ -25,7 +25,8 @@ DOCS_DIR = os.path.join(PROJECT_DIR, 'docs')
 
 from core.oui_manager import oui_manager
 from core.ap_manager import ap_manager
-from core import probe, net_diag
+from core import probe, net_diag, secrets_manager
+from core.ai_agent import agent_runtime, ALLOWED_MODELS, PHYSICAL_CONTEXT_SCHEMA
 from database import database
 
 # Initialize SQLite database
@@ -877,7 +878,50 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             })
         elif parsed.path == '/api/config':
             cfg = database.get_config()
-            self.send_json_response(cfg)
+            # Proteger secretos: nunca enviar claves cifradas o en texto plano hacia el navegador
+            safe_cfg = dict(cfg)
+            safe_cfg.pop('gemini_api_key_enc', None)
+            safe_cfg.pop('gemini_api_key', None)
+            if safe_cfg.get('auth_password'):
+                safe_cfg['auth_password'] = '••••••••'
+            if safe_cfg.get('auth_token'):
+                safe_cfg['auth_token'] = '••••••••'
+            cred_status = secrets_manager.get_credentials_status(
+                cfg.get('gemini_api_key_enc', ''),
+                cfg.get('gemini_model', 'gemini-3.8-flash')
+            )
+            safe_cfg['gemini_credentials'] = cred_status
+            self.send_json_response(safe_cfg)
+        elif parsed.path == '/api/agent/credentials':
+            cfg = database.get_config()
+            cred_status = secrets_manager.get_credentials_status(
+                cfg.get('gemini_api_key_enc', ''),
+                cfg.get('gemini_model', 'gemini-3.8-flash')
+            )
+            cred_status['allowed_models'] = ALLOWED_MODELS
+            cred_status['mcp_command'] = f"python3 {os.path.join(PROJECT_DIR, 'mcp_telemetry_server.py')}"
+            self.send_json_response(cred_status)
+        elif parsed.path == '/api/zone-context':
+            loc = qs.get('location', [state.location])[0]
+            zone = qs.get('zone', [state.zone])[0]
+            profile = database.get_zone_context_profile(loc, zone)
+            annotations = database.get_agent_annotations(location_filter=loc, zone_filter=zone, limit=15)
+            self.send_json_response({
+                "profile": profile,
+                "annotations": annotations,
+                "schema": PHYSICAL_CONTEXT_SCHEMA
+            })
+        elif parsed.path == '/api/agent/context-questions':
+            self.send_json_response(agent_runtime.generate_situational_questions())
+        elif parsed.path == '/api/agent/history':
+            loc = qs.get('location', ['all'])[0]
+            zone = qs.get('zone', ['all'])[0]
+            try:
+                limit = int(qs.get('limit', [25])[0])
+            except Exception:
+                limit = 25
+            hist = database.get_ai_diagnosis_history(location_filter=loc, zone_filter=zone, limit=limit)
+            self.send_json_response({"history": hist})
         elif parsed.path == '/api/presets':
             self.send_json_response(PRESETS)
         elif parsed.path == '/api/locations':
@@ -1002,7 +1046,42 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                     )
                     zf.writestr(f"04_diagnostico_red_icmp_traceroute{loc_suffix}{zone_suffix}{date_range_suffix}.csv", icmp_csv.encode('utf-8-sig'))
 
-                    # File 5: Resumen de Auditoría
+                    # File 5: Contexto Físico y Dictámenes del Agente IA Gemini (Sin credenciales)
+                    ctx_profile = database.get_zone_context_profile(loc_filter or state.location, zone_filter or state.zone)
+                    annotations = database.get_agent_annotations(location_filter=loc_filter or 'all', zone_filter=zone_filter or 'all', limit=50)
+                    ai_hist = database.get_ai_diagnosis_history(location_filter=loc_filter or 'all', zone_filter=zone_filter or 'all', limit=15)
+                    ai_report_lines = [
+                        "======================================================================",
+                        " CONTEXTO FÍSICO DEL SITIO Y DICTÁMENES DEL AGENTE IA GEMINI          ",
+                        "======================================================================",
+                        f"Sede: {ctx_profile.get('location')} | Zona: {ctx_profile.get('zone')}",
+                        f"Recinto Físico     : {ctx_profile.get('environment_type') or 'No especificado'}",
+                        f"Altura de APs      : {ctx_profile.get('ceiling_height') or 'No especificado'}",
+                        f"Obstáculos RF      : {ctx_profile.get('obstacles') or 'No especificado'}",
+                        f"Modo de Prueba     : {ctx_profile.get('test_mode') or 'No especificado'}",
+                        f"Terminal Evaluada  : {ctx_profile.get('client_device_type') or 'No especificado'}",
+                        f"Interferencias     : {ctx_profile.get('interference_notes') or 'No especificado'}",
+                        f"Descripción Libre  : {ctx_profile.get('custom_description') or 'N/A'}",
+                        "----------------------------------------------------------------------",
+                        "OBSERVACIONES SITUACIONALES EN CAMPO:",
+                    ]
+                    if annotations:
+                        for an in annotations:
+                            ai_report_lines.append(f"  [{an.get('created_at')}] ({an.get('location')}/{an.get('zone')}) {an.get('question_text')} -> {an.get('user_answer')}")
+                    else:
+                        ai_report_lines.append("  (Sin observaciones situacionales registradas)")
+                    ai_report_lines.append("----------------------------------------------------------------------")
+                    ai_report_lines.append("HISTORIAL DE DIAGNÓSTICOS IA GEMINI:")
+                    if ai_hist:
+                        for h in ai_hist:
+                            ai_report_lines.append(f"\n--- [{h.get('created_at')}] Modelo: {h.get('model')} | Sede: {h.get('location')} ({h.get('zone')}) ---")
+                            ai_report_lines.append(f"Consulta: {h.get('user_prompt')}")
+                            ai_report_lines.append(f"Dictamen:\n{h.get('ai_response')}\n")
+                    else:
+                        ai_report_lines.append("  (Sin dictámenes de IA registrados en este filtro)")
+                    zf.writestr(f"05_contexto_fisico_y_dictamen_ia{loc_suffix}{zone_suffix}{date_range_suffix}.txt", "\n".join(ai_report_lines).encode('utf-8'))
+
+                    # File 6: Resumen de Auditoría
                     stats = database.get_statistics(
                         location_filter=loc_filter or 'all',
                         zone_filter=zone_filter or 'all',
@@ -1019,6 +1098,13 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                         f"Zona Evaluada             : {zone if zone != 'all' else 'Todas las Zonas (Recorrido Completo)'}\n"
                         f"Rango de Fechas           : {date_range_display}\n"
                         "----------------------------------------------------------------------\n"
+                        "CONTEXTO FÍSICO DE LA ZONA:\n"
+                        f"  • Tipo de Recinto         : {ctx_profile.get('environment_type') or 'No especificado'}\n"
+                        f"  • Altura / Montaje APs    : {ctx_profile.get('ceiling_height') or 'No especificado'}\n"
+                        f"  • Obstáculos RF           : {ctx_profile.get('obstacles') or 'No especificado'}\n"
+                        f"  • Dinámica de Medición    : {ctx_profile.get('test_mode') or 'No especificado'}\n"
+                        f"  • Terminal Crítica        : {ctx_profile.get('client_device_type') or 'No especificado'}\n"
+                        "----------------------------------------------------------------------\n"
                         "MÉTRICAS CONSOLIDADAS:\n"
                         f"  • Muestras Totales de Telemetría: {stats.get('total_samples', 0)}\n"
                         f"  • Disponibilidad (Uptime)       : {stats.get('uptime_percentage', 100)}%\n"
@@ -1034,7 +1120,8 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                         "  2. 02_eventos_roaming_handoffs.csv             -> Registro de saltos entre APs\n"
                         "  3. 03_latencia_fases_http.csv                  -> Tiempos DNS, TCP, TLS, TTFB y Transfer\n"
                         "  4. 04_diagnostico_red_icmp_traceroute.csv      -> Pruebas multi-ping y saltos traceroute\n"
-                        "  5. 00_resumen_auditoria.txt                    -> Ficha técnica del informe\n"
+                        "  5. 05_contexto_fisico_y_dictamen_ia.txt        -> Ficha física del sitio y análisis IA\n"
+                        "  6. 00_resumen_auditoria.txt                    -> Ficha técnica del informe\n"
                         "======================================================================\n"
                     )
                     zf.writestr(f"00_resumen_auditoria{loc_suffix}{zone_suffix}{date_range_suffix}.txt", summary_text.encode('utf-8'))
@@ -1190,34 +1277,143 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json_response(res)
 
         elif parsed.path == '/api/config':
-            database.update_config(data)
+            # Filtrar claves sensibles o máscaras enviadas desde la UI
+            clean_data = dict(data)
+            clean_data.pop('gemini_api_key', None)
+            clean_data.pop('gemini_api_key_enc', None)
+            clean_data.pop('gemini_credentials', None)
+            if clean_data.get('auth_password') == '••••••••':
+                clean_data.pop('auth_password', None)
+            if clean_data.get('auth_token') == '••••••••':
+                clean_data.pop('auth_token', None)
+            database.update_config(clean_data)
             with state.lock:
-                if 'target_url' in data:
-                    state.target_url = data['target_url']
-                if 'location_name' in data:
-                    state.location = data['location_name']
-                if 'current_zone' in data:
-                    state.zone = data['current_zone']
-                if 'active_preset' in data:
-                    state.active_preset = data['active_preset']
-                if 'probe_interval_seconds' in data:
+                if 'target_url' in clean_data:
+                    state.target_url = clean_data['target_url']
+                if 'location_name' in clean_data:
+                    state.location = clean_data['location_name']
+                if 'current_zone' in clean_data:
+                    state.zone = clean_data['current_zone']
+                if 'active_preset' in clean_data:
+                    state.active_preset = clean_data['active_preset']
+                if 'probe_interval_seconds' in clean_data:
                     try:
-                        state.probe_interval_seconds = float(data['probe_interval_seconds'])
+                        state.probe_interval_seconds = float(clean_data['probe_interval_seconds'])
                     except:
                         pass
-                if 'probe_timeout_seconds' in data:
+                if 'probe_timeout_seconds' in clean_data:
                     try:
-                        state.probe_timeout_seconds = float(data['probe_timeout_seconds'])
+                        state.probe_timeout_seconds = float(clean_data['probe_timeout_seconds'])
                     except:
                         pass
-                if 'auto_probe_enabled' in data:
-                    state.auto_probe_enabled = (str(data['auto_probe_enabled']) in ('1', 'true', 'True'))
-                if 'capture_enabled' in data:
-                    state.capture_enabled = (str(data['capture_enabled']) in ('1', 'true', 'True'))
-                if 'verify_ssl' in data:
-                    state.verify_ssl = (str(data['verify_ssl']) in ('1', 'true', 'True'))
+                if 'auto_probe_enabled' in clean_data:
+                    state.auto_probe_enabled = (str(clean_data['auto_probe_enabled']) in ('1', 'true', 'True'))
+                if 'capture_enabled' in clean_data:
+                    state.capture_enabled = (str(clean_data['capture_enabled']) in ('1', 'true', 'True'))
+                if 'verify_ssl' in clean_data:
+                    state.verify_ssl = (str(clean_data['verify_ssl']) in ('1', 'true', 'True'))
 
-            self.send_json_response({"status": "success", "config": database.get_config()})
+            cfg = database.get_config()
+            safe_cfg = dict(cfg)
+            safe_cfg.pop('gemini_api_key_enc', None)
+            safe_cfg['gemini_credentials'] = secrets_manager.get_credentials_status(
+                cfg.get('gemini_api_key_enc', ''),
+                cfg.get('gemini_model', 'gemini-3.8-flash')
+            )
+            self.send_json_response({"status": "success", "config": safe_cfg})
+
+        elif parsed.path == '/api/agent/credentials':
+            action = str(data.get('action', 'save')).lower()
+            model_sel = str(data.get('model') or 'gemini-3.8-flash').strip()
+            if model_sel in ALLOWED_MODELS:
+                database.set_config("gemini_model", model_sel)
+
+            if action == 'clear':
+                database.set_config("gemini_api_key_enc", "")
+                secrets_manager.write_dotenv_value("GEMINI_API_KEY", "")
+                cfg = database.get_config()
+                status_obj = secrets_manager.get_credentials_status(
+                    cfg.get('gemini_api_key_enc', ''),
+                    cfg.get('gemini_model', 'gemini-3.8-flash')
+                )
+                self.send_json_response({
+                    "status": "success",
+                    "message": "Credenciales locales eliminadas de .env y SQLite.",
+                    "credentials": status_obj
+                })
+                return
+
+            raw_key = str(data.get('api_key', '')).strip()
+            storage_target = str(data.get('storage', 'dotenv')).lower()  # 'dotenv' | 'db'
+            if raw_key and '••' not in raw_key:
+                if storage_target == 'dotenv':
+                    secrets_manager.write_dotenv_value("GEMINI_API_KEY", raw_key)
+                enc_val = secrets_manager.encrypt_local_secret(raw_key)
+                database.set_config("gemini_api_key_enc", enc_val)
+
+            cfg = database.get_config()
+            status_obj = secrets_manager.get_credentials_status(
+                cfg.get('gemini_api_key_enc', ''),
+                cfg.get('gemini_model', 'gemini-3.8-flash')
+            )
+            self.send_json_response({
+                "status": "success",
+                "message": "Configuración de Gemini actualizada de forma segura.",
+                "credentials": status_obj
+            })
+
+        elif parsed.path == '/api/zone-context':
+            payload = dict(data)
+            if not payload.get('location'):
+                payload['location'] = state.location
+            if payload.get('zone') is None:
+                payload['zone'] = state.zone
+            saved_profile = database.save_zone_context_profile(payload)
+            self.send_json_response({
+                "status": "success",
+                "profile": saved_profile,
+                "questions": agent_runtime.generate_situational_questions().get("questions", [])
+            })
+
+        elif parsed.path == '/api/agent/annotate':
+            payload = dict(data)
+            if not payload.get('location'):
+                payload['location'] = state.location
+            if payload.get('zone') is None:
+                payload['zone'] = state.zone
+            payload['telemetry_snapshot'] = self.get_status_data()
+            saved_ann = database.save_agent_annotation(payload)
+            self.send_json_response({
+                "status": "success",
+                "annotation": saved_ann,
+                "annotations": database.get_agent_annotations(location_filter=payload['location'], zone_filter=payload['zone'], limit=15)
+            })
+
+        elif parsed.path in ('/api/agent/chat', '/api/agent/quick-audit'):
+            user_prompt = str(data.get('prompt', '')).strip()
+            mode = str(data.get('mode', 'quick_audit' if parsed.path.endswith('quick-audit') else 'chat'))
+            model_override = data.get('model')
+            prev_id = data.get('previous_interaction_id') or None
+            if not user_prompt:
+                user_prompt = (
+                    "Realiza una auditoría integral en tiempo real de la captura actual en esta Sede y Zona. "
+                    "Evalúa Capa 1/2 (RF, canal, vecinos, Roaming), Capa 3/4 (Gateway, DNS, ICMP) y Capa 7 (Fases HTTP/TTFB), "
+                    "cruzándolo con las condiciones físicas del espacio reportadas. Determina la causa raíz y acciones recomendadas."
+                )
+            try:
+                res = agent_runtime.run_diagnosis_interaction(
+                    user_prompt=user_prompt,
+                    mode=mode,
+                    model_override=model_override,
+                    previous_interaction_id=prev_id,
+                    include_full_snapshot=True
+                )
+                self.send_json_response(res)
+            except Exception as e:
+                self.send_json_response({
+                    "status": "error",
+                    "message": str(e)
+                }, status=400)
 
         elif parsed.path in ('/api/capture/toggle', '/api/auto-probe/toggle'):
             with state.lock:
@@ -1404,9 +1600,9 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Endpoint no encontrado")
 
-    def send_json_response(self, data):
+    def send_json_response(self, data, status=200):
         content = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        self.send_response(200)
+        self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(content)))
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -1525,6 +1721,41 @@ Ejemplos de uso:
     
     global state
     state = WiFiState(interface=args.interface)
+    agent_runtime.bind_providers(
+        state_provider=lambda: {
+            "location": state.location,
+            "zone": state.zone,
+            "ssid": state.current_ssid or "Desconectado",
+            "bssid": state.current_bssid or "No conectado",
+            "ap_name": state.ap_name,
+            "vendor_name": state.vendor_name,
+            "signal_dbm": state.signal_dbm,
+            "signal_pct": state.signal_pct,
+            "channel": state.channel,
+            "band": state.band,
+            "frequency_mhz": state.frequency_mhz,
+            "tx_bitrate": state.tx_bitrate,
+            "rx_bitrate": state.rx_bitrate,
+            "ip_address": state.ip_address,
+            "gateway_ip": state.gateway_ip,
+            "ping_ms": state.ping_latency_ms,
+            "roaming_verdict": f"AP actual: {state.ap_name or state.current_bssid}",
+            "same_ssid_aps_count": len([ap for ap in state.candidate_aps if ap.get('is_same_ssid')]),
+            "total_neighbor_aps": len(state.candidate_aps),
+            "target_url": state.target_url,
+            "app_latency_ms": state.app_latency_ms,
+            "app_cold_total_ms": state.app_cold_total_ms,
+            "app_dns_ms": state.app_dns_ms,
+            "app_tcp_ms": state.app_tcp_ms,
+            "app_tls_ms": state.app_tls_ms,
+            "app_ttfb_ms": state.app_ttfb_ms,
+            "app_transfer_ms": state.app_transfer_ms,
+            "app_status_code": state.app_status_code,
+            "app_is_error": state.app_is_error,
+            "app_error_message": state.app_error_message,
+        },
+        scan_provider=lambda: list(state.candidate_aps)
+    )
     port = args.port
     
     try:
