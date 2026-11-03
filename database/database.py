@@ -521,65 +521,82 @@ def get_http_probe_history(
     """Retrieves recent HTTP latency probe tests."""
     with get_connection() as conn:
         cursor = conn.cursor()
-        query = "SELECT * FROM http_probe_history WHERE 1=1"
-        params = []
-        if location_filter and location_filter != 'all':
-            query += " AND location = ?"
-            params.append(location_filter)
-        if zone_filter and zone_filter != 'all':
-            query += " AND zone = ?"
-            params.append(zone_filter)
         start_ts, end_ts = parse_date_range(start_date, end_date)
-        if start_ts is not None:
-            query += " AND timestamp >= ?"
-            params.append(start_ts)
-        if end_ts is not None:
-            query += " AND timestamp < ?"
-            params.append(end_ts)
-        query += " ORDER BY id DESC LIMIT ?"
-        params.append(limit)
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
 
-        result = []
-        for r in rows:
-            d = dict(r)
-            dt = datetime.datetime.fromtimestamp(d['timestamp'])
-            d['time'] = dt.strftime("%H:%M:%S")
-            d['date'] = dt.strftime("%Y-%m-%d")
-            result.append(d)
+        def _query_probes(loc_f: Optional[str], zone_f: Optional[str]) -> List[Dict[str, Any]]:
+            q = "SELECT * FROM http_probe_history WHERE 1=1"
+            p: List[Any] = []
+            if loc_f and loc_f not in ('all', ''):
+                q += " AND location = ?"
+                p.append(loc_f)
+            if zone_f and zone_f not in ('all', ''):
+                q += " AND zone = ?"
+                p.append(zone_f)
+            if start_ts is not None:
+                q += " AND timestamp >= ?"
+                p.append(start_ts)
+            if end_ts is not None:
+                q += " AND timestamp < ?"
+                p.append(end_ts)
+            q += " ORDER BY id DESC LIMIT ?"
+            p.append(limit)
+            cursor.execute(q, p)
+            out = []
+            for r in cursor.fetchall():
+                d = dict(r)
+                dt = datetime.datetime.fromtimestamp(d['timestamp'])
+                d['time'] = dt.strftime("%H:%M:%S")
+                d['date'] = dt.strftime("%Y-%m-%d")
+                out.append(d)
+            return out
 
-        # Fallback to distinct samples from telemetry_samples if http_probe_history is empty
-        if len(result) == 0:
-            query_fallback = """
+        def _query_samples_fallback(loc_f: Optional[str], zone_f: Optional[str]) -> List[Dict[str, Any]]:
+            qf = """
                 SELECT id, timestamp, created_at, location, zone, bssid, ap_name, signal_dbm,
                        target_url, dns_ms, tcp_ms, tls_ms, ttfb_ms, transfer_ms,
                        total_ms, cold_total_ms, status_code, is_error, error_message, response_size_bytes
                 FROM telemetry_samples
                 WHERE total_ms > 0
             """
-            params_fallback = []
-            if location_filter and location_filter != 'all':
-                query_fallback += " AND location = ?"
-                params_fallback.append(location_filter)
-            if zone_filter and zone_filter != 'all':
-                query_fallback += " AND zone = ?"
-                params_fallback.append(zone_filter)
+            pf: List[Any] = []
+            if loc_f and loc_f not in ('all', ''):
+                qf += " AND location = ?"
+                pf.append(loc_f)
+            if zone_f and zone_f not in ('all', ''):
+                qf += " AND zone = ?"
+                pf.append(zone_f)
             if start_ts is not None:
-                query_fallback += " AND timestamp >= ?"
-                params_fallback.append(start_ts)
+                qf += " AND timestamp >= ?"
+                pf.append(start_ts)
             if end_ts is not None:
-                query_fallback += " AND timestamp < ?"
-                params_fallback.append(end_ts)
-            query_fallback += " ORDER BY id DESC LIMIT ?"
-            params_fallback.append(limit)
-            cursor.execute(query_fallback, params_fallback)
+                qf += " AND timestamp < ?"
+                pf.append(end_ts)
+            qf += " ORDER BY id DESC LIMIT ?"
+            pf.append(limit)
+            cursor.execute(qf, pf)
+            out = []
             for r in cursor.fetchall():
                 d = dict(r)
                 dt = datetime.datetime.fromtimestamp(d['timestamp'])
                 d['time'] = dt.strftime("%H:%M:%S")
                 d['date'] = dt.strftime("%Y-%m-%d")
-                result.append(d)
+                out.append(d)
+            return out
+
+        # 1. Exact (location, zone) match in http_probe_history
+        result = _query_probes(location_filter, zone_filter)
+
+        # 2. Exact (location, zone) match in telemetry_samples
+        if not result:
+            result = _query_samples_fallback(location_filter, zone_filter)
+
+        # 3. Same location (any zone) if current zone was just switched and has no probes yet
+        if not result and location_filter and location_filter not in ('all', '') and zone_filter not in ('all', '', None):
+            result = _query_probes(location_filter, 'all') or _query_samples_fallback(location_filter, 'all')
+
+        # 4. Global recent probes if current location was just switched and has no probes yet
+        if not result and (location_filter not in ('all', '', None) or zone_filter not in ('all', '', None)):
+            result = _query_probes('all', 'all') or _query_samples_fallback('all', 'all')
 
         return result
 

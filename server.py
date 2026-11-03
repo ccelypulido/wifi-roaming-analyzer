@@ -8,6 +8,7 @@ import subprocess
 import threading
 import time
 import sys
+import socket
 import argparse
 import webbrowser
 import io
@@ -348,17 +349,48 @@ def calculate_rating(signal_dbm, ping_ms):
     else:
         return "Crítica", total_score, "#ef4444"
 
+_cached_win_net = {"ip": "Desconocida", "gw": "8.8.8.8", "time": 0.0}
+
 def get_local_ip_and_gateway(interface):
     if IS_WINDOWS:
-        gw = net_diag.detect_default_gateway() or "8.8.8.8"
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            return ip, gw
-        except Exception:
-            return "127.0.0.1", gw
+        gw = net_diag.get_cached_gateway(max_age_sec=15.0) or "8.8.8.8"
+        ip = None
+        # 1. Determinar la IP de la interfaz que enruta hacia la puerta de enlace activa (o internet)
+        for target_dest in (gw, "8.8.8.8", "1.1.1.1"):
+            if not target_dest or target_dest.startswith("127."):
+                continue
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect((target_dest, 80))
+                cand_ip = s.getsockname()[0]
+                s.close()
+                if cand_ip and not cand_ip.startswith("127.") and not cand_ip.startswith("169.254."):
+                    ip = cand_ip
+                    break
+            except Exception:
+                pass
+
+        # 2. Fallback por ipconfig si el socket UDP no pudo resolver (ej. red aislada sin ruta por defecto)
+        now = time.time()
+        if not ip:
+            if (now - _cached_win_net["time"] < 10.0) and _cached_win_net["ip"] not in ("Desconocida", "127.0.0.1"):
+                ip = _cached_win_net["ip"]
+            else:
+                try:
+                    out = run_windows_cmd(["ipconfig"], timeout=3)
+                    for m in re.finditer(r"(?:IPv4|Direcci[oó]n IPv4)[^:]*:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", out, re.IGNORECASE):
+                        cand = m.group(1).strip()
+                        if not cand.startswith("127.") and not cand.startswith("169.254."):
+                            ip = cand
+                            break
+                except Exception:
+                    pass
+
+        final_ip = ip or "127.0.0.1"
+        _cached_win_net["ip"] = final_ip
+        _cached_win_net["gw"] = gw
+        _cached_win_net["time"] = now
+        return final_ip, gw
 
     ip_addr = "Desconocida"
     gw_ip = "8.8.8.8"
@@ -756,8 +788,8 @@ def http_probe_loop():
                     curr_sig = state.signal_dbm
                 try:
                     database.save_http_probe(res, location=curr_loc, zone=curr_zone, bssid=curr_bssid, ap_name=curr_ap, signal_dbm=curr_sig)
-                except Exception:
-                    pass
+                except Exception as db_err:
+                    sys.stderr.write(f"[WARN] Error guardando http_probe_history: {db_err}\n")
         except Exception as e:
             pass
 
@@ -965,6 +997,31 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
             loc = qs.get('location', ['all'])[0]
             zone = qs.get('zone', ['all'])[0]
             records = database.get_http_probe_history(limit=limit, location_filter=loc, zone_filter=zone)
+            if not records and state.last_probe_time > 0:
+                dt = datetime.datetime.fromtimestamp(state.last_probe_time)
+                records = [{
+                    "id": 1,
+                    "timestamp": state.last_probe_time,
+                    "created_at": dt.isoformat(),
+                    "time": dt.strftime("%H:%M:%S"),
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "location": state.location,
+                    "zone": state.zone,
+                    "bssid": state.current_bssid or "",
+                    "ap_name": state.ap_name or "",
+                    "signal_dbm": state.signal_dbm,
+                    "target_url": state.target_url,
+                    "dns_ms": state.app_dns_ms,
+                    "tcp_ms": state.app_tcp_ms,
+                    "tls_ms": state.app_tls_ms,
+                    "ttfb_ms": state.app_ttfb_ms,
+                    "transfer_ms": state.app_transfer_ms,
+                    "total_ms": state.app_latency_ms or 0.0,
+                    "cold_total_ms": state.app_cold_total_ms or 0.0,
+                    "status_code": state.app_status_code,
+                    "is_error": 1 if state.app_is_error else 0,
+                    "error_message": state.app_error_message or ""
+                }]
             self.send_json_response({"records": records, "count": len(records)})
         elif parsed.path == '/api/net-diag':
             history = database.get_net_diag_history(limit=10)
