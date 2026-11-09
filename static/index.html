@@ -19,7 +19,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=4.2.2">
+  <link rel="stylesheet" href="styles.css?v=4.2.3">
 </head>
 
 <body>
@@ -1173,9 +1173,50 @@
               <div class="card-header" style="margin-bottom: 0.75rem;">
                 <div class="card-title">
                   <i class="fa-solid fa-warehouse" style="color: var(--accent-cyan);"></i>
-                  <span>Ficha del Espacio Físico (Zona Actual)</span>
+                  <span id="ai-ctx-card-title">Ficha del Espacio Físico (Recorrido)</span>
                 </div>
                 <span id="ai-profile-saved-badge" class="badge" style="font-size: 0.7rem;">Sin configurar</span>
+              </div>
+
+              <!-- Walk-Test Scope & Multi-Zone Selector -->
+              <div class="walk-test-scope-banner" style="margin-bottom: 0.85rem; padding: 0.75rem 0.9rem; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.45rem;">
+                  <span style="font-size: 0.82rem; font-weight: 700; color: #4338ca; display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-person-walking"></i> Alcance del Perfil Físico:
+                  </span>
+                  <div class="scope-mode-toggle" style="display: flex; gap: 0.35rem;">
+                    <label class="scope-mode-label active" id="lbl-scope-all">
+                      <input type="radio" name="ctx-scope-mode" id="ctx-scope-all" value="all" checked>
+                      <strong>Todo el Recorrido (Toda la Sede)</strong>
+                    </label>
+                    <label class="scope-mode-label" id="lbl-scope-zone">
+                      <input type="radio" name="ctx-scope-mode" id="ctx-scope-zone" value="zone">
+                      <span>Solo esta Zona</span>
+                    </label>
+                  </div>
+                </div>
+                <div style="font-size: 0.74rem; color: #475569; line-height: 1.35;">
+                  <i class="fa-solid fa-circle-info" style="color: #6366f1;"></i>
+                  Al elegir <strong>Todo el Recorrido</strong>, este perfil se hereda automáticamente a todas las zonas de la sede durante el Walk-Test, evitando reconfigurar zona por zona.
+                </div>
+              </div>
+
+              <!-- Quick 1-Click Templates -->
+              <div style="margin-bottom: 0.85rem;">
+                <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.35rem;">
+                  <i class="fa-solid fa-wand-magic-sparkles" style="color: #8b5cf6;"></i> Plantillas rápidas de 1 clic:
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                  <button type="button" class="btn-preset-tpl" data-tpl="retail">
+                    🏬 Tienda / Retail POS
+                  </button>
+                  <button type="button" class="btn-preset-tpl" data-tpl="bodega">
+                    🏭 Bodega / WMS Racks
+                  </button>
+                  <button type="button" class="btn-preset-tpl" data-tpl="oficina">
+                    🏢 Oficina / Corporativo
+                  </button>
+                </div>
               </div>
 
               <div class="ctx-form-grid">
@@ -1250,7 +1291,7 @@
 
                 <div class="ctx-span-full" style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
                   <button type="button" id="btn-save-zone-context" class="btn-primary" style="flex: 1; font-size: 0.82rem;">
-                    <i class="fa-solid fa-floppy-disk"></i> Guardar Contexto de Zona
+                    <i class="fa-solid fa-floppy-disk"></i> <span id="lbl-btn-save-ctx">Guardar Recorrido (Toda la Sede)</span>
                   </button>
                   <button type="button" id="btn-save-and-audit-context" class="btn-secondary" style="font-size: 0.82rem; border-color: rgba(139, 92, 246, 0.4); color: #6d28d9;" title="Guardar perfil físico y lanzar auditoría con Gemini">
                     <i class="fa-solid fa-bolt"></i> Guardar y Analizar
@@ -2071,7 +2112,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=4.2.2"></script>
+  <script src="app.js?v=4.2.3"></script>
 </body>
 
 </html>

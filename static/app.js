@@ -3880,6 +3880,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (profile.configured) {
         const parts = [
+          profile.is_inherited ? '🚶 Recorrido Heredado de Sede' : '',
           profile.environment_type,
           profile.ceiling_height ? `APs: ${profile.ceiling_height}` : '',
           profile.obstacles ? `Obstáculos: ${profile.obstacles}` : '',
@@ -3887,7 +3888,13 @@ document.addEventListener('DOMContentLoaded', () => {
           profile.client_device_type ? `Terminal: ${profile.client_device_type}` : ''
         ].filter(Boolean);
         if (summaryPillsEl) {
-          summaryPillsEl.innerHTML = parts.map(p => `<span class="badge" style="margin-right:0.35rem; background:#ffffff; border:1px solid #cbd5e1;">${escapeHtml(p)}</span>`).join('');
+          summaryPillsEl.innerHTML = parts.map(p => {
+            const isHeredado = p.includes('Heredado');
+            const bg = isHeredado ? 'rgba(99, 102, 241, 0.12)' : '#ffffff';
+            const color = isHeredado ? '#4338ca' : 'inherit';
+            const border = isHeredado ? '1px solid rgba(99, 102, 241, 0.3)' : '1px solid #cbd5e1';
+            return `<span class="badge" style="margin-right:0.35rem; background:${bg}; color:${color}; border:${border}; font-weight:600;">${escapeHtml(p)}</span>`;
+          }).join('');
         }
 
         // Calculate completeness
@@ -3903,12 +3910,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const pct = Math.round((filledCount / totalFields) * 100);
 
         if (savedBadge) {
-          savedBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Calibrado ${pct}%`;
-          savedBadge.style.background = pct >= 70 ? 'rgba(16, 185, 129, 0.14)' : 'rgba(139, 92, 246, 0.14)';
-          savedBadge.style.color = pct >= 70 ? '#059669' : '#6d28d9';
+          if (profile.is_inherited) {
+            savedBadge.innerHTML = `<i class="fa-solid fa-person-walking"></i> Recorrido Sede ${pct}%`;
+            savedBadge.title = `Heredado de: ${profile.inherited_from || 'Perfil de Recorrido Maestro de la Sede'}`;
+            savedBadge.style.background = 'rgba(99, 102, 241, 0.14)';
+            savedBadge.style.color = '#4338ca';
+          } else {
+            savedBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Calibrado ${pct}%`;
+            savedBadge.title = 'Perfil calibrado específicamente para esta zona';
+            savedBadge.style.background = pct >= 70 ? 'rgba(16, 185, 129, 0.14)' : 'rgba(139, 92, 246, 0.14)';
+            savedBadge.style.color = pct >= 70 ? '#059669' : '#6d28d9';
+          }
         }
         if (lblZoneCtxStatus) {
-          lblZoneCtxStatus.textContent = pct >= 70 ? `Contexto ${pct}% ✓` : 'Contexto Físico';
+          lblZoneCtxStatus.textContent = profile.is_inherited ? `Recorrido ${pct}% ✓` : (pct >= 70 ? `Contexto ${pct}% ✓` : 'Contexto Físico');
         }
       } else {
         if (summaryPillsEl) {
@@ -4092,12 +4107,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const PHYSICAL_TEMPLATES = {
+    retail: {
+      env: 'Piso de Venta / Tienda Retail',
+      ceiling: 'Techo bajo (< 3.5 m) - Omnidireccional',
+      obstacles: 'Góndolas comerciales, Clientes/público, Vidrios',
+      mode: 'Caminando a paso normal (Walk-Test por pasillos)',
+      device: 'Caja Registradora POS / Datáfono Inalámbrico',
+      intf: 'Datáfonos Bluetooth, alta concurrencia de clientes, microondas cafetería',
+      desc: 'Recorrido por pasillos de tienda y cajas de cobro. Verificando persistencia de transacciones POS y roaming entre APs del techo comercial.'
+    },
+    bodega: {
+      env: 'Bodega / Centro de Distribución (Estanterías altas)',
+      ceiling: 'Gran altura industrial (7 a 12 m) - Techo/Cercha',
+      obstacles: 'Racks metálicos llenos, Puerta cortafuego, Muros de concreto',
+      mode: 'Desplazamiento rápido (Montacargas / Estibadora eléctrica)',
+      device: 'Terminal Portátil PDA / Pistola RF (Zebra / Honeywell - WMS)',
+      intf: 'Tráfico de montacargas, densidad RF industrial, reflexión en estanterías metálicas',
+      desc: 'Walk-test y test en estibadora por pasillos de estantería pesada. Validación de desconexión de sesiones telnet/WMS y handoffs lentos.'
+    },
+    oficina: {
+      env: 'Oficina Abierta / Corporativo',
+      ceiling: 'Techo bajo (< 3.5 m) - Omnidireccional',
+      obstacles: 'Muros de drywall, Divisiones de vidrio, Mobiliario de oficina',
+      mode: 'Caminando a paso normal (Walk-Test por pasillos)',
+      device: 'Laptop Corporativa (ERP / Videollamadas / Office)',
+      intf: 'Redes vecinas 2.4/5GHz, concurrencia de laptops y smartphones corporativos',
+      desc: 'Recorrido entre salas de reuniones y puestos operativos. Verificando jitter y micro-cortes en llamadas Teams/Zoom y roaming entre APs de pasillo.'
+    }
+  };
+
+  function applyPhysicalContextTemplate(tplKey) {
+    const tpl = PHYSICAL_TEMPLATES[tplKey];
+    if (!tpl) return;
+    const envEl = document.getElementById('ctx-env-type');
+    const ceilEl = document.getElementById('ctx-ceiling-height');
+    const obsEl = document.getElementById('ctx-obstacles');
+    const modeEl = document.getElementById('ctx-test-mode');
+    const devEl = document.getElementById('ctx-device-type');
+    const intfEl = document.getElementById('ctx-interference');
+    const descEl = document.getElementById('ctx-custom-desc');
+
+    if (envEl) envEl.value = tpl.env;
+    if (ceilEl) ceilEl.value = tpl.ceiling;
+    if (obsEl) obsEl.value = tpl.obstacles;
+    if (modeEl) modeEl.value = tpl.mode;
+    if (devEl) devEl.value = tpl.device;
+    if (intfEl) intfEl.value = tpl.intf;
+    if (descEl) descEl.value = tpl.desc;
+
+    // Visual feedback
+    const savedBadge = document.getElementById('ai-profile-saved-badge');
+    if (savedBadge) {
+      savedBadge.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Plantilla cargada (100%)';
+      savedBadge.style.background = 'rgba(139, 92, 246, 0.16)';
+      savedBadge.style.color = '#6d28d9';
+    }
+  }
+
   async function saveZonePhysicalContextForm(andAudit = false) {
     const loc = selLocation ? selLocation.value : '';
     const zone = selZone ? selZone.value : '';
+    const isScopeAll = document.getElementById('ctx-scope-all')?.checked ?? true;
     const payload = {
       location: loc,
       zone: zone,
+      apply_to_all_zones: isScopeAll,
       environment_type: (document.getElementById('ctx-env-type') || {}).value || '',
       ceiling_height: (document.getElementById('ctx-ceiling-height') || {}).value || '',
       obstacles: (document.getElementById('ctx-obstacles') || {}).value || '',
@@ -4116,19 +4191,47 @@ document.addEventListener('DOMContentLoaded', () => {
     await loadZonePhysicalContext();
 
     if (andAudit) {
+      const scopeDesc = isScopeAll ? `para todo el recorrido en "${loc}"` : `de la zona "${loc} / ${zone}"`;
       await sendAiPrompt(
-        `He actualizado la ficha física de la zona "${loc} / ${zone}". Con este contexto físico y la telemetría en tiempo real que se está capturando ahora mismo, realiza un diagnóstico completo y dime qué está afectando o qué optimizar.`,
+        `He actualizado la ficha física de entorno ${scopeDesc}. Con este contexto físico y la telemetría en tiempo real que se está capturando ahora mismo, realiza un diagnóstico completo y dime qué está afectando o qué optimizar.`,
         'context_calibrated_audit'
       );
     } else if (data.status === 'success') {
       const savedBadge = document.getElementById('ai-profile-saved-badge');
       if (savedBadge) {
-        savedBadge.textContent = '¡Guardado!';
+        savedBadge.textContent = isScopeAll ? '¡Recorrido Guardado!' : '¡Zona Guardada!';
       }
     }
   }
 
   function initAiAgentEvents() {
+    // Walk-Test scope toggle
+    const radioScopeAll = document.getElementById('ctx-scope-all');
+    const radioScopeZone = document.getElementById('ctx-scope-zone');
+    const lblScopeAll = document.getElementById('lbl-scope-all');
+    const lblScopeZone = document.getElementById('lbl-scope-zone');
+    const lblBtnSaveCtx = document.getElementById('lbl-btn-save-ctx');
+
+    function updateScopeRadioUI() {
+      const isAll = radioScopeAll?.checked ?? true;
+      if (lblScopeAll) lblScopeAll.classList.toggle('active', isAll);
+      if (lblScopeZone) lblScopeZone.classList.toggle('active', !isAll);
+      if (lblBtnSaveCtx) {
+        lblBtnSaveCtx.textContent = isAll ? 'Guardar Recorrido (Toda la Sede)' : 'Guardar Solo Zona Actual';
+      }
+    }
+
+    if (radioScopeAll) radioScopeAll.addEventListener('change', updateScopeRadioUI);
+    if (radioScopeZone) radioScopeZone.addEventListener('change', updateScopeRadioUI);
+
+    // 1-Click Templates
+    document.querySelectorAll('.btn-preset-tpl').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tplKey = btn.dataset.tpl;
+        if (tplKey) applyPhysicalContextTemplate(tplKey);
+      });
+    });
+
     // Quick obstacle chips
     document.querySelectorAll('.chip-option').forEach(chip => {
       chip.addEventListener('click', () => {

@@ -1268,22 +1268,43 @@ def clear_history(scope: str = 'all'):
 # ==============================================================================
 
 def get_zone_context_profile(location: Optional[str] = None, zone: Optional[str] = None) -> Dict[str, Any]:
-    """Retrieves the physical environment profile for a specific (location, zone)."""
+    """Retrieves the physical environment profile for a specific (location, zone).
+    Supports hierarchical inheritance: if a specific zone has no profile configured,
+    it automatically falls back to the Sede Master Walk-Test profile (zone = '__ALL__' or zone = '').
+    """
     cfg = get_config()
     loc = (location or cfg.get("location_name", "Tienda_Principal")).strip()
     zn = (zone if zone is not None else cfg.get("current_zone", "")).strip()
     with get_connection() as conn:
         cursor = conn.cursor()
+        # 1. Try exact match for (location, zone)
         cursor.execute(
             "SELECT * FROM zone_context_profiles WHERE location = ? AND zone = ?",
             (loc, zn),
         )
         row = cursor.fetchone()
+
+        # 2. If no exact match or zone profile is empty, try Sede Master Profile (__ALL__ or '')
+        is_inherited = False
+        inherited_from = ""
+        if not row and zn not in ("", "__ALL__", "Todas las Zonas (Recorrido)"):
+            cursor.execute(
+                "SELECT * FROM zone_context_profiles WHERE location = ? AND zone IN ('__ALL__', '') ORDER BY (zone = '__ALL__') DESC LIMIT 1",
+                (loc,),
+            )
+            fallback_row = cursor.fetchone()
+            if fallback_row:
+                row = fallback_row
+                is_inherited = True
+                inherited_from = f"Perfil Maestro de Recorrido ({loc})"
+
         if not row:
             return {
                 "location": loc,
                 "zone": zn,
                 "configured": False,
+                "is_inherited": False,
+                "inherited_from": "",
                 "environment_type": "",
                 "ceiling_height": "",
                 "obstacles": "",
@@ -1303,14 +1324,20 @@ def get_zone_context_profile(location: Optional[str] = None, zone: Optional[str]
             or data.get("client_device_type")
             or data.get("custom_description")
         )
+        data["is_inherited"] = is_inherited
+        data["inherited_from"] = inherited_from
         return data
 
 
 def save_zone_context_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
-    """Saves or updates the physical environment context profile for a (location, zone)."""
+    """Saves or updates the physical environment context profile for a (location, zone).
+    If apply_to_all_zones is True, saves it as the Sede Master Walk-Test Profile ('__ALL__')
+    and propagates it to all zones within the location.
+    """
     cfg = get_config()
     loc = (profile.get("location") or cfg.get("location_name", "Tienda_Principal")).strip()
     zn = (profile.get("zone") if profile.get("zone") is not None else cfg.get("current_zone", "")).strip()
+    apply_to_all = bool(profile.get("apply_to_all_zones") or zn in ("__ALL__", "Todas las Zonas (Recorrido)", "all"))
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     env_type = str(profile.get("environment_type", "")).strip()
@@ -1330,32 +1357,50 @@ def save_zone_context_profile(profile: Dict[str, Any]) -> Dict[str, Any]:
     expected_users = str(profile.get("expected_users", "")).strip()
     custom_desc = str(profile.get("custom_description", "")).strip()
 
+    target_zones = [zn]
+    if apply_to_all:
+        target_zones = ["__ALL__", ""]
+        if zn and zn not in target_zones:
+            target_zones.append(zn)
+        # Also include all registered zones for this location in sedes_zonas.json
+        try:
+            catalogs = get_all_sedes_zonas()
+            for s in catalogs:
+                if s.get("name") == loc:
+                    for z in s.get("zones", []):
+                        z_name = z if isinstance(z, str) else z.get("name")
+                        if z_name and z_name not in target_zones:
+                            target_zones.append(z_name)
+        except Exception:
+            pass
+
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO zone_context_profiles (
-                location, zone, environment_type, ceiling_height, obstacles,
-                test_mode, client_device_type, interference_notes, expected_users,
-                custom_description, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(location, zone) DO UPDATE SET
-                environment_type = excluded.environment_type,
-                ceiling_height = excluded.ceiling_height,
-                obstacles = excluded.obstacles,
-                test_mode = excluded.test_mode,
-                client_device_type = excluded.client_device_type,
-                interference_notes = excluded.interference_notes,
-                expected_users = excluded.expected_users,
-                custom_description = excluded.custom_description,
-                updated_at = excluded.updated_at
-            """,
-            (
-                loc, zn, env_type, ceiling, obstacles,
-                test_mode, device_type, interference, expected_users,
-                custom_desc, now_iso,
-            ),
-        )
+        for target_zn in target_zones:
+            cursor.execute(
+                """
+                INSERT INTO zone_context_profiles (
+                    location, zone, environment_type, ceiling_height, obstacles,
+                    test_mode, client_device_type, interference_notes, expected_users,
+                    custom_description, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(location, zone) DO UPDATE SET
+                    environment_type = excluded.environment_type,
+                    ceiling_height = excluded.ceiling_height,
+                    obstacles = excluded.obstacles,
+                    test_mode = excluded.test_mode,
+                    client_device_type = excluded.client_device_type,
+                    interference_notes = excluded.interference_notes,
+                    expected_users = excluded.expected_users,
+                    custom_description = excluded.custom_description,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    loc, target_zn, env_type, ceiling, obstacles,
+                    test_mode, device_type, interference, expected_users,
+                    custom_desc, now_iso,
+                ),
+            )
         conn.commit()
     return get_zone_context_profile(loc, zn)
 
