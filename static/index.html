@@ -19,7 +19,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=4.2.0">
+  <link rel="stylesheet" href="styles.css?v=4.2.1">
 </head>
 
 <body>
@@ -151,16 +151,16 @@
           <button type="button" id="btn-header-location" class="badge badge-btn badge-location"
             title="Ubicación activa actual (Clic para gestionar Sedes y Zonas)">
             <i class="fa-solid fa-location-dot" style="color: var(--accent-cyan);"></i>
-            <span id="header-location-label" class="text-truncate" style="max-width: 185px;">Sede • Zona</span>
+            <span id="header-location-label" class="text-truncate" style="max-width: 140px;">Sede • Zona</span>
           </button>
           <div class="badge" title="SSID de la red conectada">
             <i class="fa-solid fa-wifi"></i>
-            <span id="header-ssid" class="text-truncate" style="max-width: 140px;">Conectando...</span>
+            <span id="header-ssid" class="text-truncate" style="max-width: 115px;">Conectando...</span>
           </div>
           <button type="button" id="btn-header-bssid" class="badge badge-btn"
             title="AP Conectado (Clic para asignar o editar nombre amigable)">
             <i class="fa-solid fa-tower-cell" style="color: var(--accent-cyan);"></i>
-            <span id="header-bssid" class="text-truncate" style="max-width: 165px;">--:--:--:--:--:--</span>
+            <span id="header-bssid" class="text-truncate" style="max-width: 130px;">--:--:--:--:--:--</span>
           </button>
           <div class="badge" title="Ping ICMP a la Puerta de Enlace Local">
             <i class="fa-solid fa-bolt"></i>
@@ -168,20 +168,20 @@
           </div>
           <div id="header-app-badge" class="badge" title="Latencia HTTP hacia la URL de prueba activa">
             <i class="fa-solid fa-globe"></i>
-            <span id="header-app-latency">HTTP: -- ms</span>
+            <span id="header-app-latency" class="text-truncate" style="max-width: 110px;">-- ms</span>
           </div>
           <div id="header-auth-badge" class="badge" title="Estado de Autenticación de Aplicación">
             <i class="fa-solid fa-shield-halved"></i>
             <span id="header-auth-status">Inactiva</span>
           </div>
-          <button type="button" id="btn-header-ai-copilot" class="badge badge-btn" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(79, 70, 229, 0.18)); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.4); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem;" title="Abrir Copiloto de Diagnóstico IA con Google Gemini & MCP">
-            <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 0.9rem;"></i>
+          <button type="button" id="btn-header-ai-copilot" class="badge badge-btn" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(79, 70, 229, 0.18)); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.4); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.28rem 0.55rem; font-size: 0.74rem;" title="Abrir Copiloto de Diagnóstico IA con Google Gemini & MCP">
+            <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 0.85rem;"></i>
             <span>Copiloto IA</span>
           </button>
           <button type="button" id="btn-header-help" class="badge badge-btn"
-            style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(14, 165, 233, 0.14)); color: var(--accent-cyan); border: 1px solid rgba(79, 70, 229, 0.32); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;"
+            style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.14), rgba(14, 165, 233, 0.14)); color: var(--accent-cyan); border: 1px solid rgba(79, 70, 229, 0.32); font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.32rem; padding: 0.28rem 0.52rem; font-size: 0.74rem;"
             title="Abrir Centro de Ayuda y Manuales (Manual Oficial y Guía Soporte Nivel 1)">
-            <i class="fa-solid fa-circle-question" style="font-size: 0.92rem;"></i>
+            <i class="fa-solid fa-circle-question" style="font-size: 0.88rem;"></i>
             <span>Ayuda</span>
           </button>
         </div>
@@ -2071,7 +2071,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=4.2.0"></script>
+  <script src="app.js?v=4.2.1"></script>
 </body>
 
 </html>

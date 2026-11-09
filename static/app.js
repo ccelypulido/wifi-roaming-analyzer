@@ -1148,16 +1148,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (data.app_latency_ms !== null && data.app_latency_ms !== undefined) {
       if (data.app_is_error) {
-        headerAppLatency.textContent = `HTTP: Fallo (${data.app_error_message || 'Error'})`;
+        headerAppLatency.textContent = `Fallo (${data.app_status_code || 'ERR'})`;
+        headerAppBadge.title = `Error HTTP: ${data.app_error_message || 'Fallo de conexión'}`;
         headerAppBadge.style.background = 'rgba(239, 68, 68, 0.15)';
         headerAppBadge.style.color = '#ef4444';
       } else {
-        headerAppLatency.textContent = `HTTP: ${data.app_latency_ms} ms (${data.app_status_code || 200})`;
+        headerAppLatency.textContent = `${data.app_latency_ms} ms`;
+        headerAppBadge.title = `Latencia HTTP activa: ${data.app_latency_ms} ms (Código HTTP ${data.app_status_code || 200})`;
         headerAppBadge.style.background = 'rgba(16, 185, 129, 0.15)';
         headerAppBadge.style.color = '#10b981';
       }
     } else {
-      headerAppLatency.textContent = 'HTTP: Sonda inactiva';
+      headerAppLatency.textContent = '-- ms';
+      headerAppBadge.title = 'Sonda HTTP inactiva o sin respuesta';
     }
 
     if (headerAuthStatus && headerAuthBadge) {
