@@ -48,13 +48,182 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- DOM Elements ---
   // Header badges
+  const btnHeaderLocation = document.getElementById('btn-header-location');
+  const headerLocationLabel = document.getElementById('header-location-label');
   const headerSsid = document.getElementById('header-ssid');
+  const btnHeaderBssid = document.getElementById('btn-header-bssid');
   const headerBssid = document.getElementById('header-bssid');
   const headerPing = document.getElementById('header-ping');
   const headerAppLatency = document.getElementById('header-app-latency');
   const headerAppBadge = document.getElementById('header-app-badge');
   const headerAuthBadge = document.getElementById('header-auth-badge');
   const headerAuthStatus = document.getElementById('header-auth-status');
+
+  // Toast & Custom Modal Elements
+  const toastContainer = document.getElementById('toast-container');
+  const customModalOverlay = document.getElementById('custom-modal-overlay');
+  const customModalTitle = document.getElementById('custom-modal-title');
+  const customModalBody = document.getElementById('custom-modal-body');
+  const customModalFooter = document.getElementById('custom-modal-footer');
+  const btnCloseCustomModal = document.getElementById('custom-modal-close') || document.getElementById('btn-close-custom-modal');
+
+  function showToast(message, type = 'info', duration = 3800) {
+    if (!toastContainer) return;
+    const iconMap = {
+      success: 'fa-circle-check',
+      warn: 'fa-triangle-exclamation',
+      error: 'fa-circle-xmark',
+      info: 'fa-circle-info'
+    };
+    const item = document.createElement('div');
+    item.className = `toast-item toast-${type}`;
+    item.innerHTML = `
+      <i class="fa-solid ${iconMap[type] || iconMap.info} toast-icon"></i>
+      <div style="flex: 1; white-space: pre-line;">${escapeHtml(message)}</div>
+      <button type="button" class="toast-close" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    const closeBtn = item.querySelector('.toast-close');
+    const removeToast = () => {
+      if (item.parentNode) item.parentNode.removeChild(item);
+    };
+    if (closeBtn) closeBtn.addEventListener('click', removeToast);
+    toastContainer.appendChild(item);
+    if (duration > 0) {
+      setTimeout(removeToast, duration);
+    }
+  }
+
+  function closeCustomModal() {
+    if (customModalOverlay) customModalOverlay.style.display = 'none';
+  }
+
+  if (btnCloseCustomModal) {
+    btnCloseCustomModal.addEventListener('click', closeCustomModal);
+  }
+  if (customModalOverlay) {
+    customModalOverlay.addEventListener('click', (e) => {
+      if (e.target === customModalOverlay) closeCustomModal();
+    });
+  }
+
+  function openCustomModal({ title, icon = 'fa-sliders', bodyHtml, confirmText = 'Guardar', cancelText = 'Cancelar', danger = false, onConfirm }) {
+    if (!customModalOverlay || !customModalTitle || !customModalBody || !customModalFooter) return;
+    customModalTitle.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${escapeHtml(title)}</span>`;
+    customModalBody.innerHTML = bodyHtml;
+    customModalFooter.innerHTML = `
+      <button type="button" class="btn-secondary" id="modal-btn-cancel" style="padding: 0.45rem 0.9rem; font-size: 0.82rem;">${escapeHtml(cancelText)}</button>
+      <button type="button" class="${danger ? 'btn-icon-danger' : 'btn-primary'}" id="modal-btn-confirm" style="padding: 0.45rem 1rem; font-size: 0.82rem; ${danger ? 'font-weight: 700;' : ''}">${escapeHtml(confirmText)}</button>
+    `;
+    customModalOverlay.style.display = 'flex';
+
+    const firstInput = customModalBody.querySelector('input, select, textarea');
+    if (firstInput) {
+      setTimeout(() => {
+        firstInput.focus();
+        if (typeof firstInput.select === 'function') firstInput.select();
+      }, 40);
+    }
+
+    const btnCancel = document.getElementById('modal-btn-cancel');
+    const btnConfirm = document.getElementById('modal-btn-confirm');
+    if (btnCancel) btnCancel.addEventListener('click', closeCustomModal);
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', async () => {
+        if (onConfirm) {
+          const shouldClose = await onConfirm();
+          if (shouldClose !== false) closeCustomModal();
+        } else {
+          closeCustomModal();
+        }
+      });
+    }
+    customModalBody.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && btnConfirm) {
+          ev.preventDefault();
+          btnConfirm.click();
+        }
+      });
+    });
+  }
+
+  window.openQuickNameApModal = function (bssid, currentName = '', currentLoc = '') {
+    const cleanBssid = (bssid || '').trim();
+    if (!cleanBssid || cleanBssid === '--:--:--:--:--:--') {
+      showToast('No hay un BSSID (MAC) válido seleccionado para etiquetar.', 'warn');
+      return;
+    }
+    const defaultLoc = currentLoc || (selLocation && selLocation.value ? `${selLocation.value.replace(/_/g, ' ')}${selZone && selZone.value ? ' - ' + selZone.value : ''}` : '');
+    openCustomModal({
+      title: 'Asignar Alias / Nombre al AP',
+      icon: 'fa-tag',
+      confirmText: 'Guardar Alias',
+      bodyHtml: `
+        <div class="form-group" style="margin-bottom: 0.4rem;">
+          <label class="form-label">Dirección MAC (BSSID)</label>
+          <input type="text" id="modal-ap-bssid" class="toolbar-input" value="${escapeHtml(cleanBssid)}" readonly style="width: 100%; font-family: monospace; background: #f1f5f9; color: var(--text-secondary);">
+        </div>
+        <div class="form-group" style="margin-bottom: 0.4rem;">
+          <label class="form-label">Nombre / Alias del AP (Controladora)</label>
+          <input type="text" id="modal-ap-name" class="toolbar-input" value="${escapeHtml(currentName === '(Sin alias)' || currentName === '(Sin alias registrado)' ? '' : currentName)}" placeholder="Ej: AP-Cajas-01, AP-Bodega-Norte" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Ubicación / Referencia Física (Opcional)</label>
+          <input type="text" id="modal-ap-loc" class="toolbar-input" value="${escapeHtml(defaultLoc)}" placeholder="Ej: Pasillo Central / Columna 4" style="width: 100%;">
+        </div>
+      `,
+      onConfirm: async () => {
+        const nameVal = (document.getElementById('modal-ap-name')?.value || '').trim();
+        const locVal = (document.getElementById('modal-ap-loc')?.value || '').trim();
+        if (!nameVal) {
+          showToast('Ingresa un nombre o alias para identificar el AP.', 'warn');
+          return false;
+        }
+        try {
+          const res = await fetch('/api/ap-names/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bssid: cleanBssid, name: nameVal, location: locVal })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
+            showToast(`AP ${cleanBssid} etiquetado como "${nameVal}"`, 'success');
+            fetchStatus();
+            loadApScanner();
+            loadRoamingHistory();
+            loadHttpPhasesHistory();
+            if (document.getElementById('tab-config')?.classList.contains('active')) {
+              loadConfigView();
+            }
+            return true;
+          } else {
+            showToast(data.message || 'No se pudo guardar el alias del AP.', 'error');
+            return false;
+          }
+        } catch (err) {
+          showToast('Error guardando alias del AP: ' + err, 'error');
+          return false;
+        }
+      }
+    });
+  };
+
+  function formatCompactBitrate(txRaw, rxRaw) {
+    const extractMbps = (val) => {
+      if (val === null || val === undefined) return '--';
+      const str = String(val).trim();
+      const m = str.match(/(\d+(?:\.\d+)?)\s*Mbit\/s/i) || str.match(/(\d+(?:\.\d+)?)\s*Mbps/i) || str.match(/^(\d+(?:\.\d+)?)$/);
+      if (m) return m[1];
+      return str.length > 12 ? str.substring(0, 12) + '…' : str;
+    };
+    const txMbps = extractMbps(txRaw);
+    const rxMbps = extractMbps(rxRaw);
+    const hasNumeric = /\d/.test(txMbps) || /\d/.test(rxMbps);
+    return {
+      shortText: hasNumeric ? `${txMbps} / ${rxMbps} Mbps` : `${txRaw || '--'} / ${rxRaw || '--'}`,
+      fullTooltip: `TX: ${txRaw || '--'} | RX: ${rxRaw || '--'}`
+    };
+  }
 
   // Capture Toggle Elements (Pause / Resume continuous data collection without stopping roaming detection)
   const btnToggleCapture = document.getElementById('btn-toggle-capture');
@@ -179,6 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const bandBadge = document.getElementById('band-badge');
   const infoSsid = document.getElementById('info-ssid');
   const infoApName = document.getElementById('info-ap-name');
+  const btnQuickEditCurrentAp = document.getElementById('btn-quick-edit-current-ap');
   const infoBssid = document.getElementById('info-bssid');
   const infoVendor = document.getElementById('info-vendor');
   const infoChanFreq = document.getElementById('info-chan-freq');
@@ -192,6 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const phaseTcpVal = document.getElementById('phase-tcp-val');
   const phaseTlsVal = document.getElementById('phase-tls-val');
   const phaseTtfbVal = document.getElementById('phase-ttfb-val');
+  const phaseTransVal = document.getElementById('phase-trans-val');
+  const barSegDns = document.getElementById('bar-seg-dns');
+  const barSegTcp = document.getElementById('bar-seg-tcp');
+  const barSegTls = document.getElementById('bar-seg-tls');
+  const barSegTtfb = document.getElementById('bar-seg-ttfb');
+  const barSegTrans = document.getElementById('bar-seg-trans');
   const infoColdTotal = document.getElementById('info-cold-total');
   const infoTargetUrl = document.getElementById('info-target-url');
 
@@ -202,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const infoTotalApsCount = document.getElementById('info-total-aps-count');
   const btnTestRoaming = document.getElementById('btn-test-roaming');
   const btnExportQuick = document.getElementById('btn-export-quick');
+  const roamingPingInlineResult = document.getElementById('roaming-ping-inline-result');
 
   // Tabs
   const tabBtns = document.querySelectorAll('.tab-btn');
@@ -209,6 +386,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Tab 1: Roaming
   const roamingTableBody = document.getElementById('roaming-table-body');
+  const roamingTotalCounter = document.getElementById('roaming-total-counter');
+  const roamingScopeFilter = document.getElementById('roaming-scope-filter');
   const btnExportRoamingCsv = document.getElementById('btn-export-roaming-csv');
   const btnClearRoamingLog = document.getElementById('btn-clear-roaming-log');
 
@@ -219,9 +398,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const cardTlsVal = document.getElementById('card-tls-val');
   const cardTtfbVal = document.getElementById('card-ttfb-val');
   const cardTransVal = document.getElementById('card-trans-val');
+  const phaseBoxDns = document.getElementById('phase-box-dns');
+  const phaseBoxTcp = document.getElementById('phase-box-tcp');
+  const phaseBoxTls = document.getElementById('phase-box-tls');
+  const phaseBoxTtfb = document.getElementById('phase-box-ttfb');
+  const phaseBoxTrans = document.getElementById('phase-box-trans');
+  const phaseBadgeDns = document.getElementById('phase-badge-dns');
+  const phaseBadgeTcp = document.getElementById('phase-badge-tcp');
+  const phaseBadgeTls = document.getElementById('phase-badge-tls');
+  const phaseBadgeTtfb = document.getElementById('phase-badge-ttfb');
+  const phaseBadgeTrans = document.getElementById('phase-badge-trans');
   const btnManualProbe = document.getElementById('btn-manual-probe');
   const httpHistoryTableBody = document.getElementById('http-history-table-body');
   const httpHistoryCounter = document.getElementById('http-history-counter');
+  const httpScopeFilter = document.getElementById('http-scope-filter');
   const btnRefreshHttpHistory = document.getElementById('btn-refresh-http-history');
   const btnExportHttpHistory = document.getElementById('btn-export-http-history');
 
@@ -233,6 +423,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Tab 4: AP Scanner
   const apScannerTableBody = document.getElementById('ap-scanner-table-body');
+  const scannerApCountBadge = document.getElementById('scanner-ap-count-badge');
+  const inputSearchScanner = document.getElementById('input-search-scanner');
+  const btnScannerFilterSsid = document.getElementById('btn-scanner-filter-ssid');
+  const scannerFilterSsidLabel = document.getElementById('scanner-filter-ssid-label');
 
   // Tab 5: Sedes & Zonas
   const inputFileSedesZonas = document.getElementById('input-file-sedes-zonas');
@@ -242,6 +436,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSyncSedesJson = document.getElementById('btn-sync-sedes-json');
   const btnAddSedeModal = document.getElementById('btn-add-sede-modal');
   const sedesCardsContainer = document.getElementById('sedes-cards-container');
+  const sedesTotalSummary = document.getElementById('sedes-total-summary');
+  const inputSearchSedes = document.getElementById('input-search-sedes');
 
   // Tab 6: Statistics & Audit Scope
   const btnExportTelemetryCsv = document.getElementById('btn-export-telemetry-csv');
@@ -560,7 +756,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isCollapsed = appSidebar.classList.contains('collapsed');
       try {
         localStorage.setItem('sidebar_collapsed', isCollapsed ? '1' : '0');
-      } catch (e) {}
+      } catch (e) { }
       setTimeout(() => {
         if (typeof telemetryChart !== 'undefined' && telemetryChart) telemetryChart.resize();
         if (typeof drawWifiSpectrum === 'function') drawWifiSpectrum();
@@ -571,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (localStorage.getItem('sidebar_collapsed') === '1') {
         appSidebar.classList.add('collapsed');
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Mobile Drawer Toggle
@@ -626,6 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Header Help, Location & BSSID button listeners
   const btnHeaderHelp = document.getElementById('btn-header-help');
   if (btnHeaderHelp) {
     btnHeaderHelp.addEventListener('click', () => {
@@ -637,6 +834,46 @@ document.addEventListener('DOMContentLoaded', () => {
           helpContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       }
+    });
+  }
+
+  let latestStatusSnapshot = {};
+
+  function updateHeaderLocationBadge() {
+    if (!headerLocationLabel) return;
+    const loc = (selLocation && selLocation.value) ? selLocation.value.replace(/_/g, ' ') : 'Sede';
+    const zone = (selZone && selZone.value) ? selZone.value : '';
+    headerLocationLabel.textContent = zone ? `${loc} • ${zone}` : loc;
+  }
+
+  if (btnHeaderLocation) {
+    btnHeaderLocation.addEventListener('click', () => {
+      const dashTabBtn = document.querySelector('.tab-btn[data-tab="tab-dashboard"]');
+      if (dashTabBtn && !dashTabBtn.classList.contains('active')) {
+        dashTabBtn.click();
+      }
+      if (selLocation) {
+        selLocation.focus();
+        selLocation.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+
+  if (btnHeaderBssid) {
+    btnHeaderBssid.addEventListener('click', () => {
+      window.openQuickNameApModal(
+        latestStatusSnapshot.bssid || (infoBssid ? infoBssid.textContent : ''),
+        latestStatusSnapshot.ap_name || ''
+      );
+    });
+  }
+
+  if (btnQuickEditCurrentAp) {
+    btnQuickEditCurrentAp.addEventListener('click', () => {
+      window.openQuickNameApModal(
+        latestStatusSnapshot.bssid || (infoBssid ? infoBssid.textContent : ''),
+        latestStatusSnapshot.ap_name || ''
+      );
     });
   }
 
@@ -698,6 +935,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Populate Zones dropdown
       populateZones(currentLoc, currentZone);
+      updateHeaderLocationBadge();
 
       // Populate Tab 6 Audit Scope dropdowns
       populateStatsScopeFilters();
@@ -779,6 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loc = selLocation.value;
     populateZones(loc);
     const z = selZone.value;
+    updateHeaderLocationBadge();
     selLocation.style.borderColor = 'var(--accent-emerald)';
     selLocation.style.boxShadow = '0 0 0 3px rgba(5, 150, 105, 0.2)';
     setTimeout(() => {
@@ -795,6 +1034,7 @@ document.addEventListener('DOMContentLoaded', () => {
   selZone.addEventListener('change', async () => {
     const loc = selLocation.value;
     const z = selZone.value;
+    updateHeaderLocationBadge();
     selZone.style.borderColor = 'var(--accent-emerald)';
     selZone.style.boxShadow = '0 0 0 3px rgba(5, 150, 105, 0.2)';
     setTimeout(() => {
@@ -808,21 +1048,40 @@ document.addEventListener('DOMContentLoaded', () => {
     loadZonePhysicalContext();
   });
 
-  btnQuickAddZone.addEventListener('click', async () => {
+  btnQuickAddZone.addEventListener('click', () => {
     const loc = selLocation.value;
-    const newZone = prompt(`Añadir nueva zona a "${loc}":\n(Ej: Caja 5, Muelle 8, Sala B)`);
-    if (newZone && newZone.trim()) {
-      try {
-        await fetch('/api/zones', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ location: loc, zone: newZone.trim() })
-        });
-        await loadLocationsAndZones();
-      } catch (e) {
-        alert("Error al agregar zona: " + e);
+    openCustomModal({
+      title: `Añadir Zona a ${loc.replace(/_/g, ' ')}`,
+      icon: 'fa-location-dot',
+      confirmText: 'Añadir Zona',
+      bodyHtml: `
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Nombre de la nueva zona o sub-ubicación</label>
+          <input type="text" id="modal-quick-zone-input" class="toolbar-input" placeholder="Ej: Caja 5, Muelle 8, Pasillo Central" style="width: 100%;">
+        </div>
+      `,
+      onConfirm: async () => {
+        const newZone = (document.getElementById('modal-quick-zone-input')?.value || '').trim();
+        if (!newZone) {
+          showToast('Ingresa un nombre válido para la zona.', 'warn');
+          return false;
+        }
+        try {
+          await fetch('/api/zones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ location: loc, zone: newZone })
+          });
+          await saveConfig({ location_name: loc, current_zone: newZone });
+          await loadLocationsAndZones();
+          showToast(`Zona "${newZone}" añadida y seleccionada en ${loc.replace(/_/g, ' ')}`, 'success');
+          return true;
+        } catch (e) {
+          showToast('Error al agregar zona: ' + e, 'error');
+          return false;
+        }
       }
-    }
+    });
   });
 
   btnApplyUrl.addEventListener('click', async () => {
@@ -839,8 +1098,9 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await res.json();
       updateAppCard(data);
+      showToast(`Sonda HTTP medida hacia ${url}`, 'success');
     } catch (e) {
-      alert("Error probando URL: " + e);
+      showToast('Error probando URL: ' + e, 'error');
     } finally {
       btnApplyUrl.innerHTML = '<i class="fa-solid fa-play"></i> Probar';
       btnApplyUrl.disabled = false;
@@ -872,9 +1132,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateDashboard(data) {
+    latestStatusSnapshot = data || {};
+
     // 1. Header Badges
+    updateHeaderLocationBadge();
     headerSsid.textContent = data.ssid || 'Desconectado';
-    headerBssid.textContent = data.bssid || '--:--:--:--:--:--';
+    if (data.ap_name && data.bssid) {
+      headerBssid.textContent = data.ap_name;
+      if (btnHeaderBssid) btnHeaderBssid.title = `AP Conectado: ${data.ap_name} (${data.bssid}) — Clic para editar alias`;
+    } else {
+      headerBssid.textContent = data.bssid || '--:--:--:--:--:--';
+      if (btnHeaderBssid) btnHeaderBssid.title = `BSSID actual: ${data.bssid || '--'} — Clic para asignar alias al AP`;
+    }
     headerPing.textContent = data.ping_ms !== null ? `${data.ping_ms} ms` : 'Timeout';
 
     if (data.app_latency_ms !== null && data.app_latency_ms !== undefined) {
@@ -917,12 +1186,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Card 2: Connected AP
     bandBadge.textContent = data.band || '-- GHz';
     infoSsid.textContent = data.ssid || 'No conectado';
-    infoApName.textContent = data.ap_name || '(Sin alias registrado)';
+    infoSsid.title = data.ssid || '';
+    infoApName.textContent = data.ap_name || '(Sin alias)';
+    infoApName.title = data.ap_name || 'Sin alias asignado en base de datos';
     infoBssid.textContent = data.bssid || '--:--:--:--:--:--';
     infoVendor.textContent = data.vendor_name || 'Desconocido';
-    infoChanFreq.textContent = data.channel ? `Canal ${data.channel} (${data.frequency_mhz} MHz)` : '--';
-    infoBitrate.textContent = `${data.tx_bitrate} / ${data.rx_bitrate}`;
+    infoVendor.title = data.vendor_name || '';
+    infoChanFreq.textContent = data.channel ? `Ch ${data.channel} (${data.frequency_mhz} MHz)` : '--';
+    const brFormatted = formatCompactBitrate(data.tx_bitrate, data.rx_bitrate);
+    infoBitrate.textContent = brFormatted.shortText;
+    infoBitrate.title = brFormatted.fullTooltip;
     infoIpGw.textContent = `${data.ip_address} / ${data.gateway_ip}`;
+    infoIpGw.title = `IP Local: ${data.ip_address} | Gateway: ${data.gateway_ip}`;
 
     // 4. Card 3: Application Health
     updateAppCard(data);
@@ -976,9 +1251,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updatePhaseHealthChip(boxEl, badgeEl, valMs, warnThreshold, dangerThreshold) {
+    if (!badgeEl) return;
+    const ms = Number(valMs || 0);
+    badgeEl.classList.remove('chip-ok', 'chip-warn', 'chip-danger');
+    if (boxEl) boxEl.classList.remove('phase-card-warn', 'phase-card-danger');
+    if (ms >= dangerThreshold) {
+      badgeEl.textContent = 'Cuello de Botella';
+      badgeEl.classList.add('chip-danger');
+      if (boxEl) boxEl.classList.add('phase-card-danger');
+    } else if (ms >= warnThreshold) {
+      badgeEl.textContent = 'Elevado';
+      badgeEl.classList.add('chip-warn');
+      if (boxEl) boxEl.classList.add('phase-card-warn');
+    } else {
+      badgeEl.textContent = 'Normal';
+      badgeEl.classList.add('chip-ok');
+    }
+  }
+
   function updateAppCard(data) {
     if (data.target_url) {
       infoTargetUrl.textContent = data.target_url;
+      infoTargetUrl.title = data.target_url;
       phasesTargetLabel.textContent = data.target_url;
     }
 
@@ -994,46 +1289,90 @@ document.addEventListener('DOMContentLoaded', () => {
         appStatusBadge.style.color = '#10b981';
       }
 
-      phaseDnsVal.textContent = `${data.app_dns_ms || 0} ms`;
-      phaseTcpVal.textContent = `${data.app_tcp_ms || 0} ms`;
-      phaseTlsVal.textContent = `${data.app_tls_ms || 0} ms`;
-      phaseTtfbVal.textContent = `${data.app_ttfb_ms || 0} ms`;
+      const dnsMs = Number(data.app_dns_ms || 0);
+      const tcpMs = Number(data.app_tcp_ms || 0);
+      const tlsMs = Number(data.app_tls_ms || 0);
+      const ttfbMs = Number(data.app_ttfb_ms || 0);
+      const transMs = Number(data.app_transfer_ms || 0);
+      const sumMs = Math.max(1, dnsMs + tcpMs + tlsMs + ttfbMs + transMs);
+
+      phaseDnsVal.textContent = `${dnsMs} ms`;
+      phaseTcpVal.textContent = `${tcpMs} ms`;
+      phaseTlsVal.textContent = `${tlsMs} ms`;
+      phaseTtfbVal.textContent = `${ttfbMs} ms`;
+      if (phaseTransVal) phaseTransVal.textContent = `${transMs} ms`;
       infoColdTotal.textContent = `${data.app_cold_total_ms || 0} ms`;
 
-      // Update Phase Tab Values
-      cardDnsVal.textContent = `${data.app_dns_ms || 0} ms`;
-      cardTcpVal.textContent = `${data.app_tcp_ms || 0} ms`;
-      cardTlsVal.textContent = `${data.app_tls_ms || 0} ms`;
-      cardTtfbVal.textContent = `${data.app_ttfb_ms || 0} ms`;
-      cardTransVal.textContent = `${data.app_transfer_ms || 0} ms`;
+      // Update Card 3 Mini Stacked Progress Bar
+      if (barSegDns) barSegDns.style.width = `${Math.max(4, (dnsMs / sumMs) * 100)}%`;
+      if (barSegTcp) barSegTcp.style.width = `${Math.max(4, (tcpMs / sumMs) * 100)}%`;
+      if (barSegTls) barSegTls.style.width = `${Math.max(4, (tlsMs / sumMs) * 100)}%`;
+      if (barSegTtfb) barSegTtfb.style.width = `${Math.max(4, (ttfbMs / sumMs) * 100)}%`;
+      if (barSegTrans) barSegTrans.style.width = `${Math.max(4, (transMs / sumMs) * 100)}%`;
+
+      // Update Phase Tab Values & Bottleneck Health Chips
+      cardDnsVal.textContent = `${dnsMs} ms`;
+      cardTcpVal.textContent = `${tcpMs} ms`;
+      cardTlsVal.textContent = `${tlsMs} ms`;
+      cardTtfbVal.textContent = `${ttfbMs} ms`;
+      cardTransVal.textContent = `${transMs} ms`;
+
+      updatePhaseHealthChip(phaseBoxDns, phaseBadgeDns, dnsMs, 40, 100);
+      updatePhaseHealthChip(phaseBoxTcp, phaseBadgeTcp, tcpMs, 50, 120);
+      updatePhaseHealthChip(phaseBoxTls, phaseBadgeTls, tlsMs, 90, 200);
+      updatePhaseHealthChip(phaseBoxTtfb, phaseBadgeTtfb, ttfbMs, 150, 350);
+      updatePhaseHealthChip(phaseBoxTrans, phaseBadgeTrans, transMs, 80, 200);
 
       // Update Phases Chart
-      phasesChart.data.datasets[0].data = [data.app_dns_ms || 0];
-      phasesChart.data.datasets[1].data = [data.app_tcp_ms || 0];
-      phasesChart.data.datasets[2].data = [data.app_tls_ms || 0];
-      phasesChart.data.datasets[3].data = [data.app_ttfb_ms || 0];
-      phasesChart.data.datasets[4].data = [data.app_transfer_ms || 0];
+      phasesChart.data.datasets[0].data = [dnsMs];
+      phasesChart.data.datasets[1].data = [tcpMs];
+      phasesChart.data.datasets[2].data = [tlsMs];
+      phasesChart.data.datasets[3].data = [ttfbMs];
+      phasesChart.data.datasets[4].data = [transMs];
       phasesChart.update();
     }
   }
 
   // --- Tab 1: Roaming Log ---
+  function getEffectiveScopeParams(scopeSelectEl) {
+    const mode = scopeSelectEl ? scopeSelectEl.value : 'all';
+    const activeLoc = selLocation ? selLocation.value : 'all';
+    const activeZone = selZone ? selZone.value : 'all';
+    if (mode === 'zone') {
+      return { loc: activeLoc || 'all', zone: activeZone || 'all', mode };
+    }
+    if (mode === 'location') {
+      return { loc: activeLoc || 'all', zone: 'all', mode };
+    }
+    return { loc: 'all', zone: 'all', mode: 'all' };
+  }
+
+  if (roamingScopeFilter) {
+    roamingScopeFilter.addEventListener('change', () => loadRoamingHistory());
+  }
+
   async function loadRoamingHistory() {
     try {
-      const loc = selLocation.value;
-      const zone = selZone.value;
+      const { loc, zone, mode } = getEffectiveScopeParams(roamingScopeFilter);
       const res = await fetch(`/api/roaming-history?location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const events = data.events || [];
 
+      if (roamingTotalCounter) {
+        roamingTotalCounter.textContent = `${events.length} evento${events.length === 1 ? '' : 's'}`;
+      }
+
       if (events.length === 0) {
+        const scopeDesc = mode === 'all'
+          ? 'en la base de datos'
+          : (mode === 'location' ? `en la sede "${(selLocation?.value || '').replace(/_/g, ' ')}"` : `en "${(selLocation?.value || '').replace(/_/g, ' ')} • ${selZone?.value || ''}"`);
         roamingTableBody.innerHTML = `
           <tr>
             <td colspan="8">
               <div class="empty-state">
                 <i class="fa-solid fa-route"></i>
-                <p>No se han registrado eventos de cambio de AP aún en ${loc}.</p>
-                <small>Camina entre diferentes áreas con la laptop o PDA para provocar transiciones de roaming.</small>
+                <p>No se encontraron eventos de cambio de AP (Handoffs) ${escapeHtml(scopeDesc)}.</p>
+                ${mode !== 'all' ? `<div style="margin-top: 0.6rem;"><button type="button" class="btn-secondary" onclick="document.getElementById('roaming-scope-filter').value='all'; document.getElementById('roaming-scope-filter').dispatchEvent(new Event('change'));" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;"><i class="fa-solid fa-globe"></i> Ver todas las sedes y zonas</button></div>` : '<small>Camina entre diferentes áreas con la laptop o PDA para provocar transiciones de roaming.</small>'}
               </div>
             </td>
           </tr>`;
@@ -1043,25 +1382,34 @@ document.addEventListener('DOMContentLoaded', () => {
       roamingTableBody.innerHTML = events.map(e => {
         const timeFormatted = formatLocalTime(e.timestamp_raw || e.timestamp || e.created_at);
         const dateFormatted = formatLocalDate(e.timestamp_raw || e.created_at || e.date);
+        const prevBssid = e.prev_bssid || '';
+        const newBssid = e.new_bssid || '';
+        const rowLoc = `${e.location || ''} ${e.zone ? '- ' + e.zone : ''}`.trim();
         return `
         <tr>
           <td>
             <strong style="color: var(--accent-cyan); font-size: 0.85rem;">${timeFormatted}</strong>
             ${dateFormatted ? `<div style="font-size: 0.72rem; color: var(--text-muted);">${dateFormatted}</div>` : ''}
           </td>
-          <td><span class="badge" style="font-size: 0.75rem;">${escapeHtml(e.location || 'Sede')} - ${escapeHtml(e.zone || 'Zona')}</span></td>
-          <td>${e.ssid || '--'}</td>
+          <td><span class="badge" style="font-size: 0.75rem;">${escapeHtml((e.location || 'Sede').replace(/_/g, ' '))} - ${escapeHtml(e.zone || 'Zona')}</span></td>
+          <td>${escapeHtml(e.ssid || '--')}</td>
           <td>
             <div class="ap-cell">
-              ${e.prev_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${e.prev_ap_name}</span>` : ''}
-              <span class="mac-subtext">${e.prev_bssid || '--'}</span>
+              ${e.prev_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${escapeHtml(e.prev_ap_name)}</span>` : ''}
+              <div style="display: flex; align-items: center; gap: 0.25rem;">
+                <span class="mac-subtext">${escapeHtml(prevBssid || '--')}</span>
+                ${prevBssid ? `<button type="button" class="btn-quick-name-ap" onclick="openQuickNameApModal('${escapeHtml(prevBssid)}', '${escapeHtml(e.prev_ap_name || '')}', '${escapeHtml(rowLoc)}')" title="Asignar o editar alias de este AP"><i class="fa-solid fa-tag"></i></button>` : ''}
+              </div>
               <small style="color: var(--text-muted);">${e.prev_signal_dbm || '--'} dBm</small>
             </div>
           </td>
           <td>
             <div class="ap-cell">
-              ${e.new_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${e.new_ap_name}</span>` : ''}
-              <span class="mac-subtext">${e.new_bssid || '--'}</span>
+              ${e.new_ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${escapeHtml(e.new_ap_name)}</span>` : ''}
+              <div style="display: flex; align-items: center; gap: 0.25rem;">
+                <span class="mac-subtext">${escapeHtml(newBssid || '--')}</span>
+                ${newBssid ? `<button type="button" class="btn-quick-name-ap" onclick="openQuickNameApModal('${escapeHtml(newBssid)}', '${escapeHtml(e.new_ap_name || '')}', '${escapeHtml(rowLoc)}')" title="Asignar o editar alias de este AP"><i class="fa-solid fa-tag"></i></button>` : ''}
+              </div>
               <small style="color: var(--accent-emerald);">${e.new_signal_dbm || '--'} dBm</small>
             </div>
           </td>
@@ -1075,7 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
           <td>
             <span class="badge" style="background: rgba(6, 182, 212, 0.12); color: var(--accent-cyan);">
-              ${e.verdict || 'Handoff'}
+              ${escapeHtml(e.verdict || 'Handoff')}
             </span>
           </td>
         </tr>
@@ -1087,19 +1435,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnExportRoamingCsv.addEventListener('click', () => {
-    const loc = selLocation.value;
-    const zone = selZone.value;
+    const { loc, zone } = getEffectiveScopeParams(roamingScopeFilter);
     window.location.href = `/api/export?type=roaming&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
   });
 
-  btnClearRoamingLog.addEventListener('click', async () => {
-    if (confirm("¿Estás seguro de limpiar el registro de eventos de roaming?")) {
-      await fetch('/api/clear-roaming-log', { method: 'POST' });
-      loadRoamingHistory();
-    }
+  btnClearRoamingLog.addEventListener('click', () => {
+    openCustomModal({
+      title: 'Limpiar Historial de Roaming',
+      icon: 'fa-trash-can',
+      confirmText: 'Sí, Limpiar Historial',
+      danger: true,
+      bodyHtml: `<p>¿Estás seguro de que deseas eliminar todos los eventos de cambio de AP (Roaming) registrados?</p>`,
+      onConfirm: async () => {
+        await fetch('/api/clear-roaming-log', { method: 'POST' });
+        loadRoamingHistory();
+        showToast('Historial de eventos de roaming limpiado.', 'success');
+        return true;
+      }
+    });
   });
 
   // --- Tab 2: Manual Probe Trigger & History ---
+  if (httpScopeFilter) {
+    httpScopeFilter.addEventListener('change', () => loadHttpPhasesHistory());
+  }
+
   btnManualProbe.addEventListener('click', async () => {
     btnManualProbe.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Midiendo...';
     btnManualProbe.disabled = true;
@@ -1108,8 +1468,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       updateAppCard(data);
       loadHttpPhasesHistory();
+      showToast(`Medición HTTP completada (${data.total_ms || data.app_latency_ms || 0} ms)`, 'success');
     } catch (e) {
-      alert("Error en medición: " + e);
+      showToast('Error en medición HTTP: ' + e, 'error');
     } finally {
       btnManualProbe.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Medir Ahora';
       btnManualProbe.disabled = false;
@@ -1122,8 +1483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const container = httpHistoryTableBody.closest('.table-responsive');
       const prevScrollTop = container ? container.scrollTop : 0;
-      const loc = selLocation.value;
-      const zone = selZone.value;
+      const { loc, zone, mode } = getEffectiveScopeParams(httpScopeFilter);
       const res = await fetch(`/api/http-phases/history?limit=50&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const records = data.records || [];
@@ -1133,13 +1493,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       if (records.length === 0) {
+        const scopeDesc = mode === 'all'
+          ? 'en el historial'
+          : (mode === 'location' ? `en la sede "${(selLocation?.value || '').replace(/_/g, ' ')}"` : `en "${(selLocation?.value || '').replace(/_/g, ' ')} • ${selZone?.value || ''}"`);
         httpHistoryTableBody.innerHTML = `
           <tr>
             <td colspan="11">
               <div class="empty-state" style="padding: 2.5rem 1rem; text-align: center;">
                 <i class="fa-solid fa-clock-rotate-left" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 0.5rem; opacity: 0.5;"></i>
-                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Aún no hay mediciones registradas en el historial.</p>
-                <small style="color: var(--text-muted);">Presiona "Medir Ahora" arriba para registrar la primera prueba de latencia.</small>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">No hay mediciones HTTP registradas ${escapeHtml(scopeDesc)}.</p>
+                ${mode !== 'all' ? `<div style="margin-top: 0.6rem;"><button type="button" class="btn-secondary" onclick="document.getElementById('http-scope-filter').value='all'; document.getElementById('http-scope-filter').dispatchEvent(new Event('change'));" style="font-size: 0.78rem; padding: 0.35rem 0.75rem;"><i class="fa-solid fa-globe"></i> Ver todas las sedes y zonas</button></div>` : '<small style="color: var(--text-muted);">Presiona "Medir Ahora" arriba para registrar una prueba de latencia.</small>'}
               </div>
             </td>
           </tr>
@@ -1178,14 +1541,17 @@ document.addEventListener('DOMContentLoaded', () => {
               <div style="font-size: 0.72rem; color: var(--text-muted);">${dateFormatted}</div>
             </td>
             <td>
-              <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(r.location || 'Sede Principal')}</div>
+              <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">${escapeHtml((r.location || 'Sede Principal').replace(/_/g, ' '))}</div>
               ${r.zone ? `<div style="font-size: 0.75rem; color: var(--accent-cyan);"><i class="fa-solid fa-location-dot" style="font-size: 0.7rem;"></i> ${escapeHtml(r.zone)}</div>` : ''}
             </td>
             <td>
               <div class="ap-cell">
                 ${apLabel}
-                ${bssidLabel}
-                ${sig ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${sigColor}; margin-left: 0.35rem;">(${sig})</span>` : ''}
+                <div style="display: flex; align-items: center; gap: 0.25rem;">
+                  ${bssidLabel}
+                  ${r.bssid ? `<button type="button" class="btn-quick-name-ap" onclick="openQuickNameApModal('${escapeHtml(r.bssid)}', '${escapeHtml(r.ap_name || '')}', '${escapeHtml((r.location || '') + (r.zone ? ' - ' + r.zone : ''))}')" title="Asignar o editar alias de este AP"><i class="fa-solid fa-tag"></i></button>` : ''}
+                  ${sig ? `<span style="font-size: 0.75rem; font-weight: 700; color: ${sigColor}; margin-left: 0.2rem;">(${sig})</span>` : ''}
+                </div>
               </div>
             </td>
             <td style="text-align: center;">
@@ -1235,8 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnExportHttpHistory) {
     btnExportHttpHistory.addEventListener('click', () => {
-      const loc = selLocation.value;
-      const zone = selZone.value;
+      const { loc, zone } = getEffectiveScopeParams(httpScopeFilter);
       window.location.href = `/api/export?type=http-phases&location=${encodeURIComponent(loc)}&zone=${encodeURIComponent(zone)}`;
     });
   }
@@ -1411,47 +1776,114 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Tab 4: AP Candidate Scanner ---
-  async function loadApScanner() {
-    try {
-      const res = await fetch('/api/scan');
-      const data = await res.json();
-      const aps = data.aps || [];
+  let cachedScannerAps = [];
+  let scannerOnlySameSsid = false;
 
-      if (aps.length === 0) {
-        apScannerTableBody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>No se encontraron APs vecinos.</p></div></td></tr>`;
-        return;
-      }
+  function renderApScannerTable() {
+    if (!apScannerTableBody) return;
+    const query = (inputSearchScanner ? inputSearchScanner.value : '').trim().toLowerCase();
 
-      apScannerTableBody.innerHTML = aps.map(ap => `
+    let filtered = cachedScannerAps.filter(ap => {
+      if (scannerOnlySameSsid && !ap.is_same_ssid && !ap.active) return false;
+      if (!query) return true;
+      const hay = [
+        ap.ssid || '',
+        ap.bssid || '',
+        ap.ap_name || '',
+        ap.vendor || '',
+        `canal ${ap.channel || ''}`,
+        `ch ${ap.channel || ''}`,
+        ap.freq || '',
+        ap.band || ''
+      ].join(' ').toLowerCase();
+      return hay.includes(query);
+    });
+
+    if (scannerApCountBadge) {
+      scannerApCountBadge.textContent = filtered.length === cachedScannerAps.length
+        ? `${cachedScannerAps.length} APs`
+        : `${filtered.length} / ${cachedScannerAps.length} APs`;
+    }
+
+    if (filtered.length === 0) {
+      apScannerTableBody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><p>${cachedScannerAps.length === 0 ? 'No se encontraron APs vecinos.' : 'Ningún AP coincide con el filtro actual.'}</p></div></td></tr>`;
+      return;
+    }
+
+    apScannerTableBody.innerHTML = filtered.map(ap => {
+      const sigPct = Math.max(0, Math.min(100, Number(ap.signal) || 0));
+      const sigDbm = (ap.signal_dbm !== undefined && ap.signal_dbm !== null)
+        ? Number(ap.signal_dbm)
+        : Math.round((sigPct / 2) - 100);
+      const sigColor = sigDbm >= -65 ? 'var(--accent-emerald)' : (sigDbm >= -75 ? 'var(--accent-amber)' : 'var(--accent-rose)');
+
+      return `
         <tr style="${ap.active ? 'background: rgba(6, 182, 212, 0.08);' : ''}">
           <td>
             ${ap.active ? '<span class="badge" style="background: var(--accent-emerald); color: #fff;">CONECTADO</span>' : '<span style="color: var(--text-muted); font-size: 0.78rem;">En rango</span>'}
           </td>
-          <td><strong>${ap.ssid || 'Oculto'}</strong></td>
+          <td><strong>${escapeHtml(ap.ssid || 'Oculto')}</strong></td>
           <td>
             <div class="ap-cell">
-              ${ap.ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${ap.ap_name}</span>` : ''}
-              <span class="mac-subtext">${ap.bssid}</span>
+              ${ap.ap_name ? `<span class="ap-name-tag"><i class="fa-solid fa-tag"></i> ${escapeHtml(ap.ap_name)}</span>` : ''}
+              <div style="display: flex; align-items: center; gap: 0.25rem;">
+                <span class="mac-subtext">${escapeHtml(ap.bssid)}</span>
+                <button type="button" class="btn-quick-name-ap" onclick="openQuickNameApModal('${escapeHtml(ap.bssid)}', '${escapeHtml(ap.ap_name || '')}')" title="Asignar o editar alias de este AP">
+                  <i class="fa-solid fa-tag"></i> ${ap.ap_name ? 'Editar' : 'Etiquetar'}
+                </button>
+              </div>
             </div>
           </td>
-          <td>${ap.vendor || 'Desconocido'}</td>
+          <td>${escapeHtml(ap.vendor || 'Desconocido')}</td>
           <td>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span style="font-weight: 700; color: ${ap.signal >= 70 ? 'var(--accent-emerald)' : (ap.signal >= 45 ? 'var(--accent-amber)' : 'var(--accent-rose)')};">
-                ${ap.signal}%
-              </span>
+            <div class="signal-cell-wrap">
+              <div class="signal-cell-top">
+                <span style="font-weight: 800; font-family: monospace; color: ${sigColor}; font-size: 0.86rem;">
+                  ${sigDbm} dBm
+                </span>
+                <span style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);">
+                  ${sigPct}%
+                </span>
+              </div>
+              <div class="signal-bar-wrap">
+                <div class="signal-bar-fill" style="width: ${sigPct}%; background: ${sigColor};"></div>
+              </div>
             </div>
           </td>
-          <td>${ap.freq || ap.band || '--'}</td>
-          <td>Canal ${ap.channel || '--'}</td>
+          <td>${escapeHtml(ap.freq || ap.band || '--')}</td>
+          <td>Canal ${escapeHtml(ap.channel || '--')}</td>
           <td>
-            ${ap.is_same_ssid && !ap.active ? '<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); font-weight: bold;">CANDIDATO ROAMING</span>' : (ap.active ? '<span style="color: var(--accent-emerald); font-size: 0.8rem;">AP Actual</span>' : '<span style="color: var(--text-muted); font-size: 0.78rem;">Otro SSID</span>')}
+            ${ap.is_same_ssid && !ap.active ? '<span class="badge" style="background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); font-weight: bold;">CANDIDATO ROAMING</span>' : (ap.active ? '<span style="color: var(--accent-emerald); font-size: 0.8rem; font-weight: 700;">AP Actual</span>' : '<span style="color: var(--text-muted); font-size: 0.78rem;">Otro SSID</span>')}
           </td>
         </tr>
-      `).join('');
+      `;
+    }).join('');
+  }
+
+  if (inputSearchScanner) {
+    inputSearchScanner.addEventListener('input', renderApScannerTable);
+  }
+
+  if (btnScannerFilterSsid) {
+    btnScannerFilterSsid.addEventListener('click', () => {
+      scannerOnlySameSsid = !scannerOnlySameSsid;
+      btnScannerFilterSsid.classList.toggle('active', scannerOnlySameSsid);
+      if (scannerFilterSsidLabel) {
+        scannerFilterSsidLabel.textContent = scannerOnlySameSsid ? 'Solo mi SSID' : 'Todos los SSID';
+      }
+      renderApScannerTable();
+    });
+  }
+
+  async function loadApScanner() {
+    try {
+      const res = await fetch('/api/scan');
+      const data = await res.json();
+      cachedScannerAps = data.aps || [];
+      renderApScannerTable();
 
       // Refresh real-time RF Spectrum Analyzer with scanned APs
-      updateSpectrumData(aps);
+      updateSpectrumData(cachedScannerAps);
     } catch (e) {
       console.warn("Error escaneando APs:", e);
     }
@@ -1758,28 +2190,94 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.lineWidth = (isConnected || isHovered) ? 3.0 : 1.8;
       ctx.stroke();
 
-      // Draw label above the peak
-      const rawLabel = ap.ssid || 'Oculto';
-      const shortLabel = rawLabel.length > 22 ? rawLabel.substring(0, 21) + '…' : rawLabel;
-      ctx.font = (isConnected || isHovered) ? "bold 11px Outfit, sans-serif" : "600 10px Outfit, sans-serif";
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(shortLabel, peakX, Math.max(padTop - 4, peakY - 6));
-
-      if (isConnected || isHovered) {
-        ctx.font = "bold 9px Outfit, sans-serif";
-        ctx.fillStyle = color;
-        ctx.fillText(`${ap.dbm} dBm`, peakX, Math.max(padTop - 16, peakY - 18));
-      }
-
       // Connected AP indicator dot
       if (isConnected) {
         ctx.fillStyle = '#059669';
         ctx.beginPath();
-        ctx.arc(peakX, peakY, 3.5, 0, Math.PI * 2);
+        ctx.arc(peakX, peakY, 4, 0, Math.PI * 2);
         ctx.fill();
       }
+    });
+
+    // Anti-collision label pass: prioritize Connected > Hovered > Same SSID > Strongest signal
+    const labelCandidates = [...visibleAps].sort((a, b) => {
+      const aHov = hoveredSpectrumAp && hoveredSpectrumAp.bssid === a.bssid ? 1 : 0;
+      const bHov = hoveredSpectrumAp && hoveredSpectrumAp.bssid === b.bssid ? 1 : 0;
+      if (aHov !== bHov) return bHov - aHov;
+      if (!!a.active !== !!b.active) return a.active ? -1 : 1;
+      if (!!a.is_same_ssid !== !!b.is_same_ssid) return a.is_same_ssid ? -1 : 1;
+      return b.dbm - a.dbm;
+    });
+
+    const placedBoxes = [];
+    const maxLabelsPerChannel = {};
+
+    labelCandidates.forEach(ap => {
+      const color = getSpectrumColor(ap.ssid, ap.bssid);
+      const isHovered = hoveredSpectrumAp && (hoveredSpectrumAp.bssid === ap.bssid);
+      const isConnected = !!ap.active;
+      const chKey = String(ap.chanNum);
+      maxLabelsPerChannel[chKey] = (maxLabelsPerChannel[chKey] || 0) + 1;
+
+      // Limit non-active co-channel labels to top 3 per channel to keep canvas clean
+      if (!isConnected && !isHovered && maxLabelsPerChannel[chKey] > 3) return;
+
+      const peakX = ap._curvePeakX;
+      const peakY = ap._curvePeakY;
+      const baseTitle = ap.ap_name ? `${ap.ap_name}` : (ap.ssid || 'Oculto');
+      const shortLabel = baseTitle.length > 18 ? baseTitle.substring(0, 17) + '…' : baseTitle;
+      const labelText = (isConnected || isHovered) ? `${shortLabel} (${ap.dbm}dBm)` : shortLabel;
+
+      ctx.font = (isConnected || isHovered) ? "bold 10.5px Outfit, sans-serif" : "600 9.5px Outfit, sans-serif";
+      const textW = ctx.measureText(labelText).width + 8;
+      const textH = 13;
+
+      let candidateY = Math.max(padTop + 10, peakY - 7);
+      let attempts = 0;
+      while (attempts < 4) {
+        const box = {
+          left: peakX - textW / 2,
+          right: peakX + textW / 2,
+          top: candidateY - textH,
+          bottom: candidateY
+        };
+        const hasOverlap = placedBoxes.some(b =>
+          !(box.right < b.left || box.left > b.right || box.bottom < b.top || box.top > b.bottom)
+        );
+        if (!hasOverlap) {
+          placedBoxes.push(box);
+          break;
+        }
+        candidateY -= 14;
+        attempts++;
+      }
+
+      if (attempts >= 4 && !isConnected && !isHovered) return;
+      candidateY = Math.max(padTop + 10, candidateY);
+
+      // Leader line if label was staggered upward
+      if (peakY - candidateY > 12) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([2, 2]);
+        ctx.strokeStyle = hexToRgba(color, 0.55);
+        ctx.lineWidth = 1;
+        ctx.moveTo(peakX, peakY - 2);
+        ctx.lineTo(peakX, candidateY + 1);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Subtle pill background behind text for high contrast
+      ctx.fillStyle = (isConnected || isHovered) ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.86)';
+      const bgW = textW;
+      const bgH = textH;
+      ctx.fillRect(peakX - bgW / 2, candidateY - bgH + 1, bgW, bgH);
+
+      ctx.fillStyle = (isConnected || isHovered) ? '#ffffff' : color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(labelText, peakX, candidateY);
     });
 
     // 4. Update Footer Summary & Recommendations
@@ -1914,6 +2412,117 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- Tab 5: Sedes & Zonas Manager ---
+  let cachedSedesLocations = [];
+  let cachedSedesZonesMap = {};
+  const expandedSedesSet = new Set();
+
+  window.toggleExpandSedeZones = function (loc) {
+    if (expandedSedesSet.has(loc)) {
+      expandedSedesSet.delete(loc);
+    } else {
+      expandedSedesSet.add(loc);
+    }
+    renderSedesCards();
+  };
+
+  window.selectActiveLocationZone = async function (loc, zone) {
+    if (!loc) return;
+    await saveConfig({ location_name: loc, current_zone: zone || '' });
+    await loadLocationsAndZones();
+    renderSedesCards();
+    loadStatistics();
+    loadRoamingHistory();
+    loadHttpPhasesHistory();
+    showToast(`Ubicación activa fijada en: ${loc.replace(/_/g, ' ')}${zone ? ' • ' + zone : ''}`, 'success');
+  };
+
+  function renderSedesCards() {
+    if (!sedesCardsContainer) return;
+    const query = (inputSearchSedes ? inputSearchSedes.value : '').trim().toLowerCase();
+    const activeLoc = selLocation ? selLocation.value : '';
+    const activeZone = selZone ? selZone.value : '';
+
+    let totalZonesCount = 0;
+    cachedSedesLocations.forEach(l => {
+      totalZonesCount += (cachedSedesZonesMap[l] || []).length;
+    });
+    if (sedesTotalSummary) {
+      sedesTotalSummary.textContent = `${cachedSedesLocations.length} Sedes • ${totalZonesCount} Zonas`;
+    }
+
+    const filteredLocs = cachedSedesLocations.filter(l => {
+      if (!query) return true;
+      const locDisplay = l.replace(/_/g, ' ').toLowerCase();
+      if (locDisplay.includes(query) || l.toLowerCase().includes(query)) return true;
+      const zones = cachedSedesZonesMap[l] || [];
+      return zones.some(z => z.toLowerCase().includes(query));
+    });
+
+    if (filteredLocs.length === 0) {
+      sedesCardsContainer.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><i class="fa-solid fa-magnifying-glass-location"></i><p>No se encontraron sedes ni zonas que coincidan con "${escapeHtml(query)}".</p></div>`;
+      return;
+    }
+
+    sedesCardsContainer.innerHTML = filteredLocs.map(l => {
+      const allZones = cachedSedesZonesMap[l] || [];
+      const matchingZones = query
+        ? allZones.filter(z => z.toLowerCase().includes(query) || l.replace(/_/g, ' ').toLowerCase().includes(query))
+        : allZones;
+
+      const isCurrentSede = l === activeLoc;
+      const isExpanded = expandedSedesSet.has(l) || Boolean(query);
+      const maxInitial = 12;
+      const visibleZones = isExpanded ? matchingZones : matchingZones.slice(0, maxInitial);
+      const hiddenCount = matchingZones.length - visibleZones.length;
+
+      return `
+        <div class="sede-card ${isCurrentSede ? 'is-active-sede' : ''}">
+          <div class="sede-card-header">
+            <div class="sede-card-title" style="flex-wrap: wrap;">
+              <i class="fa-solid fa-building"></i> ${escapeHtml(l.replace(/_/g, ' '))}
+              <span class="badge" style="font-size: 0.72rem; padding: 0.15rem 0.45rem; background: rgba(79, 70, 229, 0.1); color: var(--accent-cyan); font-weight: 600;">${allZones.length} zonas</span>
+              ${isCurrentSede ? '<span class="badge" style="font-size: 0.68rem; padding: 0.12rem 0.45rem; background: #dcfce7; color: #166534; border-color: #86efac;">ACTIVA</span>' : ''}
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <button type="button" class="btn-secondary" onclick="selectActiveLocationZone('${escapeHtml(l)}', '${escapeHtml(allZones[0] || '')}')" title="Usar esta sede como ubicación activa" style="padding: 0.24rem 0.55rem; font-size: 0.72rem;">
+                <i class="fa-solid fa-location-crosshairs"></i> Activar
+              </button>
+              <button type="button" class="btn-icon-danger" onclick="deleteSede('${escapeHtml(l)}')" title="Eliminar Sede"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>
+          <div class="zone-chips-container">
+            ${visibleZones.map(z => {
+        const isCurrentZone = isCurrentSede && z === activeZone;
+        return `
+                <span class="zone-chip zone-chip-selectable ${isCurrentZone ? 'is-active-zone' : ''}" onclick="selectActiveLocationZone('${escapeHtml(l)}', '${escapeHtml(z)}')" title="Clic para activar ${escapeHtml(l.replace(/_/g, ' '))} • ${escapeHtml(z)}">
+                  ${isCurrentZone ? '<i class="fa-solid fa-circle-check" style="font-size: 0.68rem;"></i>' : ''}
+                  <span>${escapeHtml(z)}</span>
+                  <i class="fa-solid fa-xmark zone-delete-btn" onclick="event.stopPropagation(); deleteSingleZone('${escapeHtml(l)}', '${escapeHtml(z)}')" title="Eliminar zona" style="cursor: pointer; opacity: 0.55; font-size: 0.72rem; margin-left: 0.15rem;"></i>
+                </span>
+              `;
+      }).join('')}
+            ${hiddenCount > 0 ? `
+              <button type="button" class="btn-toggle-more-zones" onclick="toggleExpandSedeZones('${escapeHtml(l)}')">
+                + Ver ${hiddenCount} zonas más
+              </button>
+            ` : (allZones.length > maxInitial && !query ? `
+              <button type="button" class="btn-toggle-more-zones" onclick="toggleExpandSedeZones('${escapeHtml(l)}')">
+                Mostrar menos
+              </button>
+            ` : '')}
+            <button type="button" class="zone-chip" style="background: rgba(79, 70, 229, 0.12); color: var(--accent-cyan); border-color: var(--accent-cyan); cursor: pointer; font-weight: 600;" onclick="promptAddZone('${escapeHtml(l)}')">
+              <i class="fa-solid fa-plus"></i> Añadir Zona
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  if (inputSearchSedes) {
+    inputSearchSedes.addEventListener('input', renderSedesCards);
+  }
+
   async function loadSedesAndZones() {
     try {
       const [resLocs, resZones] = await Promise.all([
@@ -1923,93 +2532,128 @@ document.addEventListener('DOMContentLoaded', () => {
       const dataLocs = await resLocs.json();
       const zonesMap = await resZones.json();
 
-      const locs = (dataLocs.locations && dataLocs.locations.length > 0)
+      cachedSedesZonesMap = zonesMap || {};
+      cachedSedesLocations = (dataLocs.locations && dataLocs.locations.length > 0)
         ? dataLocs.locations
-        : Object.keys(zonesMap);
+        : Object.keys(cachedSedesZonesMap);
 
-      sedesCardsContainer.innerHTML = locs.map(l => {
-        const zones = zonesMap[l] || [];
-        return `
-          <div class="sede-card">
-            <div class="sede-card-header">
-              <div class="sede-card-title">
-                <i class="fa-solid fa-building"></i> ${escapeHtml(l.replace(/_/g, ' '))}
-                <span class="badge" style="font-size: 0.72rem; padding: 0.15rem 0.45rem; background: rgba(79, 70, 229, 0.1); color: var(--accent-cyan); font-weight: 600;">${zones.length} zonas</span>
-              </div>
-              <button class="btn-icon-danger" onclick="deleteSede('${escapeHtml(l)}')" title="Eliminar Sede"><i class="fa-solid fa-trash"></i></button>
-            </div>
-            <div class="zone-chips-container">
-              ${zones.map(z => `
-                <span class="zone-chip" style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                  <span>${escapeHtml(z)}</span>
-                  <i class="fa-solid fa-xmark zone-delete-btn" onclick="deleteSingleZone('${escapeHtml(l)}', '${escapeHtml(z)}')" title="Eliminar zona" style="cursor: pointer; opacity: 0.55; font-size: 0.72rem; margin-left: 0.15rem;"></i>
-                </span>
-              `).join('')}
-              <button class="zone-chip" style="background: rgba(79, 70, 229, 0.12); color: var(--accent-cyan); border-color: var(--accent-cyan); cursor: pointer; font-weight: 600;" onclick="promptAddZone('${escapeHtml(l)}')">
-                <i class="fa-solid fa-plus"></i> Añadir Zona
-              </button>
-            </div>
-          </div>
-        `;
-      }).join('');
+      renderSedesCards();
     } catch (e) {
       console.error("Error cargando gestor de sedes:", e);
     }
   }
 
-  window.deleteSingleZone = async function(loc, zone) {
-    if (confirm(`¿Eliminar la zona "${zone}" de la sede "${loc.replace(/_/g, ' ')}"?`)) {
-      try {
-        await fetch('/api/zones/delete', {
+  window.deleteSingleZone = function (loc, zone) {
+    openCustomModal({
+      title: 'Eliminar Zona',
+      icon: 'fa-trash-can',
+      confirmText: 'Eliminar Zona',
+      danger: true,
+      bodyHtml: `<p>¿Deseas eliminar la zona <strong>"${escapeHtml(zone)}"</strong> de la sede <strong>"${escapeHtml(loc.replace(/_/g, ' '))}"</strong>?</p>`,
+      onConfirm: async () => {
+        try {
+          await fetch('/api/zones/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ location: loc, zone: zone })
+          });
+          await loadSedesAndZones();
+          await loadLocationsAndZones();
+          showToast(`Zona "${zone}" eliminada.`, 'success');
+          return true;
+        } catch (e) {
+          showToast('Error eliminando zona: ' + e, 'error');
+          return false;
+        }
+      }
+    });
+  };
+
+  window.promptAddZone = function (loc) {
+    openCustomModal({
+      title: `Añadir Zona a ${loc.replace(/_/g, ' ')}`,
+      icon: 'fa-location-dot',
+      confirmText: 'Añadir Zona',
+      bodyHtml: `
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Nombre de la nueva zona</label>
+          <input type="text" id="modal-sede-add-zone" class="toolbar-input" placeholder="Ej: Caja 4, Pasillo Norte, Recepción" style="width: 100%;">
+        </div>
+      `,
+      onConfirm: async () => {
+        const newZ = (document.getElementById('modal-sede-add-zone')?.value || '').trim();
+        if (!newZ) {
+          showToast('Ingresa un nombre para la zona.', 'warn');
+          return false;
+        }
+        await fetch('/api/zones', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ location: loc, zone: zone })
+          body: JSON.stringify({ location: loc, zone: newZ })
         });
-        loadSedesAndZones();
-        loadLocationsAndZones();
-      } catch (e) {
-        console.error("Error eliminando zona:", e);
+        await loadSedesAndZones();
+        await loadLocationsAndZones();
+        showToast(`Zona "${newZ}" añadida a ${loc.replace(/_/g, ' ')}.`, 'success');
+        return true;
       }
-    }
+    });
   };
 
-  window.promptAddZone = async function(loc) {
-    const newZ = prompt(`Añadir zona a ${loc}:`);
-    if (newZ && newZ.trim()) {
-      await fetch('/api/zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: loc, zone: newZ.trim() })
-      });
-      loadSedesAndZones();
-      loadLocationsAndZones();
-    }
+  window.deleteSede = function (loc) {
+    openCustomModal({
+      title: 'Eliminar Sede Completa',
+      icon: 'fa-building-circle-xmark',
+      confirmText: 'Sí, Eliminar Sede',
+      danger: true,
+      bodyHtml: `<p>¿Eliminar la sede <strong>"${escapeHtml(loc.replace(/_/g, ' '))}"</strong> y todas sus zonas configuradas?</p>`,
+      onConfirm: async () => {
+        await fetch('/api/locations/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: loc })
+        });
+        await loadSedesAndZones();
+        await loadLocationsAndZones();
+        showToast(`Sede "${loc.replace(/_/g, ' ')}" eliminada.`, 'success');
+        return true;
+      }
+    });
   };
 
-  window.deleteSede = async function(loc) {
-    if (confirm(`¿Eliminar la sede "${loc}" y sus zonas?`)) {
-      await fetch('/api/locations/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: loc })
-      });
-      loadSedesAndZones();
-      loadLocationsAndZones();
-    }
-  };
-
-  btnAddSedeModal.addEventListener('click', async () => {
-    const newLoc = prompt("Nombre de la nueva Sede:\n(Ej: Tienda_102_Unicentro, Bodega_Norte, Sede_Cali)");
-    if (newLoc && newLoc.trim()) {
-      const locClean = newLoc.trim().replace(/\s+/g, '_');
-      await fetch('/api/zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: locClean, zone: 'Zona General' })
-      });
-      loadSedesAndZones();
-      loadLocationsAndZones();
-    }
+  btnAddSedeModal.addEventListener('click', () => {
+    openCustomModal({
+      title: 'Crear Nueva Sede',
+      icon: 'fa-building',
+      confirmText: 'Crear Sede',
+      bodyHtml: `
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+          <label class="form-label">Nombre de la Sede / Tienda / Bodega</label>
+          <input type="text" id="modal-new-sede-name" class="toolbar-input" placeholder="Ej: Tienda 102 Unicentro, Bodega Norte" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label">Zona Inicial</label>
+          <input type="text" id="modal-new-sede-zone" class="toolbar-input" value="Zona General" placeholder="Ej: Zona General, Cajas, piso 1" style="width: 100%;">
+        </div>
+      `,
+      onConfirm: async () => {
+        const newLoc = (document.getElementById('modal-new-sede-name')?.value || '').trim();
+        const firstZone = (document.getElementById('modal-new-sede-zone')?.value || 'Zona General').trim() || 'Zona General';
+        if (!newLoc) {
+          showToast('Ingresa un nombre válido para la nueva sede.', 'warn');
+          return false;
+        }
+        const locClean = newLoc.replace(/\s+/g, '_');
+        await fetch('/api/zones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ location: locClean, zone: firstZone })
+        });
+        await loadSedesAndZones();
+        await loadLocationsAndZones();
+        showToast(`Sede "${newLoc}" creada con éxito.`, 'success');
+        return true;
+      }
+    });
   });
 
   btnSyncSedesJson.addEventListener('click', async () => {
@@ -2018,12 +2662,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnSyncSedesJson.disabled = true;
     try {
       const res = await fetch('/api/locations/sync', { method: 'POST' });
-      const data = await res.json();
+      await res.json();
       await loadSedesAndZones();
       await loadLocationsAndZones();
-      alert("Sedes y Zonas recargadas exitosamente desde sedes_zonas.json");
+      showToast('Sedes y Zonas recargadas exitosamente desde sedes_zonas.json', 'success');
     } catch (e) {
-      alert("Error al recargar sedes_zonas.json: " + e.message);
+      showToast('Error al recargar sedes_zonas.json: ' + e.message, 'error');
     } finally {
       btnSyncSedesJson.innerHTML = origHtml;
       btnSyncSedesJson.disabled = false;
@@ -2055,12 +2699,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (res.ok && data.status === 'success') {
             await loadLocationsAndZones();
             await loadSedesAndZones();
-            alert(`✅ Archivo cargado correctamente:\n• Total sedes: ${data.sedes_count}\n• Total zonas: ${data.zones_count}\n• Nuevas sedes añadidas: ${data.imported_sedes}\n• Nuevas zonas añadidas: ${data.imported_zones}`);
+            showToast(`Archivo cargado: ${data.sedes_count} sedes, ${data.zones_count} zonas (+${data.imported_sedes} sedes / +${data.imported_zones} zonas nuevas)`, 'success', 5500);
           } else {
-            alert("❌ Error al procesar archivo: " + (data.message || "Formato de archivo no reconocido"));
+            showToast('Error al procesar archivo: ' + (data.message || 'Formato no reconocido'), 'error');
           }
         } catch (err) {
-          alert("❌ Error al cargar archivo: " + err);
+          showToast('Error al cargar archivo: ' + err, 'error');
         } finally {
           btnImportSedesFile.innerHTML = '<i class="fa-solid fa-file-arrow-up"></i> Cargar Archivo (JSON / CSV)';
           btnImportSedesFile.disabled = false;
@@ -2248,51 +2892,57 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Clear Database from Tab 6 (Estadísticas & Auditoría)
-  async function handleClearDatabaseAudit() {
-    const confirmMsg = 
-      "⚠️ ADVERTENCIA: ¿Estás seguro de que deseas vaciar TODOS los registros de auditoría de la Base de Datos?\n\n" +
-      "Se eliminarán de forma irreversible:\n" +
-      "• Todas las muestras de Telemetría (Señal dBm, Ping, Jitter)\n" +
-      "• Todos los eventos de Roaming (Handoffs)\n" +
-      "• El historial de fases de Latencia HTTP (Capa 7)\n" +
-      "• El historial de diagnóstico de red ICMP y Traceroute\n\n" +
-      "(Los nombres de APs, sedes/zonas y parámetros de configuración se conservarán intactos).\n\n" +
-      "¿Deseas continuar con la purga total de la base de datos?";
-
-    if (!confirm(confirmMsg)) return;
-
+  function handleClearDatabaseAudit() {
     if (exportOptionsMenu) exportOptionsMenu.style.display = 'none';
 
-    if (btnClearDbStats) {
-      btnClearDbStats.disabled = true;
-      btnClearDbStats.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Limpiando...';
-    }
-
-    try {
-      const res = await fetch('/api/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'all' })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        alert("¡Base de datos limpiada con éxito!\nSe han reiniciado los contadores y registros de auditoría.");
-        loadStatistics();
-        loadRoamingHistory();
-        loadHttpPhasesHistory();
-        loadNetDiagView();
-        fetchStatus();
-      } else {
-        alert("Error al limpiar la base de datos: " + (data.message || 'Error desconocido'));
+    openCustomModal({
+      title: 'Vaciar Registros de Auditoría (BD)',
+      icon: 'fa-triangle-exclamation',
+      confirmText: 'Sí, Vaciar Base de Datos',
+      danger: true,
+      bodyHtml: `
+        <p style="color: var(--text-primary); font-weight: 600;">¿Estás seguro de que deseas vaciar TODOS los registros de auditoría de la Base de Datos?</p>
+        <ul style="padding-left: 1.2rem; font-size: 0.82rem; line-height: 1.5; color: var(--text-secondary);">
+          <li>Muestras de Telemetría (Señal dBm, Ping, Jitter)</li>
+          <li>Eventos de Roaming (Handoffs)</li>
+          <li>Historial de fases de Latencia HTTP (Capa 7)</li>
+          <li>Historial de diagnóstico de red ICMP y Traceroute</li>
+        </ul>
+        <small style="color: var(--text-muted);">Los nombres de APs, sedes/zonas y parámetros de configuración se conservarán intactos.</small>
+      `,
+      onConfirm: async () => {
+        if (btnClearDbStats) {
+          btnClearDbStats.disabled = true;
+          btnClearDbStats.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Limpiando...';
+        }
+        try {
+          const res = await fetch('/api/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scope: 'all' })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
+            showToast('Base de datos limpiada con éxito. Se reiniciaron los registros de auditoría.', 'success');
+            loadStatistics();
+            loadRoamingHistory();
+            loadHttpPhasesHistory();
+            loadNetDiagView();
+            fetchStatus();
+          } else {
+            showToast('Error al limpiar la base de datos: ' + (data.message || 'Error desconocido'), 'error');
+          }
+        } catch (err) {
+          showToast('Error de conexión al limpiar la base de datos: ' + err, 'error');
+        } finally {
+          if (btnClearDbStats) {
+            btnClearDbStats.disabled = false;
+            btnClearDbStats.innerHTML = '<i class="fa-solid fa-trash-can"></i> Limpiar BD';
+          }
+        }
+        return true;
       }
-    } catch (err) {
-      alert("Error de conexión al limpiar la base de datos: " + err);
-    } finally {
-      if (btnClearDbStats) {
-        btnClearDbStats.disabled = false;
-        btnClearDbStats.innerHTML = '<i class="fa-solid fa-trash-can"></i> Limpiar BD';
-      }
-    }
+    });
   }
 
   if (btnClearDbStats) {
@@ -2428,12 +3078,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join('');
   }
 
-  window.removeApName = async function(bssid) {
+  window.removeApName = async function (bssid) {
     await fetch('/api/ap-names/remove', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bssid: bssid })
     });
+    showToast(`Alias eliminado para ${bssid}`, 'info');
     loadConfigView();
   };
 
@@ -2443,7 +3094,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const name = inputNewApname.value.trim();
       const loc = inputNewAploc ? inputNewAploc.value.trim() : '';
       if (!bssid || !name) {
-        alert("Por favor ingresa tanto el BSSID (MAC) como el Nombre del AP.");
+        showToast('Por favor ingresa tanto el BSSID (MAC) como el Nombre del AP.', 'warn');
         return;
       }
       try {
@@ -2457,12 +3108,13 @@ document.addEventListener('DOMContentLoaded', () => {
           inputNewBssid.value = '';
           inputNewApname.value = '';
           if (inputNewAploc) inputNewAploc.value = '';
+          showToast(`AP ${bssid} registrado como "${name}"`, 'success');
           loadConfigView();
         } else {
-          alert("Error: " + data.message);
+          showToast('Error: ' + data.message, 'error');
         }
       } catch (e) {
-        alert("Error guardando AP: " + e);
+        showToast('Error guardando AP: ' + e, 'error');
       }
     });
   }
@@ -2493,24 +3145,20 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           const data = await res.json();
           if (data.status === 'success') {
-            let msg = `¡Importación completada con éxito!\n\n• Nuevos APs registrados: ${data.added}\n• APs actualizados: ${data.updated}\n• Total en inventario: ${data.total}`;
-            if (data.errors && data.errors.length > 0) {
-              msg += `\n\nAvisos (${data.errors.length}):\n${data.errors.slice(0, 5).join('\n')}`;
-            }
-            alert(msg);
+            showToast(`CSV importado: +${data.added} nuevos, ${data.updated} actualizados (Total: ${data.total})`, 'success', 5500);
             loadConfigView();
           } else {
-            alert("Error al importar CSV: " + (data.message || 'Formato no reconocido'));
+            showToast('Error al importar CSV: ' + (data.message || 'Formato no reconocido'), 'error');
           }
         } catch (err) {
-          alert("Error de procesamiento: " + err);
+          showToast('Error de procesamiento: ' + err, 'error');
         } finally {
           btnImportApCsv.disabled = false;
           btnImportApCsv.innerHTML = originalHtml;
         }
       };
       reader.onerror = () => {
-        alert("Error al leer el archivo seleccionado.");
+        showToast('Error al leer el archivo seleccionado.', 'error');
         btnImportApCsv.disabled = false;
         btnImportApCsv.innerHTML = originalHtml;
       };
@@ -2525,17 +3173,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnClearAllAps) {
-    btnClearAllAps.addEventListener('click', async () => {
-      if (!confirm("¿Estás seguro de que deseas eliminar TODOS los nombres de APs registrados en la base de datos?\nEsta acción no se puede deshacer.")) {
-        return;
-      }
-      try {
-        await fetch('/api/ap-names/clear', { method: 'POST' });
-        alert("Base de datos de APs limpiada.");
-        loadConfigView();
-      } catch (e) {
-        alert("Error al limpiar APs: " + e);
-      }
+    btnClearAllAps.addEventListener('click', () => {
+      openCustomModal({
+        title: 'Vaciar Inventario de APs',
+        icon: 'fa-trash-can',
+        confirmText: 'Sí, Eliminar Todos',
+        danger: true,
+        bodyHtml: `<p>¿Estás seguro de que deseas eliminar <strong>TODOS</strong> los nombres y alias de APs registrados en la base de datos? Esta acción no se puede deshacer.</p>`,
+        onConfirm: async () => {
+          try {
+            await fetch('/api/ap-names/clear', { method: 'POST' });
+            showToast('Inventario de nombres de APs limpiado.', 'success');
+            loadConfigView();
+            return true;
+          } catch (e) {
+            showToast('Error al limpiar APs: ' + e, 'error');
+            return false;
+          }
+        }
+      });
     });
   }
 
@@ -2548,10 +3204,10 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ interface: newIface })
       });
       const data = await res.json();
-      if (data.status === 'success') alert("Interfaz cambiada exitosamente.");
-      else alert("Error: " + data.message);
+      if (data.status === 'success') showToast(`Interfaz Wi-Fi cambiada a ${newIface}`, 'success');
+      else showToast('Error: ' + data.message, 'error');
     } catch (e) {
-      alert("Error cambiando interfaz: " + e);
+      showToast('Error cambiando interfaz: ' + e, 'error');
     }
   });
 
@@ -2564,7 +3220,7 @@ document.addEventListener('DOMContentLoaded', () => {
       extra_ping_targets: cfgExtraPing.value.trim(),
       net_diag_interval_minutes: cfgNetDiagInterval ? cfgNetDiagInterval.value : 10
     });
-    alert("Configuración de telemetría guardada.");
+    showToast('Parámetros de telemetría guardados exitosamente.', 'success');
   });
 
   // --- Enterprise Authentication Controls ---
@@ -2628,10 +3284,10 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSaveAuth.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
       try {
         await collectAndSaveAuth();
-        alert("Configuración de autenticación guardada exitosamente.");
+        showToast('Configuración de autenticación guardada exitosamente.', 'success');
         fetchStatus();
       } catch (e) {
-        alert("Error guardando autenticación: " + e);
+        showToast('Error guardando autenticación: ' + e, 'error');
       } finally {
         btnSaveAuth.disabled = false;
         btnSaveAuth.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Autenticación';
@@ -2650,15 +3306,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const code = data.status_code || 0;
         const latency = (data.total_ms !== null && data.total_ms !== undefined) ? `${data.total_ms} ms` : 'N/A';
         if (code >= 200 && code < 400) {
-          alert(`¡Autenticación Exitosa!\nCódigo HTTP: ${code}\nLatencia Total: ${latency}\nDestino: ${data.target || 'URL configurada'}`);
+          showToast(`Autenticación exitosa (HTTP ${code}) • Latencia: ${latency}`, 'success', 5000);
         } else if (code === 401 || code === 403) {
-          alert(`Fallo de Autenticación (Código HTTP ${code}):\nCredenciales rechazadas por el servidor de destino.\nRevisa el dominio, usuario, contraseña o token.`);
+          showToast(`Fallo de autenticación (HTTP ${code}): Credenciales rechazadas.`, 'error', 6000);
         } else {
-          alert(`Resultado de Prueba:\nCódigo HTTP: ${code}\nLatencia: ${latency}\n${data.error_message ? 'Detalle: ' + data.error_message : ''}`);
+          showToast(`Prueba HTTP ${code} • Latencia: ${latency}${data.error_message ? ' (' + data.error_message + ')' : ''}`, 'warn', 5000);
         }
         fetchStatus();
       } catch (e) {
-        alert("Error al probar autenticación: " + e);
+        showToast('Error al probar autenticación: ' + e, 'error');
       } finally {
         btnTestAuth.disabled = false;
         btnTestAuth.innerHTML = '<i class="fa-solid fa-key"></i> Probar Credenciales Ahora';
@@ -2696,7 +3352,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       ouiTableBody.innerHTML = results.map(item => {
         const isCustom = item.is_custom;
-        const typeBadge = isCustom 
+        const typeBadge = isCustom
           ? `<span class="badge badge-oui-custom"><i class="fa-solid fa-sliders"></i> Personalizado</span>`
           : `<span class="badge badge-oui-ieee"><i class="fa-solid fa-shield-check"></i> Oficial IEEE</span>`;
         const actionBtn = isCustom
@@ -2717,25 +3373,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  window.removeCustomOui = async function(prefix) {
-    if (!confirm(`¿Eliminar la personalización para el prefijo OUI ${prefix}?`)) return;
-    try {
-      const res = await fetch('/api/oui/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prefix })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        await fetchOuiInfo();
-        const currentQuery = ouiSearchInput ? ouiSearchInput.value.trim() : '';
-        searchOuiVendors(currentQuery);
-      } else {
-        alert("Error al eliminar OUI: " + (data.message || ''));
+  window.removeCustomOui = function (prefix) {
+    openCustomModal({
+      title: 'Eliminar Prefijo OUI Personalizado',
+      icon: 'fa-trash-can',
+      confirmText: 'Eliminar Prefijo',
+      danger: true,
+      bodyHtml: `<p>¿Eliminar la personalización para el prefijo OUI <strong>${escapeHtml(prefix)}</strong>?</p>`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/oui/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefix })
+          });
+          const data = await res.json();
+          if (data.status === 'success') {
+            await fetchOuiInfo();
+            const currentQuery = ouiSearchInput ? ouiSearchInput.value.trim() : '';
+            searchOuiVendors(currentQuery);
+            showToast(`Prefijo ${prefix} eliminado.`, 'success');
+          } else {
+            showToast('Error al eliminar OUI: ' + (data.message || ''), 'error');
+          }
+        } catch (e) {
+          showToast('Error en la solicitud: ' + e, 'error');
+        }
+        return true;
       }
-    } catch (e) {
-      alert("Error en la solicitud: " + e);
-    }
+    });
   };
 
   async function checkOuiUpdateStatus() {
@@ -2785,33 +3451,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnUpdateOui) {
-    btnUpdateOui.addEventListener('click', async () => {
-      if (!confirm("¿Deseas descargar la versión más reciente del registro oficial de fabricantes del IEEE (MA-L)?\nEste proceso se realiza en segundo plano y toma unos segundos.")) {
-        return;
-      }
-      try {
-        btnUpdateOui.disabled = true;
-        btnUpdateOui.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando...';
-        if (ouiUpdateBanner) ouiUpdateBanner.style.display = 'flex';
-        if (ouiUpdateStatusText) ouiUpdateStatusText.textContent = 'Iniciando descarga desde IEEE...';
+    btnUpdateOui.addEventListener('click', () => {
+      openCustomModal({
+        title: 'Actualizar Base OUI desde IEEE',
+        icon: 'fa-cloud-arrow-down',
+        confirmText: 'Iniciar Descarga',
+        bodyHtml: `<p>¿Deseas descargar la versión más reciente del registro oficial de fabricantes del IEEE (MA-L)? Este proceso se ejecuta en segundo plano.</p>`,
+        onConfirm: async () => {
+          try {
+            btnUpdateOui.disabled = true;
+            btnUpdateOui.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando...';
+            if (ouiUpdateBanner) ouiUpdateBanner.style.display = 'flex';
+            if (ouiUpdateStatusText) ouiUpdateStatusText.textContent = 'Iniciando descarga desde IEEE...';
 
-        const res = await fetch('/api/oui/update', { method: 'POST' });
-        const data = await res.json();
+            const res = await fetch('/api/oui/update', { method: 'POST' });
+            const data = await res.json();
 
-        if (data.status === 'in_progress' || data.status === 'started' || data.status === 'updating') {
-          if (ouiUpdateInterval) clearInterval(ouiUpdateInterval);
-          ouiUpdateInterval = setInterval(checkOuiUpdateStatus, 1000);
-        } else {
-          alert("Respuesta: " + (data.message || data.status));
-          checkOuiUpdateStatus();
+            if (data.status === 'in_progress' || data.status === 'started' || data.status === 'updating') {
+              if (ouiUpdateInterval) clearInterval(ouiUpdateInterval);
+              ouiUpdateInterval = setInterval(checkOuiUpdateStatus, 1000);
+            } else {
+              showToast(data.message || data.status, 'info');
+              checkOuiUpdateStatus();
+            }
+          } catch (e) {
+            showToast('Error al iniciar actualización: ' + e, 'error');
+            if (btnUpdateOui) {
+              btnUpdateOui.disabled = false;
+              btnUpdateOui.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Actualizar desde IEEE';
+            }
+          }
+          return true;
         }
-      } catch (e) {
-        alert("Error al iniciar actualización: " + e);
-        if (btnUpdateOui) {
-          btnUpdateOui.disabled = false;
-          btnUpdateOui.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Actualizar desde IEEE';
-        }
-      }
+      });
     });
   }
 
@@ -2837,7 +3509,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const vendor = ouiInputVendor ? ouiInputVendor.value.trim() : '';
 
       if (!prefix || !vendor) {
-        alert("Por favor ingresa tanto el prefijo MAC (3 octetos) como el nombre del fabricante.");
+        showToast('Ingresa tanto el prefijo MAC (3 octetos) como el nombre del fabricante.', 'warn');
         return;
       }
 
@@ -2858,11 +3530,12 @@ document.addEventListener('DOMContentLoaded', () => {
           await fetchOuiInfo();
           const currentQuery = ouiSearchInput ? ouiSearchInput.value.trim() : '';
           searchOuiVendors(currentQuery);
+          showToast(`Prefijo OUI ${prefix} (${vendor}) guardado.`, 'success');
         } else {
-          alert("Error: " + (data.message || 'No se pudo guardar'));
+          showToast('Error: ' + (data.message || 'No se pudo guardar'), 'error');
         }
       } catch (e) {
-        alert("Error de conexión: " + e);
+        showToast('Error de conexión: ' + e, 'error');
       } finally {
         btnSaveCustomOui.disabled = false;
         btnSaveCustomOui.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Guardar Prefijo';
@@ -2885,9 +3558,25 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/trigger-test-ping', { method: 'POST' });
       const data = await res.json();
-      alert(`Prueba de Estabilidad Gateway:\nPromedio Ping: ${data.avg_ping_ms} ms\nPérdida de Paquetes: ${data.packet_loss_pct}%\nPings: ${data.pings.join(', ')} ms`);
+      const loss = Number(data.packet_loss_pct || 0);
+      const avg = data.avg_ping_ms !== null && data.avg_ping_ms !== undefined ? `${data.avg_ping_ms} ms` : 'Timeout';
+      const pingsStr = Array.isArray(data.pings) && data.pings.length > 0 ? data.pings.join(', ') + ' ms' : 'Sin respuesta';
+
+      if (roamingPingInlineResult) {
+        roamingPingInlineResult.style.display = 'block';
+        roamingPingInlineResult.classList.remove('ping-ok', 'ping-warn', 'ping-danger');
+        roamingPingInlineResult.classList.add(loss === 0 ? 'ping-ok' : (loss < 50 ? 'ping-warn' : 'ping-danger'));
+        roamingPingInlineResult.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
+            <strong><i class="fa-solid fa-bolt"></i> Ráfaga Gateway (${escapeHtml(data.gateway || 'GW')}): ${avg}</strong>
+            <span class="badge" style="font-size: 0.68rem; padding: 0.1rem 0.45rem;">Pérdida: ${loss}%</span>
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">Muestras: ${escapeHtml(pingsStr)}</div>
+        `;
+      }
+      showToast(`Ráfaga Gateway: Promedio ${avg} (Pérdida: ${loss}%)`, loss === 0 ? 'success' : 'warn');
     } catch (e) {
-      alert("Error en prueba de ping: " + e);
+      showToast('Error en prueba de ping: ' + e, 'error');
     } finally {
       btnTestRoaming.innerHTML = '<i class="fa-solid fa-vial-circle-check"></i> Probar Ping';
       btnTestRoaming.disabled = false;
@@ -3197,20 +3886,33 @@ document.addEventListener('DOMContentLoaded', () => {
         if (summaryPillsEl) {
           summaryPillsEl.innerHTML = parts.map(p => `<span class="badge" style="margin-right:0.35rem; background:#ffffff; border:1px solid #cbd5e1;">${escapeHtml(p)}</span>`).join('');
         }
+
+        // Calculate completeness
+        const totalFields = 7;
+        let filledCount = 0;
+        if (profile.environment_type) filledCount++;
+        if (profile.ceiling_height) filledCount++;
+        if (profile.obstacles) filledCount++;
+        if (profile.test_mode) filledCount++;
+        if (profile.client_device_type) filledCount++;
+        if (profile.interference_notes) filledCount++;
+        if (profile.custom_description) filledCount++;
+        const pct = Math.round((filledCount / totalFields) * 100);
+
         if (savedBadge) {
-          savedBadge.textContent = 'Perfil Configurado ✓';
-          savedBadge.style.background = 'rgba(16, 185, 129, 0.14)';
-          savedBadge.style.color = '#059669';
+          savedBadge.innerHTML = `<i class="fa-solid fa-circle-check"></i> Calibrado ${pct}%`;
+          savedBadge.style.background = pct >= 70 ? 'rgba(16, 185, 129, 0.14)' : 'rgba(139, 92, 246, 0.14)';
+          savedBadge.style.color = pct >= 70 ? '#059669' : '#6d28d9';
         }
         if (lblZoneCtxStatus) {
-          lblZoneCtxStatus.textContent = 'Contexto OK ✓';
+          lblZoneCtxStatus.textContent = pct >= 70 ? `Contexto ${pct}% ✓` : 'Contexto Físico';
         }
       } else {
         if (summaryPillsEl) {
           summaryPillsEl.innerHTML = '<span style="color:#b45309; font-weight:600;"><i class="fa-solid fa-triangle-exclamation"></i> Sin perfil físico registrado para esta zona. Completa las preguntas de la izquierda para mejorar la precisión del modelo.</span>';
         }
         if (savedBadge) {
-          savedBadge.textContent = 'Pendiente';
+          savedBadge.textContent = 'Pendiente 0%';
           savedBadge.style.background = 'rgba(245, 158, 11, 0.14)';
           savedBadge.style.color = '#b45309';
         }
@@ -3265,8 +3967,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const qText = btn.dataset.qtext || '';
         const ans = btn.dataset.ans || '';
         const trig = btn.dataset.tigger || 'situational';
-        btn.disabled = true;
-        btn.textContent = '✓ Registrando y consultando...';
+        
+        // Immediate visual state on the card
+        const card = btn.closest('.ai-question-card');
+        if (card) {
+          card.classList.add('answered');
+          card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 0.8rem; font-weight: 600; color: #059669;">
+                <i class="fa-solid fa-circle-check"></i> ${escapeHtml(qText)}: <strong>${escapeHtml(ans)}</strong>
+              </span>
+              <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">Calibrado</span>
+            </div>
+          `;
+        }
+
         try {
           await fetch('/api/agent/annotate', {
             method: 'POST',
@@ -3290,14 +4005,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!container) return;
     const div = document.createElement('div');
     div.className = `ai-msg ${role === 'user' ? 'ai-msg-user' : 'ai-msg-assistant'}`;
-    const toolsBadge = (toolsUsed && toolsUsed.length > 0)
-      ? `<span style="font-size:0.7rem; color:#6d28d9; background:rgba(139,92,246,0.1); padding:0.1rem 0.45rem; border-radius:4px;">Tools MCP: ${escapeHtml(toolsUsed.join(', '))}</span>`
-      : `<span>${new Date().toLocaleTimeString([], { hour12: false })}</span>`;
+
+    let toolsHtml = '';
+    if (toolsUsed && toolsUsed.length > 0) {
+      const toolPills = toolsUsed.map(t => `<code class="mcp-tool-pill"><i class="fa-solid fa-gear"></i> ${escapeHtml(t)}</code>`).join(' ');
+      toolsHtml = `
+        <details class="mcp-tool-details">
+          <summary class="mcp-tool-summary">
+            <i class="fa-solid fa-screwdriver-wrench"></i> ${toolsUsed.length} herramienta${toolsUsed.length > 1 ? 's' : ''} MCP ejecutada${toolsUsed.length > 1 ? 's' : ''}
+          </summary>
+          <div class="mcp-tool-payload">
+            ${toolPills}
+          </div>
+        </details>
+      `;
+    }
+
     div.innerHTML = `
       <div class="ai-msg-header">
-        <strong>${role === 'user' ? '<i class="fa-solid fa-user-Astronaut"></i> Operador / Ingeniero' : '<i class="fa-solid fa-robot"></i> ' + escapeHtml(headerLabel)}</strong>
-        ${toolsBadge}
+        <strong>${role === 'user' ? '<i class="fa-solid fa-user-astronaut"></i> Operador / Ingeniero' : '<i class="fa-solid fa-robot"></i> ' + escapeHtml(headerLabel)}</strong>
+        <span>${new Date().toLocaleTimeString([], { hour12: false })}</span>
       </div>
+      ${toolsHtml}
       <div class="ai-msg-body">${bodyHtml}</div>
     `;
     container.appendChild(div);
@@ -3510,29 +4239,64 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           if (keyInput) keyInput.value = '';
           await loadGeminiCredentialsStatus();
-          alert(data.message || 'Credenciales guardadas de forma segura.');
+          showToast(data.message || 'Credenciales guardadas de forma segura.', 'success');
         } catch (err) {
-          alert('Error guardando credenciales Gemini: ' + err);
+          showToast('Error guardando credenciales Gemini: ' + err, 'error');
         }
       });
     }
 
     const btnClearGeminiCreds = document.getElementById('btn-clear-gemini-creds');
     if (btnClearGeminiCreds) {
-      btnClearGeminiCreds.addEventListener('click', async () => {
-        if (!confirm('¿Deseas eliminar la clave de API de Gemini almacenada localmente (.env y SQLite)?')) return;
-        try {
-          const res = await fetch('/api/agent/credentials', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'clear' })
-          });
-          const data = await res.json();
-          await loadGeminiCredentialsStatus();
-          alert(data.message || 'Clave local eliminada.');
-        } catch (err) {
-          alert('Error eliminando clave: ' + err);
-        }
+      btnClearGeminiCreds.addEventListener('click', () => {
+        openCustomModal({
+          title: 'Eliminar Clave de API Gemini',
+          icon: 'fa-solid fa-triangle-exclamation',
+          message: '¿Deseas eliminar la clave de API de Gemini almacenada localmente (.env y SQLite)? Deberás ingresarla nuevamente para habilitar el Copiloto IA.',
+          confirmText: 'Sí, eliminar',
+          confirmClass: 'btn-danger',
+          onConfirm: async () => {
+            try {
+              const res = await fetch('/api/agent/credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'clear' })
+              });
+              const data = await res.json();
+              await loadGeminiCredentialsStatus();
+              showToast(data.message || 'Clave local eliminada.', 'info');
+              return true;
+            } catch (err) {
+              showToast('Error eliminando clave: ' + err, 'error');
+              return false;
+            }
+          }
+        });
+      });
+    }
+
+    // Cross-view shortcuts to AI Agent
+    const btnRoamingAskAi = document.getElementById('btn-roaming-ask-ai');
+    if (btnRoamingAskAi) {
+      btnRoamingAskAi.addEventListener('click', () => {
+        const tabAiBtn = document.getElementById('tab-btn-ai-agent');
+        if (tabAiBtn) tabAiBtn.click();
+        sendAiPrompt(
+          'Audita el comportamiento reciente de Roaming y Hand-offs en esta zona. ¿Detectas eventos de Sticky Client, Ping-Pong Roaming o caídas anormales tras la transición?',
+          'roaming_anomaly_audit'
+        );
+      });
+    }
+
+    const btnHttpAskAi = document.getElementById('btn-http-ask-ai');
+    if (btnHttpAskAi) {
+      btnHttpAskAi.addEventListener('click', () => {
+        const tabAiBtn = document.getElementById('tab-btn-ai-agent');
+        if (tabAiBtn) tabAiBtn.click();
+        sendAiPrompt(
+          'Audita las fases de la sonda de latencia HTTP (DNS, TCP, TLS, TTFB y Transferencia). ¿El cuello de botella está en la señal Wi-Fi RF, en la pasarela o en el backend de la aplicación?',
+          'http_latency_audit'
+        );
       });
     }
   }
