@@ -531,7 +531,6 @@ body {
   flex-wrap: nowrap;
   flex: 1;
   min-width: 0;
-  justify-content: flex-end;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -2732,6 +2731,31 @@ body {
 .inline-ping-result.ping-danger {
   background: rgba(225, 29, 72, 0.08);
   border-color: rgba(225, 29, 72, 0.35);
+}
+
+/* Card 4 Roaming Action Grid (Prevents Button Overflow) */
+.roaming-action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.roaming-action-grid button {
+  font-size: 0.75rem;
+  padding: 0.38rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border-radius: 8px;
+}
+
+.roaming-zip-span {
+  grid-column: 1 / -1;
+  font-weight: 600;
 }
 
 /* Scope Filter Pill in Roaming Log & HTTP Phases History */
