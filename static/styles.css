@@ -3122,3 +3122,19 @@ body {
   background: #f8fafc;
   border-top: 1px solid var(--border-color);
 }
+
+/* AP Inventory Pagination Controls */
+.ap-page-btn {
+  padding: 0.28rem 0.65rem;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1.2;
+}
+
+.ap-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}

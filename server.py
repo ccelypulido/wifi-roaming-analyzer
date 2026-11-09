@@ -901,12 +901,22 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif parsed.path == '/api/ap-names':
             q = qs.get('q', [''])[0]
             try:
-                limit = int(qs.get('limit', [100])[0])
+                page = max(1, int(qs.get('page', [1])[0]))
             except ValueError:
-                limit = 100
+                page = 1
+            try:
+                page_size = max(1, min(500, int(qs.get('page_size', qs.get('limit', [50]))[0])))
+            except ValueError:
+                page_size = 50
+            paged = ap_manager.search_paginated(q, page=page, page_size=page_size)
             self.send_json_response({
                 "info": ap_manager.get_info(),
-                "aps": ap_manager.search(q, limit=limit)
+                "aps": paged["aps"],
+                "total": paged["total"],
+                "page": paged["page"],
+                "page_size": paged["page_size"],
+                "total_pages": paged["total_pages"],
+                "query": q
             })
         elif parsed.path == '/api/config':
             cfg = database.get_config()

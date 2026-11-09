@@ -480,6 +480,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnClearAllAps = document.getElementById('btn-clear-all-aps');
   const inputSearchApNames = document.getElementById('input-search-ap-names');
   const apFilteredInfo = document.getElementById('ap-filtered-info');
+  const apPageSizeSelect = document.getElementById('ap-page-size-select');
+  const apPaginationSummary = document.getElementById('ap-pagination-summary');
+  const btnApFirstPage = document.getElementById('btn-ap-first-page');
+  const btnApPrevPage = document.getElementById('btn-ap-prev-page');
+  const apCurrentPageBadge = document.getElementById('ap-current-page-badge');
+  const btnApNextPage = document.getElementById('btn-ap-next-page');
+  const btnApLastPage = document.getElementById('btn-ap-last-page');
 
   // Tab 7: Enterprise Authentication
   const cfgAuthEnabled = document.getElementById('cfg-auth-enabled');
@@ -519,6 +526,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let locationsData = [];
   let zonesByLocation = {};
   let allApList = [];
+  let apPaginationState = {
+    query: '',
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    totalPages: 1,
+    loading: false
+  };
+  let apSearchDebounceTimer = null;
   let currentPreset = 'store';
   let isProbing = false;
   let ouiUpdateInterval = null;
@@ -2972,14 +2988,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Tab 7: Configuration & AP Names ---
   async function loadConfigView() {
     try {
-      const [resCfg, resIfaces, resAps] = await Promise.all([
+      const [resCfg, resIfaces] = await Promise.all([
         fetch('/api/config'),
-        fetch('/api/interfaces'),
-        fetch('/api/ap-names')
+        fetch('/api/interfaces')
       ]);
       const cfg = await resCfg.json();
       const ifaces = await resIfaces.json();
-      const aps = await resAps.json();
 
       // Interfaces dropdown
       cfgWifiInterface.innerHTML = '';
@@ -3017,10 +3031,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cfgAuthToken) cfgAuthToken.value = cfg.auth_token || '';
       updateAuthFieldsVisibility();
 
-      // AP Names Inventory
-      allApList = aps.aps || [];
-      if (apCountBadge) apCountBadge.textContent = `${allApList.length} APs`;
-      applyApFilterAndRender();
+      // AP Names Inventory - Carga paginada sobre la totalidad de APs registrados
+      loadApNamesPage(apPaginationState.page || 1);
 
       // IEEE OUI Vendor Database & MAC Management
       fetchOuiInfo();
@@ -3032,31 +3044,125 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function applyApFilterAndRender() {
-    const q = inputSearchApNames ? inputSearchApNames.value.trim().toLowerCase() : '';
-    let filtered = allApList;
-    if (q) {
-      filtered = allApList.filter(a => {
-        const mac = (a.bssid || a.mac || '').toLowerCase();
-        const name = (a.name || '').toLowerCase();
-        const loc = (a.location || '').toLowerCase();
-        const mod = (a.model || '').toLowerCase();
-        return mac.includes(q) || name.includes(q) || loc.includes(q) || mod.includes(q);
-      });
-    }
+  async function loadApNamesPage(page = 1) {
+    if (!apNamesTableBody) return;
+    try {
+      apPaginationState.loading = true;
+      apPaginationState.page = Math.max(1, page);
+      const q = inputSearchApNames ? inputSearchApNames.value.trim() : '';
+      apPaginationState.query = q;
 
-    if (apFilteredInfo) {
-      if (q) {
-        apFilteredInfo.textContent = `Mostrando ${filtered.length} de ${allApList.length} APs`;
+      apNamesTableBody.innerHTML = `<tr><td colspan="4"><div class="empty-state" style="padding: 1.5rem;"><i class="fa-solid fa-spinner fa-spin"></i><p>Consultando base de APs (${apPaginationState.pageSize} por página)...</p></div></td></tr>`;
+
+      const params = new URLSearchParams({
+        q: q,
+        page: apPaginationState.page,
+        page_size: apPaginationState.pageSize
+      });
+
+      const res = await fetch(`/api/ap-names?${params.toString()}`);
+      const data = await res.json();
+
+      const aps = data.aps || [];
+      const total = data.total ?? 0;
+      const totalPages = data.total_pages || 1;
+      const infoTotal = (data.info && data.info.total !== undefined) ? data.info.total : total;
+
+      allApList = aps;
+      apPaginationState.total = total;
+      apPaginationState.totalPages = totalPages;
+      apPaginationState.page = data.page || page;
+
+      // Actualizar insignia superior con la totalidad real en base de datos
+      if (apCountBadge) {
+        apCountBadge.textContent = `${infoTotal.toLocaleString()} APs`;
+      }
+
+      // Actualizar resumen de filtrado
+      if (apFilteredInfo) {
+        if (q) {
+          apFilteredInfo.innerHTML = `Encontrados <strong>${total.toLocaleString()}</strong> de ${infoTotal.toLocaleString()} APs para "<em>${escapeHtml(q)}</em>"`;
+        } else {
+          apFilteredInfo.textContent = `Total registrados: ${total.toLocaleString()} APs en inventario`;
+        }
+      }
+
+      renderApNamesTable(aps);
+      updateApPaginationUI(total, infoTotal);
+    } catch (e) {
+      console.error("Error cargando página de APs:", e);
+      if (apNamesTableBody) {
+        apNamesTableBody.innerHTML = `<tr><td colspan="4"><div class="empty-state" style="padding: 1.5rem; color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i><p>Error al consultar los Access Points registrados.</p></div></td></tr>`;
+      }
+    } finally {
+      apPaginationState.loading = false;
+    }
+  }
+
+  function updateApPaginationUI(total, infoTotal) {
+    const page = apPaginationState.page;
+    const totalPages = apPaginationState.totalPages;
+    const pageSize = apPaginationState.pageSize;
+
+    const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+    const to = Math.min(page * pageSize, total);
+
+    if (apPaginationSummary) {
+      if (total === 0) {
+        apPaginationSummary.textContent = '0 resultados';
       } else {
-        apFilteredInfo.textContent = `Mostrando ${allApList.length} APs registrados`;
+        apPaginationSummary.textContent = `Mostrando ${from.toLocaleString()} - ${to.toLocaleString()} de ${total.toLocaleString()}`;
       }
     }
-    renderApNamesTable(filtered);
+
+    if (apCurrentPageBadge) {
+      apCurrentPageBadge.textContent = `Pág. ${page} / ${totalPages}`;
+    }
+
+    if (btnApFirstPage) btnApFirstPage.disabled = (page <= 1);
+    if (btnApPrevPage) btnApPrevPage.disabled = (page <= 1);
+    if (btnApNextPage) btnApNextPage.disabled = (page >= totalPages);
+    if (btnApLastPage) btnApLastPage.disabled = (page >= totalPages);
   }
 
   if (inputSearchApNames) {
-    inputSearchApNames.addEventListener('input', applyApFilterAndRender);
+    inputSearchApNames.addEventListener('input', () => {
+      clearTimeout(apSearchDebounceTimer);
+      apSearchDebounceTimer = setTimeout(() => {
+        loadApNamesPage(1);
+      }, 250);
+    });
+  }
+
+  if (apPageSizeSelect) {
+    apPageSizeSelect.addEventListener('change', () => {
+      apPaginationState.pageSize = parseInt(apPageSizeSelect.value, 10) || 50;
+      loadApNamesPage(1);
+    });
+  }
+
+  if (btnApFirstPage) {
+    btnApFirstPage.addEventListener('click', () => {
+      if (apPaginationState.page > 1) loadApNamesPage(1);
+    });
+  }
+
+  if (btnApPrevPage) {
+    btnApPrevPage.addEventListener('click', () => {
+      if (apPaginationState.page > 1) loadApNamesPage(apPaginationState.page - 1);
+    });
+  }
+
+  if (btnApNextPage) {
+    btnApNextPage.addEventListener('click', () => {
+      if (apPaginationState.page < apPaginationState.totalPages) loadApNamesPage(apPaginationState.page + 1);
+    });
+  }
+
+  if (btnApLastPage) {
+    btnApLastPage.addEventListener('click', () => {
+      if (apPaginationState.page < apPaginationState.totalPages) loadApNamesPage(apPaginationState.totalPages);
+    });
   }
 
   function renderApNamesTable(apList) {
@@ -3088,7 +3194,7 @@ document.addEventListener('DOMContentLoaded', () => {
       body: JSON.stringify({ bssid: bssid })
     });
     showToast(`Alias eliminado para ${bssid}`, 'info');
-    loadConfigView();
+    loadApNamesPage(apPaginationState.page);
   };
 
   if (btnAddApname) {
@@ -3112,7 +3218,7 @@ document.addEventListener('DOMContentLoaded', () => {
           inputNewApname.value = '';
           if (inputNewAploc) inputNewAploc.value = '';
           showToast(`AP ${bssid} registrado como "${name}"`, 'success');
-          loadConfigView();
+          loadApNamesPage(1);
         } else {
           showToast('Error: ' + data.message, 'error');
         }
@@ -3149,7 +3255,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const data = await res.json();
           if (data.status === 'success') {
             showToast(`CSV importado: +${data.added} nuevos, ${data.updated} actualizados (Total: ${data.total})`, 'success', 5500);
-            loadConfigView();
+            loadApNamesPage(1);
           } else {
             showToast('Error al importar CSV: ' + (data.message || 'Formato no reconocido'), 'error');
           }
@@ -3187,7 +3293,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             await fetch('/api/ap-names/clear', { method: 'POST' });
             showToast('Inventario de nombres de APs limpiado.', 'success');
-            loadConfigView();
+            loadApNamesPage(1);
             return true;
           } catch (e) {
             showToast('Error al limpiar APs: ' + e, 'error');

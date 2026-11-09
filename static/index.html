@@ -19,7 +19,7 @@
   <!-- Chart.js (Local Vendor Offline) -->
   <script src="chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=4.2.3">
+  <link rel="stylesheet" href="styles.css?v=4.2.4">
 </head>
 
 <body>
@@ -1666,17 +1666,17 @@
               <!-- Search Filter Bar -->
               <div
                 style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
-                <div style="position: relative; max-width: 400px; width: 100%;">
+                <div style="position: relative; max-width: 440px; width: 100%;">
                   <input type="text" id="input-search-ap-names" class="toolbar-input"
-                    placeholder="🔍 Buscar por MAC, nombre o ubicación..." style="width: 100%; padding-left: 0.75rem;">
+                    placeholder="🔍 Buscar por MAC (ej: 20:A6:CD o 20a6cd), nombre o ubicación..." style="width: 100%; padding-left: 0.75rem;">
                 </div>
                 <div id="ap-filtered-info" style="font-size: 0.8rem; color: var(--text-muted);">
-                  Mostrando todos los APs
+                  Cargando inventario de APs...
                 </div>
               </div>
 
               <!-- AP Inventory Table -->
-              <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+              <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
                 <table class="custom-table" style="width: 100%;">
                   <thead>
                     <tr>
@@ -1690,6 +1690,39 @@
                     <!-- Loaded via JS -->
                   </tbody>
                 </table>
+              </div>
+
+              <!-- AP Inventory Pagination Bar -->
+              <div id="ap-pagination-container"
+                style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); flex-wrap: wrap; gap: 0.75rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap;">
+                  <span>Mostrar:</span>
+                  <select id="ap-page-size-select" class="toolbar-select" style="padding: 0.2rem 0.5rem; font-size: 0.8rem; height: 30px;">
+                    <option value="25">25 por pág.</option>
+                    <option value="50" selected>50 por pág.</option>
+                    <option value="100">100 por pág.</option>
+                    <option value="200">200 por pág.</option>
+                  </select>
+                  <span id="ap-pagination-summary" style="font-weight: 500; color: var(--text-secondary);">Cargando...</span>
+                </div>
+
+                <div class="ap-pagination-controls" style="display: flex; align-items: center; gap: 0.35rem;">
+                  <button type="button" id="btn-ap-first-page" class="btn-secondary ap-page-btn" title="Primera página" disabled>
+                    <i class="fa-solid fa-angles-left"></i>
+                  </button>
+                  <button type="button" id="btn-ap-prev-page" class="btn-secondary ap-page-btn" title="Página anterior" disabled>
+                    <i class="fa-solid fa-angle-left"></i> Anterior
+                  </button>
+                  <span id="ap-current-page-badge" class="badge" style="background: #ffffff; border: 1px solid var(--border-color); color: var(--text-primary); font-size: 0.78rem; padding: 0.35rem 0.75rem; font-weight: 700;">
+                    Pág. 1 / 1
+                  </span>
+                  <button type="button" id="btn-ap-next-page" class="btn-secondary ap-page-btn" title="Página siguiente" disabled>
+                    Siguiente <i class="fa-solid fa-angle-right"></i>
+                  </button>
+                  <button type="button" id="btn-ap-last-page" class="btn-secondary ap-page-btn" title="Última página" disabled>
+                    <i class="fa-solid fa-angles-right"></i>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -2112,7 +2145,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=4.2.3"></script>
+  <script src="app.js?v=4.2.4"></script>
 </body>
 
 </html>

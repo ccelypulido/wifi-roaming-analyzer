@@ -204,26 +204,91 @@ class APManager:
             self.metadata["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self._save_unlocked()
 
-    def search(self, query="", limit=100):
-        """Busca APs por nombre, MAC, ubicación o modelo."""
+    def search_paginated(self, query="", page=1, page_size=50):
+        """
+        Busca APs por nombre, MAC, ubicación o modelo sobre la TOTALIDAD del inventario
+        registrado con soporte de paginación completa.
+        Soporta búsqueda flexible por MAC (con o sin dos puntos/guiones).
+        """
         q = (query or "").strip().lower()
-        results = []
+        q_hex = re.sub(r'[^a-f0-9]', '', q)
+
+        try:
+            page = max(1, int(page))
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            page_size = max(1, min(500, int(page_size)))
+        except (ValueError, TypeError):
+            page_size = 50
+
+        matches = []
         with self.lock:
             for mac, info in self.aps.items():
                 name = info.get("name", "")
                 loc = info.get("location", "")
                 mod = info.get("model", "")
-                if (not q or q in mac.lower() or q in name.lower() or 
-                    q in loc.lower() or q in mod.lower()):
-                    results.append({
+
+                if not q:
+                    is_match = True
+                else:
+                    mac_lower = mac.lower()
+                    name_lower = name.lower()
+                    loc_lower = loc.lower()
+                    mod_lower = mod.lower()
+
+                    is_match = (
+                        q in mac_lower
+                        or q in name_lower
+                        or q in loc_lower
+                        or q in mod_lower
+                    )
+                    # Si no coincidió directo pero el término tiene caracteres hex, buscar en MAC limpia
+                    if not is_match and len(q_hex) >= 2:
+                        mac_clean = mac_lower.replace(':', '').replace('-', '')
+                        is_match = q_hex in mac_clean
+
+                if is_match:
+                    matches.append({
                         "mac": mac,
+                        "bssid": mac,
                         "name": name,
                         "location": loc,
                         "model": mod
                     })
-                    if len(results) >= limit:
-                        break
-        return results
+
+            # Ordenar: si hay búsqueda, primero los que coincidan exactamente o empiecen con la consulta, luego alfabético
+            if q:
+                def sort_key(item):
+                    m = item["mac"].lower()
+                    n = item["name"].lower()
+                    exact = (m == q or n == q)
+                    prefix = (m.startswith(q) or n.startswith(q))
+                    return (0 if exact else (1 if prefix else 2), n, m)
+                matches.sort(key=sort_key)
+            else:
+                matches.sort(key=lambda item: (item["name"].lower(), item["mac"]))
+
+        total = len(matches)
+        total_pages = max(1, (total + page_size - 1) // page_size) if total > 0 else 1
+        page = min(page, total_pages)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        page_items = matches[start_idx:end_idx]
+
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "aps": page_items
+        }
+
+    def search(self, query="", limit=100):
+        """Busca APs por nombre, MAC, ubicación o modelo (compatibilidad hacia atrás)."""
+        res = self.search_paginated(query=query, page=1, page_size=limit or 100)
+        return res["aps"]
 
     def import_csv(self, csv_text):
         """
