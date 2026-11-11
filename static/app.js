@@ -1924,6 +1924,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeSpectrumBand = '2.4';
   let spectrumOnlySameSsid = false;
   let cachedSpectrumAps = [];
+  const spectrumApRetentionCache = new Map();
+  const SPECTRUM_RETENTION_TTL_MS = 45000;
   let hoveredSpectrumAp = null;
   let spectrumAutoSwitched = false;
 
@@ -2008,7 +2010,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateSpectrumData(aps) {
     if (!aps || !Array.isArray(aps)) return;
-    cachedSpectrumAps = aps.map(normalizeApForSpectrum);
+    const now = Date.now();
+
+    // Ingest new/updated APs into sliding retention cache
+    aps.forEach(rawAp => {
+      const norm = normalizeApForSpectrum(rawAp);
+      const key = (norm.bssid || norm.ssid || `${norm.chanNum}-${norm.band}`).toUpperCase();
+      norm._lastSeen = now;
+      spectrumApRetentionCache.set(key, norm);
+    });
+
+    // Sliding window eviction: retain APs seen within 45 seconds or currently active
+    for (const [key, item] of spectrumApRetentionCache.entries()) {
+      if (!item.active && (now - (item._lastSeen || 0) > SPECTRUM_RETENTION_TTL_MS)) {
+        spectrumApRetentionCache.delete(key);
+      }
+    }
+
+    cachedSpectrumAps = Array.from(spectrumApRetentionCache.values());
 
     // Update band badge counters
     const count24 = cachedSpectrumAps.filter(a => a.band === '2.4').length;
@@ -2080,12 +2099,14 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = 1; i <= 14; i++) ticks.push(i);
     } else if (activeSpectrumBand === '5') {
       bandName = 'Banda 5 GHz';
-      chanToX = (ch) => padLeft + ((ch - 32) / (168 - 32)) * chartW;
+      // Extended from ch 30 to 184 so UNII-4 channels (169, 173, 177) have full visibility and margins
+      chanToX = (ch) => padLeft + ((ch - 30) / (184 - 30)) * chartW;
       channelWidth = 2.4;
-      ticks = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165];
+      ticks = [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165, 169, 173, 177];
     } else {
       bandName = 'Banda 6 GHz / 7 GHz (Wi-Fi 6E/7)';
-      chanToX = (ch) => padLeft + ((ch - 1) / (233 - 1)) * chartW;
+      // Extended scale up to 241 so high channels don't clip at right border
+      chanToX = (ch) => padLeft + ((ch - 1) / (241 - 1)) * chartW;
       channelWidth = 4.0;
       ticks = [1, 17, 33, 49, 65, 81, 97, 113, 129, 145, 161, 177, 193, 209, 225, 233];
     }
@@ -2125,7 +2146,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const x = chanToX(ch);
       if (x < padLeft || x > padLeft + chartW) return;
 
-      const isKeyChan = (activeSpectrumBand === '2.4' && (ch === 1 || ch === 6 || ch === 11));
+      const isKeyChan = (activeSpectrumBand === '2.4' && (ch === 1 || ch === 6 || ch === 11)) ||
+                        (activeSpectrumBand === '5' && (ch === 36 || ch === 149 || ch === 169));
 
       // Tick line
       ctx.beginPath();
@@ -2251,12 +2273,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const textW = ctx.measureText(labelText).width + 8;
       const textH = 13;
 
+      // Horizontal clamping: keep labels strictly within chart bounds with 4px margin
+      let boxLeft = peakX - textW / 2;
+      const minLeft = padLeft + 4;
+      const maxLeft = padLeft + chartW - textW - 4;
+      boxLeft = Math.max(minLeft, Math.min(maxLeft, boxLeft));
+      const boxRight = boxLeft + textW;
+      const drawCenterX = boxLeft + textW / 2;
+
       let candidateY = Math.max(padTop + 10, peakY - 7);
       let attempts = 0;
       while (attempts < 4) {
         const box = {
-          left: peakX - textW / 2,
-          right: peakX + textW / 2,
+          left: boxLeft,
+          right: boxRight,
           top: candidateY - textH,
           bottom: candidateY
         };
@@ -2274,15 +2304,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (attempts >= 4 && !isConnected && !isHovered) return;
       candidateY = Math.max(padTop + 10, candidateY);
 
-      // Leader line if label was staggered upward
-      if (peakY - candidateY > 12) {
+      // Leader line if label was staggered upward or shifted horizontally
+      if (peakY - candidateY > 12 || Math.abs(drawCenterX - peakX) > 4) {
         ctx.save();
         ctx.beginPath();
         ctx.setLineDash([2, 2]);
         ctx.strokeStyle = hexToRgba(color, 0.55);
         ctx.lineWidth = 1;
         ctx.moveTo(peakX, peakY - 2);
-        ctx.lineTo(peakX, candidateY + 1);
+        ctx.lineTo(drawCenterX, candidateY + 1);
         ctx.stroke();
         ctx.restore();
       }
@@ -2291,12 +2321,12 @@ document.addEventListener('DOMContentLoaded', () => {
       ctx.fillStyle = (isConnected || isHovered) ? 'rgba(15, 23, 42, 0.88)' : 'rgba(255, 255, 255, 0.86)';
       const bgW = textW;
       const bgH = textH;
-      ctx.fillRect(peakX - bgW / 2, candidateY - bgH + 1, bgW, bgH);
+      ctx.fillRect(boxLeft, candidateY - bgH + 1, bgW, bgH);
 
       ctx.fillStyle = (isConnected || isHovered) ? '#ffffff' : color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(labelText, peakX, candidateY);
+      ctx.fillText(labelText, drawCenterX, candidateY);
     });
 
     // 4. Update Footer Summary & Recommendations

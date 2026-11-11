@@ -102,6 +102,52 @@ def run_windows_cmd(cmd_args, timeout=3):
     except Exception:
         return ""
 
+def trigger_windows_wifi_scan():
+    """Dispara un escaneo activo de Wi-Fi mediante WlanScan (wlanapi.dll en Windows).
+    Evita el throttling del controlador y mantiene visible la totalidad de APs redundantes."""
+    if not IS_WINDOWS:
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class GUID(ctypes.Structure):
+            _fields_ = [
+                ('Data1', wintypes.DWORD),
+                ('Data2', wintypes.WORD),
+                ('Data3', wintypes.WORD),
+                ('Data4', wintypes.BYTE * 8)
+            ]
+
+        class WLAN_INTERFACE_INFO(ctypes.Structure):
+            _fields_ = [
+                ('InterfaceGuid', GUID),
+                ('strInterfaceDescription', wintypes.WCHAR * 256),
+                ('isState', wintypes.DWORD)
+            ]
+
+        class WLAN_INTERFACE_INFO_LIST(ctypes.Structure):
+            _fields_ = [
+                ('dwNumberOfItems', wintypes.DWORD),
+                ('dwIndex', wintypes.DWORD),
+                ('InterfaceInfo', WLAN_INTERFACE_INFO * 1)
+            ]
+
+        wlanapi = ctypes.windll.wlanapi
+        handle = wintypes.HANDLE()
+        neg = wintypes.DWORD()
+        if wlanapi.WlanOpenHandle(2, None, ctypes.byref(neg), ctypes.byref(handle)) == 0:
+            ppList = ctypes.POINTER(WLAN_INTERFACE_INFO_LIST)()
+            if wlanapi.WlanEnumInterfaces(handle, None, ctypes.byref(ppList)) == 0:
+                info_list = ppList.contents
+                if info_list.dwNumberOfItems > 0:
+                    guid = info_list.InterfaceInfo[0].InterfaceGuid
+                    wlanapi.WlanScan(handle, ctypes.byref(guid), None, None, None)
+                wlanapi.WlanFreeMemory(ppList)
+            wlanapi.WlanCloseHandle(handle, None)
+    except Exception:
+        pass
+
 _cached_link_speed = {"speed": "N/A", "time": 0}
 
 def get_windows_link_speed():
@@ -264,9 +310,11 @@ def parse_windows_interface(output, target_iface=None):
     return res
 
 def parse_windows_networks(output, current_ssid=None):
-    """Parsea 'netsh wlan show networks mode=bssid' para listar APs candidatos"""
+    """Parsea 'netsh wlan show networks mode=bssid' para listar APs candidatos,
+    incluyendo BSSIDs primarios y APs colocados (Multi-BSSID / RNR en Wi-Fi 6/6E/7)."""
     aps = []
     current_ap = None
+    current_ssid_block = ""
 
     for line in output.split('\n'):
         line = line.strip()
@@ -283,10 +331,12 @@ def parse_windows_networks(output, current_ssid=None):
             bssid_val = m_bssid.group(1).upper()
             current_ap = {
                 "bssid": bssid_val,
-                "ssid": current_ssid_block if 'current_ssid_block' in locals() else "Oculto",
+                "ssid": current_ssid_block or "Oculto",
                 "signal": 0,
+                "signal_dbm": -100,
                 "channel": 0,
                 "band": "Desconocida",
+                "freq": "0",
                 "vendor": lookup_vendor(bssid_val),
                 "ap_name": lookup_ap_name(bssid_val),
                 "active": False,
@@ -302,11 +352,61 @@ def parse_windows_networks(output, current_ssid=None):
                 current_ap["signal"] = int(m_sig.group(1))
                 current_ap["signal_dbm"] = int((current_ap["signal"] / 2) - 100)
 
+            m_band = re.match(r'(?i)^Banda\s*:\s*(.*)$', line) or re.match(r'(?i)^Band\s*:\s*(.*)$', line)
+            if m_band:
+                b_str = m_band.group(1).lower()
+                if '6' in b_str:
+                    current_ap["band"] = "6 GHz (Wi-Fi 6E/7)"
+                elif '5' in b_str:
+                    current_ap["band"] = "5.0 GHz"
+                elif '2' in b_str:
+                    current_ap["band"] = "2.4 GHz"
+
             m_chan = re.match(r'(?i)^Canal\s*:\s*(\d+)', line) or re.match(r'(?i)^Channel\s*:\s*(\d+)', line)
             if m_chan:
                 ch = int(m_chan.group(1))
                 current_ap["channel"] = ch
-                current_ap["band"] = "2.4 GHz" if ch <= 14 else ("5.0 GHz" if ch <= 177 else "6 GHz")
+                if current_ap["band"] == "Desconocida":
+                    current_ap["band"] = "2.4 GHz" if ch <= 14 else ("5.0 GHz" if ch <= 177 else "6 GHz (Wi-Fi 6E/7)")
+
+                # Calcular frecuencia estimada en MHz
+                if current_ap["band"] == "5.0 GHz":
+                    current_ap["freq"] = str(5000 + ch * 5)
+                elif current_ap["band"] == "2.4 GHz":
+                    current_ap["freq"] = str(2484 if ch == 14 else 2407 + ch * 5)
+                elif "6" in current_ap["band"]:
+                    current_ap["freq"] = str(5950 + ch * 5)
+
+            # Detectar puntos de acceso colocados (Reduced Neighbor Report en 802.11ax/be)
+            m_coloc = re.search(r'(?i)BSSID:\s*([0-9a-fA-F:\s]{17,25}),\s*Banda:\s*([^,]+),\s*Canal:\s*(\d+)', line)
+            if m_coloc:
+                c_mac = re.sub(r'\s+', '', m_coloc.group(1)).upper()
+                c_band_str = m_coloc.group(2).lower()
+                c_chan = int(m_coloc.group(3))
+                c_band = "6 GHz (Wi-Fi 6E/7)" if '6' in c_band_str else ("5.0 GHz" if '5' in c_band_str else "2.4 GHz")
+                if len(c_mac) == 17:
+                    if c_band == "5.0 GHz":
+                        c_freq = str(5000 + c_chan * 5)
+                    elif c_band == "2.4 GHz":
+                        c_freq = str(2484 if c_chan == 14 else 2407 + c_chan * 5)
+                    else:
+                        c_freq = str(5950 + c_chan * 5)
+
+                    c_sig = max(10, current_ap.get("signal", 50) - 3)
+                    coloc_entry = {
+                        "bssid": c_mac,
+                        "ssid": current_ssid_block or current_ap.get("ssid", "Oculto"),
+                        "signal": c_sig,
+                        "signal_dbm": int((c_sig / 2) - 100),
+                        "channel": c_chan,
+                        "band": c_band,
+                        "freq": c_freq,
+                        "vendor": lookup_vendor(c_mac),
+                        "ap_name": lookup_ap_name(c_mac),
+                        "active": False,
+                        "is_same_ssid": bool(current_ssid and (current_ssid_block or "").strip().lower() == current_ssid.strip().lower())
+                    }
+                    aps.append(coloc_entry)
 
     if current_ap:
         aps.append(current_ap)
@@ -451,6 +551,8 @@ class WiFiState:
         self.vendor_name = "Desconocido"
         self.ap_name = None
         self.candidate_aps = []
+        self.ap_cache = {}
+        self.last_scan_trigger = 0.0
         self.roaming_events = load_saved_roaming_events()
         self.telemetry_history = []
         self.last_update_time = time.time()
@@ -542,6 +644,11 @@ def update_wifi_telemetry():
             pass
 
         try:
+            now_ts = time.time()
+            if now_ts - getattr(state, 'last_scan_trigger', 0.0) > 10.0:
+                state.last_scan_trigger = now_ts
+                threading.Thread(target=trigger_windows_wifi_scan, daemon=True).start()
+
             net_out = run_windows_cmd(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'], timeout=3)
             candidate_aps = parse_windows_networks(net_out, current_ssid=connected_ssid)
             if connected_bssid:
@@ -633,7 +740,33 @@ def update_wifi_telemetry():
         except Exception:
             pass
 
-    candidate_aps.sort(key=lambda ap: (1 if ap.get('active') else 0, ap.get('signal', 0)), reverse=True)
+    # Mantenimiento de caché deslizante de APs candidatos (ventana de retención de 45s)
+    # Evita que redes redundantes desaparezcan en Windows por fluctuaciones momentáneas del escaneo
+    now_ts = time.time()
+    merged_aps = []
+    with state.lock:
+        # 1. Actualizar caché con los APs detectados en esta pasada
+        for ap in candidate_aps:
+            bssid_key = ap.get("bssid")
+            if not bssid_key:
+                continue
+            ap["last_seen"] = now_ts
+            state.ap_cache[bssid_key] = ap
+
+        # 2. Retener los APs activos o vistos en los últimos 45 segundos
+        for bssid_key, ap in list(state.ap_cache.items()):
+            is_active = (bssid_key == connected_bssid)
+            if is_active or (now_ts - ap.get("last_seen", 0.0) <= 45.0):
+                ap_entry = dict(ap)
+                ap_entry["active"] = is_active
+                if connected_ssid:
+                    ap_entry["is_same_ssid"] = bool(ap_entry.get("ssid", "").strip().lower() == connected_ssid.strip().lower())
+                merged_aps.append(ap_entry)
+            else:
+                del state.ap_cache[bssid_key]
+
+        merged_aps.sort(key=lambda ap: (1 if ap.get('active') else 0, ap.get('signal', 0)), reverse=True)
+        candidate_aps = merged_aps
 
     rating_text, rating_score, badge_color = calculate_rating(signal_dbm, ping_ms)
     vendor_name = lookup_vendor(connected_bssid)
@@ -883,6 +1016,10 @@ class WiFiRequestHandler(http.server.SimpleHTTPRequestHandler):
                     events = list(state.roaming_events)
             self.send_json_response({"events": events})
         elif parsed.path == '/api/scan':
+            now_ts = time.time()
+            if IS_WINDOWS and (now_ts - getattr(state, 'last_scan_trigger', 0.0) > 4.0):
+                state.last_scan_trigger = now_ts
+                threading.Thread(target=trigger_windows_wifi_scan, daemon=True).start()
             with state.lock:
                 aps = list(state.candidate_aps)
             self.send_json_response({"aps": aps})
