@@ -277,18 +277,43 @@ def parse_windows_interface(output, target_iface=None):
         res["signal_pct"] = int(sig_m.group(1))
         res["signal_dbm"] = int((res["signal_pct"] / 2.0) - 100)
 
-    chan_m = re.search(r'(?i)(?:Canal|Channel)\s*:\s*(\d+)', target_block)
-    if chan_m:
-        res["channel"] = int(chan_m.group(1))
-        if res["channel"] <= 14:
-            res["band"] = "2.4 GHz"
-            res["freq_mhz"] = 2407 + (res["channel"] * 5)
-        elif res["channel"] <= 177:
-            res["band"] = "5.0 GHz"
-            res["freq_mhz"] = 5000 + (res["channel"] * 5)
-        else:
-            res["band"] = "6 GHz (Wi-Fi 6E/7)"
-            res["freq_mhz"] = 5950 + (res["channel"] * 5)
+    # Filtrar la sección anidada de 'Puntos de acceso colocados' para evitar falsos positivos
+    # en la lectura de la Banda y Canal de la interfaz activa
+    cleaned_block = re.sub(
+        r'(?i)^\s*(?:Puntos de acceso colocados|Colocated access points)[\s\S]*?(?=^\s*(?:Banda|Band|Tipo de red|Network type|Tipo de radio|Radio type)|\Z)',
+        '',
+        target_block,
+        flags=re.MULTILINE
+    )
+
+    band_m = re.search(r'(?i)^\s*(?:Banda|Band)\s*:\s*(.+)$', cleaned_block, re.MULTILINE)
+    chan_m = re.search(r'(?i)^\s*(?:Canal|Channel)\s*:\s*(\d+)', cleaned_block, re.MULTILINE)
+
+    band_str = band_m.group(1).strip().lower() if band_m else ''
+    ch = int(chan_m.group(1)) if chan_m else 0
+    res["channel"] = ch
+
+    if '6' in band_str:
+        res["band"] = "6 GHz (Wi-Fi 6E/7)"
+        res["freq_mhz"] = 5950 + (ch * 5)
+    elif '5' in band_str:
+        res["band"] = "5.0 GHz"
+        res["freq_mhz"] = 5000 + (ch * 5)
+    elif '2' in band_str:
+        res["band"] = "2.4 GHz"
+        res["freq_mhz"] = 2484 if ch == 14 else 2407 + (ch * 5)
+    elif ch <= 14 and ch > 0:
+        res["band"] = "2.4 GHz"
+        res["freq_mhz"] = 2484 if ch == 14 else 2407 + (ch * 5)
+    elif ch <= 177 and ch > 0:
+        res["band"] = "5.0 GHz"
+        res["freq_mhz"] = 5000 + (ch * 5)
+    elif ch > 177:
+        res["band"] = "6 GHz (Wi-Fi 6E/7)"
+        res["freq_mhz"] = 5950 + (ch * 5)
+    else:
+        res["band"] = "Desconocida"
+        res["freq_mhz"] = 0
 
     rx_m = re.search(r'(?i)(?:Velocidad de recepción|Receive rate)\s*\([^\)]*\)\s*:\s*([0-9.]+)', target_block)
     tx_m = re.search(r'(?i)(?:Velocidad de transmisión|Transmit rate)\s*\([^\)]*\)\s*:\s*([0-9.]+)', target_block)
@@ -311,8 +336,10 @@ def parse_windows_interface(output, target_iface=None):
 
 def parse_windows_networks(output, current_ssid=None):
     """Parsea 'netsh wlan show networks mode=bssid' para listar APs candidatos,
-    incluyendo BSSIDs primarios y APs colocados (Multi-BSSID / RNR en Wi-Fi 6/6E/7)."""
-    aps = []
+    incluyendo BSSIDs primarios y APs colocados (Multi-BSSID / RNR en Wi-Fi 6/6E/7).
+    Garantiza que un BSSID primario anunciado tenga precedencia sobre referencias colocadas."""
+    primary_aps = {}
+    coloc_aps = {}
     current_ap = None
     current_ssid_block = ""
 
@@ -326,9 +353,12 @@ def parse_windows_networks(output, current_ssid=None):
 
         m_bssid = re.match(r'(?i)^BSSID\s+\d+\s*:\s*([0-9a-fA-F:]{17})', line)
         if m_bssid:
-            if current_ap:
-                aps.append(current_ap)
+            if current_ap and current_ap.get("bssid"):
+                b_key = current_ap["bssid"]
+                if b_key not in primary_aps or (current_ap["is_same_ssid"] and not primary_aps[b_key]["is_same_ssid"]):
+                    primary_aps[b_key] = current_ap
             bssid_val = m_bssid.group(1).upper()
+            is_same = bool(current_ssid and (current_ssid_block or "").strip().lower() == current_ssid.strip().lower())
             current_ap = {
                 "bssid": bssid_val,
                 "ssid": current_ssid_block or "Oculto",
@@ -340,10 +370,8 @@ def parse_windows_networks(output, current_ssid=None):
                 "vendor": lookup_vendor(bssid_val),
                 "ap_name": lookup_ap_name(bssid_val),
                 "active": False,
-                "is_same_ssid": False
+                "is_same_ssid": is_same
             }
-            if current_ssid and current_ap["ssid"].lower() == current_ssid.lower():
-                current_ap["is_same_ssid"] = True
             continue
 
         if current_ap:
@@ -393,6 +421,7 @@ def parse_windows_networks(output, current_ssid=None):
                         c_freq = str(5950 + c_chan * 5)
 
                     c_sig = max(10, current_ap.get("signal", 50) - 3)
+                    is_coloc_same = bool(current_ssid and (current_ssid_block or "").strip().lower() == current_ssid.strip().lower())
                     coloc_entry = {
                         "bssid": c_mac,
                         "ssid": current_ssid_block or current_ap.get("ssid", "Oculto"),
@@ -404,14 +433,20 @@ def parse_windows_networks(output, current_ssid=None):
                         "vendor": lookup_vendor(c_mac),
                         "ap_name": lookup_ap_name(c_mac),
                         "active": False,
-                        "is_same_ssid": bool(current_ssid and (current_ssid_block or "").strip().lower() == current_ssid.strip().lower())
+                        "is_same_ssid": is_coloc_same
                     }
-                    aps.append(coloc_entry)
+                    if c_mac not in coloc_aps or (is_coloc_same and not coloc_aps[c_mac]["is_same_ssid"]):
+                        coloc_aps[c_mac] = coloc_entry
 
-    if current_ap:
-        aps.append(current_ap)
+    if current_ap and current_ap.get("bssid"):
+        b_key = current_ap["bssid"]
+        if b_key not in primary_aps or (current_ap["is_same_ssid"] and not primary_aps[b_key]["is_same_ssid"]):
+            primary_aps[b_key] = current_ap
 
-    return aps
+    # Prioridad: Las lecturas de BSSID directas primarias sobrescriben las referencias colocadas
+    combined_aps = dict(coloc_aps)
+    combined_aps.update(primary_aps)
+    return list(combined_aps.values())
 
 def calculate_rating(signal_dbm, ping_ms):
     """Calcula calificación y color del enlace Wi-Fi"""
@@ -745,13 +780,22 @@ def update_wifi_telemetry():
     now_ts = time.time()
     merged_aps = []
     with state.lock:
-        # 1. Actualizar caché con los APs detectados en esta pasada
+        # 1. Actualizar caché con los APs detectados en esta pasada.
+        # Si el AP ya existía en caché pero la nueva pasada trae su BSSID primario o con mismo SSID, actualizarlo.
         for ap in candidate_aps:
             bssid_key = ap.get("bssid")
             if not bssid_key:
                 continue
             ap["last_seen"] = now_ts
-            state.ap_cache[bssid_key] = ap
+            if bssid_key not in state.ap_cache:
+                state.ap_cache[bssid_key] = ap
+            else:
+                existing = state.ap_cache[bssid_key]
+                # Si el nuevo dato coincide con el SSID conectado y el anterior no, sobrescribir
+                if ap.get("is_same_ssid") or not existing.get("is_same_ssid") or (bssid_key == connected_bssid):
+                    state.ap_cache[bssid_key] = ap
+                else:
+                    existing["last_seen"] = now_ts
 
         # 2. Retener los APs activos o vistos en los últimos 45 segundos
         for bssid_key, ap in list(state.ap_cache.items()):
@@ -759,7 +803,11 @@ def update_wifi_telemetry():
             if is_active or (now_ts - ap.get("last_seen", 0.0) <= 45.0):
                 ap_entry = dict(ap)
                 ap_entry["active"] = is_active
-                if connected_ssid:
+                if is_active and connected_ssid:
+                    # Garantizar que el AP activo siempre refleje el SSID conectado real
+                    ap_entry["ssid"] = connected_ssid
+                    ap_entry["is_same_ssid"] = True
+                elif connected_ssid:
                     ap_entry["is_same_ssid"] = bool(ap_entry.get("ssid", "").strip().lower() == connected_ssid.strip().lower())
                 merged_aps.append(ap_entry)
             else:
