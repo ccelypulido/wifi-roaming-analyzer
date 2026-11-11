@@ -29,7 +29,7 @@ if not os.path.exists(AP_NAMES_FILE):
 class APManager:
     def __init__(self, filepath=AP_NAMES_FILE):
         self.filepath = filepath
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.aps = {} # { "XX:XX:XX:XX:XX:XX": { "name": "...", "location": "...", "model": "..." } }
         self.metadata = {
             "last_updated": None,
@@ -116,7 +116,20 @@ class APManager:
     def lookup_name(self, bssid):
         """
         Retorna el nombre asignado en la controladora para este BSSID o None si no existe.
-        Soporta coincidencia exacta y coincidencia por prefijo de 5 octetos (para vBSSID / MBSSID).
+        Soporta coincidencia exacta y resolución de MBSSID / vBSSID dentro del bloque de radio correcto.
+        """
+        details = self.lookup_details(bssid)
+        return details.get("name") if details else None
+
+    def lookup_details(self, bssid):
+        """
+        Retorna el diccionario completo con detalles del AP (name, location, model, match, mac).
+        Soporta:
+          1. Coincidencia exacta de BSSID.
+          2. Coincidencia de bloque de radio MBSSID / vBSSID (Aruba, Cisco, UniFi, Huawei, Ruckus):
+             - Misma radio base (mismos 11 caracteres hex, ej: E8:10:98:6B:FB:5X con 0 <= diff < 16).
+             - Proximidad matemática hacia la base de radio (0 <= diff < 16 o 0 <= diff < 32).
+             - Inversión de bit de administración local (UniFi).
         """
         if not bssid or bssid in ("No conectado", "--:--:--:--:--:--", "--"):
             return None
@@ -128,38 +141,83 @@ class APManager:
         with self.lock:
             # 1. Coincidencia exacta
             if norm in self.aps:
-                return self.aps[norm].get("name") or None
-
-            # 2. Coincidencia por AP Base (mismo prefijo de 5 octetos XX:XX:XX:XX:XX:)
-            prefix5 = norm[:15]
-            for ap_mac, ap_info in self.aps.items():
-                if ap_mac.startswith(prefix5):
-                    return ap_info.get("name") or None
-
-        return None
-
-    def lookup_details(self, bssid):
-        """Retorna el diccionario completo con detalles del AP (name, location, model)."""
-        if not bssid:
-            return None
-        norm = self.normalize_mac(bssid)
-        if not norm:
-            return None
-
-        with self.lock:
-            if norm in self.aps:
                 res = dict(self.aps[norm])
                 res["mac"] = norm
                 res["match"] = "exact"
                 return res
 
-            prefix5 = norm[:15]
+            norm_int = int(norm.replace(':', ''), 16)
+            prefix4 = norm[:12]  # Primeros 4 octetos XX:XX:XX:XX:
+
+            best_cand = None
+            best_score = float('inf')
+            best_base_mac = None
+
+            # 2. Búsqueda de MBSSID / vBSSID dentro del mismo bloque de radio
             for ap_mac, ap_info in self.aps.items():
-                if ap_mac.startswith(prefix5):
-                    res = dict(ap_info)
-                    res["mac"] = ap_mac
-                    res["match"] = "vBSSID"
+                if not ap_mac.startswith(prefix4):
+                    continue
+                ap_int = int(ap_mac.replace(':', ''), 16)
+                diff = norm_int - ap_int
+
+                # Prioridad 1: Mismo bloque de radio (mismos 11 dígitos hex, ej: E8:10:98:6B:FB:5X) y 0 <= diff < 16
+                if norm[:16] == ap_mac[:16] and 0 <= diff < 16:
+                    score = 100 + diff
+                    if score < best_score:
+                        best_score = score
+                        best_cand = ap_info
+                        best_base_mac = ap_mac
+                # Prioridad 2: 0 <= diff < 16 (Cisco u otros fabricantes donde el radio base no termina en 0)
+                elif 0 <= diff < 16:
+                    score = 200 + diff
+                    if score < best_score:
+                        best_score = score
+                        best_cand = ap_info
+                        best_base_mac = ap_mac
+                # Prioridad 3: 0 <= diff < 32 (Bloque extendido de hasta 32 SSIDs)
+                elif 0 <= diff < 32:
+                    score = 300 + diff
+                    if score < best_score:
+                        best_score = score
+                        best_cand = ap_info
+                        best_base_mac = ap_mac
+                # Prioridad 4: Proximidad bidireccional muy cercana abs(diff) <= 15
+                elif abs(diff) <= 15:
+                    score = 400 + abs(diff)
+                    if score < best_score:
+                        best_score = score
+                        best_cand = ap_info
+                        best_base_mac = ap_mac
+
+            # 3. Soporte para vBSSID con bit localmente administrado (UniFi / Ubiquiti)
+            if not best_cand:
+                b0 = int(norm[:2], 16) ^ 0x02
+                norm_flipped = f"{b0:02X}:{norm[3:]}"
+                if norm_flipped in self.aps:
+                    res = dict(self.aps[norm_flipped])
+                    res["mac"] = norm_flipped
+                    res["match"] = "vBSSID_unifi"
                     return res
+
+                norm_flipped_int = int(norm_flipped.replace(':', ''), 16)
+                prefix4_flipped = norm_flipped[:12]
+                for ap_mac, ap_info in self.aps.items():
+                    if not ap_mac.startswith(prefix4_flipped):
+                        continue
+                    ap_int = int(ap_mac.replace(':', ''), 16)
+                    diff = norm_flipped_int - ap_int
+                    if 0 <= diff < 16:
+                        score = 500 + diff
+                        if score < best_score:
+                            best_score = score
+                            best_cand = ap_info
+                            best_base_mac = ap_mac
+
+            if best_cand:
+                res = dict(best_cand)
+                res["mac"] = best_base_mac
+                res["match"] = "vBSSID"
+                return res
 
         return None
 
@@ -223,6 +281,15 @@ class APManager:
         except (ValueError, TypeError):
             page_size = 50
 
+        # Si el término parece una dirección MAC completa (12 hex chars), resolver también por vBSSID
+        resolved_base_mac = None
+        if len(q_hex) == 12:
+            norm_q = self.normalize_mac(q)
+            if norm_q:
+                det = self.lookup_details(norm_q)
+                if det and det.get("mac"):
+                    resolved_base_mac = det["mac"].lower()
+
         matches = []
         with self.lock:
             for mac, info in self.aps.items():
@@ -243,6 +310,7 @@ class APManager:
                         or q in name_lower
                         or q in loc_lower
                         or q in mod_lower
+                        or (resolved_base_mac and mac_lower == resolved_base_mac)
                     )
                     # Si no coincidió directo pero el término tiene caracteres hex, buscar en MAC limpia
                     if not is_match and len(q_hex) >= 2:

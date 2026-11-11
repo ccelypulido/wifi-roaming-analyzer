@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "last_updated": "2026-11-08 22:13:12",
-    "total_entries": 40456,
-    "source": "Registro Oficial IEEE (40,456 fabricantes)"
+    "last_updated": "2026-11-10 11:51:31",
+    "total_entries": 40459,
+    "source": "Registro Oficial IEEE (40,459 fabricantes)"
   },
   "custom": {},
   "vendors": {
@@ -16179,6 +16179,7 @@
     "0C:A2:F4": "Verve Energy Technology",
     "94:B2:EC": "NVIDIA Corporation",
     "1C:07:DD": "FRITZ! Technology GmbH",
+    "A4:05:3E": "BSH Electrodomésticos España, S.A.",
     "6C:87:20": "New H3C Technologies Co., Ltd",
     "0C:8D:7A": "RADiflow",
     "FC:A9:F5": "Xiaomi Communications Co Ltd",
@@ -24249,6 +24250,8 @@
     "88:54:E0": "Xiaomi Communications Co Ltd",
     "88:B8:F7": "NVIDIA Corporation",
     "B0:7E:F4": "Hangzhou HikAuto Technology Co., Ltd.",
+    "20:99:EC": "1AN Inc.",
+    "28:1F:81": "SOXAI Inc.",
     "B0:0C:9D": "Quectel Wireless Solutions Co.,Ltd.",
     "F0:AB:1F": "zte corporation",
     "7C:B3:0A": "zte corporation",
