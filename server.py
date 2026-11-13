@@ -588,6 +588,7 @@ class WiFiState:
         self.candidate_aps = []
         self.ap_cache = {}
         self.last_scan_trigger = 0.0
+        self.missed_interface_polls = 0
         self.roaming_events = load_saved_roaming_events()
         self.telemetry_history = []
         self.last_update_time = time.time()
@@ -664,7 +665,7 @@ def update_wifi_telemetry():
 
     if IS_WINDOWS:
         try:
-            out = run_windows_cmd(['netsh', 'wlan', 'show', 'interfaces'], timeout=3)
+            out = run_windows_cmd(['netsh', 'wlan', 'show', 'interfaces'], timeout=5)
             info = parse_windows_interface(out, target_iface=iface)
             connected_bssid = info["bssid"]
             connected_ssid = info["ssid"]
@@ -684,7 +685,7 @@ def update_wifi_telemetry():
                 state.last_scan_trigger = now_ts
                 threading.Thread(target=trigger_windows_wifi_scan, daemon=True).start()
 
-            net_out = run_windows_cmd(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'], timeout=3)
+            net_out = run_windows_cmd(['netsh', 'wlan', 'show', 'networks', 'mode=bssid'], timeout=5)
             candidate_aps = parse_windows_networks(net_out, current_ssid=connected_ssid)
             if connected_bssid:
                 for ap in candidate_aps:
@@ -830,6 +831,26 @@ def update_wifi_telemetry():
         })
         if len(state.telemetry_history) > 60:
             state.telemetry_history.pop(0)
+
+        # Amortiguador de pérdida transitoria en Windows:
+        # Si netsh falla momentáneamente por un escaneo activo del driver, retener el estado previo hasta por 3 lecturas (~4.5s)
+        if IS_WINDOWS and not connected_bssid and state.current_bssid and state.current_bssid != "No conectado":
+            state.missed_interface_polls += 1
+            if state.missed_interface_polls <= 3:
+                # Mantener temporalmente el estado conectado previo para evitar parpadeos
+                connected_bssid = state.current_bssid
+                connected_ssid = state.current_ssid
+                signal_dbm = state.signal_dbm
+                signal_pct = state.signal_pct
+                tx_bitrate = state.tx_bitrate
+                rx_bitrate = state.rx_bitrate
+                freq_mhz = state.frequency_mhz
+                channel = state.channel
+                band = state.band
+                current_ap_name = state.ap_name
+                vendor_name = state.vendor_name
+        elif connected_bssid:
+            state.missed_interface_polls = 0
 
         # Detect Roaming Handoff event
         if state.current_bssid and connected_bssid and state.current_bssid != connected_bssid:
