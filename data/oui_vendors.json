@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "last_updated": "2026-11-10 11:51:31",
-    "total_entries": 40459,
-    "source": "Registro Oficial IEEE (40,459 fabricantes)"
+    "last_updated": "2026-11-11 12:17:54",
+    "total_entries": 40469,
+    "source": "Registro Oficial IEEE (40,469 fabricantes)"
   },
   "custom": {},
   "vendors": {
@@ -8166,6 +8166,7 @@
     "50:EE:F8": "Xiaomi Communications Co Ltd",
     "9C:E0:87": "Espressif Systems (Singapore) Pte. Ltd",
     "10:25:13": "LG Electronics",
+    "4C:A6:37": "Hisense Home Appliances Group Co.,Ltd.Qingdao Branch",
     "00:74:9C": "Ruijie Networks Co.,LTD",
     "00:0F:EA": "GIGA-BYTE TECHNOLOGY CO.,LTD.",
     "38:AD:2B": "Hitron Technologies. Inc",
@@ -16174,12 +16175,14 @@
     "30:05:C8": "Huawei Device Co., Ltd.",
     "80:70:39": "Huawei Device Co., Ltd.",
     "18:2F:58": "Veritech LLC",
+    "1C:07:DD": "FRITZ! Technology GmbH",
+    "A4:05:3E": "BSH Electrodomésticos España, S.A.",
     "60:8D:28": "Motorola Mobility LLC, a Lenovo Company",
+    "84:41:3C": "New H3C Technologies Co., Ltd",
     "D8:23:32": "Espressif Systems (Singapore) Pte. Ltd",
     "0C:A2:F4": "Verve Energy Technology",
     "94:B2:EC": "NVIDIA Corporation",
-    "1C:07:DD": "FRITZ! Technology GmbH",
-    "A4:05:3E": "BSH Electrodomésticos España, S.A.",
+    "84:6E:2F": "OHSUNG",
     "6C:87:20": "New H3C Technologies Co., Ltd",
     "0C:8D:7A": "RADiflow",
     "FC:A9:F5": "Xiaomi Communications Co Ltd",
@@ -24246,12 +24249,12 @@
     "34:23:8E": "eero inc.",
     "9C:AD:E0": "Intel Corporate",
     "94:FC:9A": "Google, Inc.",
+    "28:1F:81": "SOXAI Inc.",
+    "B0:7E:F4": "Hangzhou HikAuto Technology Co., Ltd.",
     "68:D7:70": "IoTronix Technologies Sdn. Bhd.",
     "88:54:E0": "Xiaomi Communications Co Ltd",
-    "88:B8:F7": "NVIDIA Corporation",
-    "B0:7E:F4": "Hangzhou HikAuto Technology Co., Ltd.",
     "20:99:EC": "1AN Inc.",
-    "28:1F:81": "SOXAI Inc.",
+    "88:B8:F7": "NVIDIA Corporation",
     "B0:0C:9D": "Quectel Wireless Solutions Co.,Ltd.",
     "F0:AB:1F": "zte corporation",
     "7C:B3:0A": "zte corporation",
@@ -32405,6 +32408,9 @@
     "88:8A:F5": "Intel Corporate",
     "60:41:5A": "Google, Inc.",
     "04:7B:43": "IEEE Registration Authority",
+    "98:84:C1": "New H3C Technologies Co., Ltd",
+    "90:C0:46": "Hon Hai Precision Industry Co., Ltd.",
+    "BC:47:D6": "Sagemcom Broadband SAS",
     "C8:5C:E2": "IEEE Registration Authority",
     "DC:EE:14": "ADT Technology",
     "10:FF:E0": "GIGA-BYTE TECHNOLOGY CO.,LTD.",
@@ -40464,6 +40470,10 @@
     "8C:A0:2C": "Arcadyan Corporation",
     "0C:33:1B": "TydenBrooks",
     "F0:27:6E": "AltoBeam Inc.",
+    "18:21:62": "New H3C Technologies Co., Ltd",
+    "4C:E2:0C": "New H3C Technologies Co., Ltd",
+    "E4:20:0B": "Polystack Technologies Private Limited",
+    "B0:0D:A8": "Sagemcom Broadband SAS",
     "0A:02:05": "Cisco Systems / Meraki"
   }
 }
